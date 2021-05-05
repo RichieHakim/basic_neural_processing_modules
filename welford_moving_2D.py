@@ -1,4 +1,11 @@
 import numpy as np
+from tqdm import trange
+
+#################################################################################
+######################### START OF HELPER FUNCTIONS #############################
+#################################################################################
+
+
 def update_varSum(idx_new, series, win_size, prevVal=None):
     """
     Returns the power sum average based on the blog post from
@@ -102,3 +109,36 @@ def update_mean(idx_new, series, win_size, mean_old):
         return running_mean(idx_new, series, mean_old)
 
     return mean_old + ((series[idx_new,:] - series[idx_new - win_size,:]) / float(win_size))
+
+
+#################################################################################
+######################### END OF HELPER FUNCTIONS ###############################
+###################### START OF PROCESSING FUNCTIONS ############################
+#################################################################################
+
+
+def make_rollingZScore(X , win_roll):
+
+    X_mean_rolling = np.ones_like(X) * np.nan
+    X_var_rolling = np.ones_like(X) * np.nan
+    win_size_rollingBaseline = win_roll
+    list_of_values = X
+    varSum_old = None
+    mean_old = None
+    for idx in trange(len(list_of_values)):
+
+        mean_new = update_mean(idx, list_of_values, win_size_rollingBaseline, mean_old)
+        varSum_new = update_varSum(idx, list_of_values, win_size_rollingBaseline, varSum_old)
+        var_new = varSum_to_var(idx, list_of_values, win_size_rollingBaseline, mean_new, varSum_new)
+
+        X_mean_rolling[idx,:] = mean_new
+        X_var_rolling[idx,:] = var_new
+
+        mean_old = mean_new
+        varSum_old = varSum_new
+
+    eps = 1e-7
+    X_mean_rolling[X_mean_rolling<eps] = eps
+    X_zscore_roll = (list_of_values - X_mean_rolling)/np.sqrt(X_var_rolling)
+
+    return X_zscore_roll
