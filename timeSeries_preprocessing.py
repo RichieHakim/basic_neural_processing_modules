@@ -6,15 +6,16 @@ from matplotlib import pyplot as plt
 from . import parallel_helpers
 
 
-def make_dFoF(F , Fneu , neuropil_fraction=0.7 , percentile_baseline=30 , multicore_pref=False , verbose=True):
+def make_dFoF(F , Fneu=None , neuropil_fraction=0.7 , percentile_baseline=30 , multicore_pref=False , verbose=True):
     """
     calculates the dF/F and other signals. Designed for Suite2p data.
+    If Fneu is left empty or =None, then no neuropil subtraction done.
     See S2p documentation for more details
     RH 2021
     
     Args:
         F (Path): raw fluorescence values of each ROI. dims(time, ...)
-        Fneu (np.ndarray): neuropil signals corresponding to each ROI. dims match F.
+        Fneu (np.ndarray): Neuropil signals corresponding to each ROI. dims match F.
         neuropil_fraction (float): value, 0-1, of neuropil signal (Fneu) to be subtracted off of ROI signals (F)
         percentile_baseline (float/int): value, 0-100, of percentile to be subtracted off from signals
         verbose (boolean): True/False or 1/0. Whether you'd like printed updates
@@ -26,7 +27,11 @@ def make_dFoF(F , Fneu , neuropil_fraction=0.7 , percentile_baseline=30 , multic
     """
     tic = time.time()
 
-    F_neuSub = F - neuropil_fraction*Fneu
+    if Fneu is None:
+        F_neuSub = F
+    else:
+        F_neuSub = F - neuropil_fraction*Fneu
+
     if multicore_pref:
         def ptileFun(iter):
             return np.percentile(F_neuSub[:,iter] , percentile_baseline)
