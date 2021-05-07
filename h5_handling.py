@@ -28,9 +28,9 @@ def show_group_items(hObj):
     '''
     for ii,val in enumerate(list(iter(hObj))):
         if isinstance(hObj[val] , h5py.Group):
-            print(f'{ii+1}. {val}:   <group>')
+            print(f'{ii+1}. {val}:----------------')
         if isinstance(hObj[val] , dict):
-            print(f'{ii+1}. {val}:   <dict>')
+            print(f'{ii+1}. {val}:----------------')
         else:
             if hasattr(hObj[val] , 'shape') and hasattr(hObj[val] , 'dtype'):
                 print(f'{ii+1}. {val}:   shape={hObj[val].shape} , dtype={hObj[val].dtype}')
@@ -67,13 +67,48 @@ def show_item_tree(hObj , show_metadata=True , print_metadata=False, indent_leve
     
     for ii,val in enumerate(list(iter(hObj))):
         if isinstance(hObj[val] , h5py.Group):
-            print(f'{indent}{ii+1}. {val}:   <group>')
+            print(f'{indent}{ii+1}. {val}:----------------')
             show_item_tree(hObj[val], show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
-        if isinstance(hObj[val] , dict):
-            print(f'{indent}{ii+1}. {val}:   <dict>')
+        elif isinstance(hObj[val] , dict):
+            print(f'{indent}{ii+1}. {val}:----------------')
             show_item_tree(hObj[val], show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
         else:
             if hasattr(hObj[val] , 'shape') and hasattr(hObj[val] , 'dtype'):
                 print(f'{indent}{ii+1}. {val}:   shape={hObj[val].shape} , dtype={hObj[val].dtype}')
             else:
                 print(f'{indent}{ii+1}. {val}:   type={type(hObj[val])}')
+
+
+
+def make_h5_tree(dict_obj , h5_obj , group_string=''):
+    '''
+    This function is meant to be called by write_dict_to_h5. It probably shouldn't be called alone.
+    This function creates an h5 group and dataset tree structure based on the hierarchy and values within a python dict.
+    There is a recursion in this function.
+    '''
+    for ii,(key,val) in enumerate(dict_obj.items()):
+        if group_string=='':
+            group_string='/'
+        if isinstance(val , dict):
+            # print(f'making group:  {key}')
+            h5_obj[group_string].create_group(key)
+            make_h5_tree(val , h5_obj[group_string] , f'{group_string}/{key}')
+        else:
+            # print(f'saving:  {group_string}: {key}')
+            h5_obj[group_string].create_dataset(key , data=val)
+def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pref=True):
+    '''
+    Writes an h5 file that matches the hierarchy and data within a pythin dict.
+    This function calls the function 'make_h5_tree'
+    
+    args:
+        path_save (string or Path): full path name of file to write
+        input_dict (dict): dict containing only variables that can be written as a 'dataset' in an h5 file (generally np.ndarrays and strings)
+        write_mode ('w' or 'w-'): the priveleges of the h5 file object. 'w' will overwrite. 'w-' will not overwrite
+        show_item_tree_pref (bool): whether you'd like to print the item tree or not
+    '''
+    with h5py.File(path_save , write_mode) as hf:
+        make_h5_tree(input_dict , hf , '')
+        if show_item_tree_pref:
+            print(f'==== Successfully wrote h5 ile. Displaying h5 hierarchy ====')
+            show_item_tree(hf)
