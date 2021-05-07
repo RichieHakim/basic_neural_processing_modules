@@ -1,5 +1,7 @@
 import sklearn.decomposition
 import scipy.stats
+import numpy as np
+import matplotlib.pyplot as plt
 
 def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
     
