@@ -10,25 +10,30 @@ def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
     decomp = sklearn.decomposition.PCA(n_components=n_components)
     loadings = decomp.fit_transform(X)
 
-    scores = X.T @ loadings
+    scores = X.T @ loadings # this shouldn't have to be done
     
     if plot_pref:
-        fig , axs = plt.subplots(3 , figsize=(7,12))
+        fig , axs = plt.subplots(4 , figsize=(7,15))
         axs[0].plot(np.arange(n_components)+1,
                     decomp.explained_variance_ratio_)
         axs[0].set_xscale('log')
         axs[0].set_xlabel('component #')
         axs[0].set_ylabel('explained variance ratio')
 
-        axs[1].plot(loadings[:,:n_PCs_toPlot])
-        axs[1].set_xlabel('sample num')
-        axs[1].set_ylabel('a.u.')
+        axs[1].plot(np.arange(n_components)+1, 
+                    np.cumsum(decomp.explained_variance_ratio_))
+        axs[1].set_xscale('log')
+        axs[1].set_ylabel('cumulative explained variance ratio')
 
-        axs[2].plot(scores[:,:n_PCs_toPlot])
-        axs[2].set_xlabel('feature num')
-        axs[2].set_ylabel('score')
+        axs[2].plot(loadings[:,:n_PCs_toPlot])
+        axs[2].set_xlabel('sample num')
+        axs[2].set_ylabel('a.u.')
+
+        axs[3].plot(scores[:,:n_PCs_toPlot])
+        axs[3].set_xlabel('feature num')
+        axs[3].set_ylabel('score')
     
-    return loadings , scores
+    return loadings , scores , decomp.explained_variance_ratio_
 
 
 
