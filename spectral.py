@@ -170,20 +170,15 @@ def simple_cwt(X, freqs_toUse=None, fs=30, wavelet_type='cmor', bwf=None, cf=Non
     if psd_scaling:
         coeff = np.abs(coeff**2 / (1/freqs_toUse)[:,None])
 
-    if plot_pref and psd_scaling:
+    if plot_pref:
         n_ticks = min(len(freq) , 10)
         tick_spacing = len(freq)//n_ticks
         ticks_toUse = np.arange(0,len(freq), tick_spacing)    
         fig, ax = plt.subplots()
-        ax.imshow(coeff, aspect='auto', origin='lower')
-        ax.set_yticks(ticks_toUse)
-        ax.set_yticklabels(np.round(freq[ticks_toUse],2))
-    elif plot_pref and not psd_scaling:
-        n_ticks = min(len(freq) , 10)
-        tick_spacing = len(freq)//n_ticks
-        ticks_toUse = np.arange(0,len(freq), tick_spacing)    
-        fig, ax = plt.subplots()
-        ax.imshow(np.abs(coeff), aspect='auto', origin='lower')
+        if psd_scaling:
+            ax.imshow(coeff, aspect='auto', origin='lower')
+        else:
+            ax.imshow(np.abs(coeff), aspect='auto', origin='lower')
         ax.set_yticks(ticks_toUse)
         ax.set_yticklabels(np.round(freq[ticks_toUse],2))
 
