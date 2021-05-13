@@ -2,6 +2,7 @@ import numpy as np
 import scipy.stats
 import time
 from matplotlib import pyplot as plt
+import copy
 
 from . import parallel_helpers
 
@@ -159,37 +160,37 @@ def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
     return kernel
 
 
-def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
-    import sklearn.decomposition
-    
-    if n_components is None:
-        n_components = X.shape[1]
-    decomp = sklearn.decomposition.PCA(n_components=n_components)
-    loadings = decomp.fit_transform(X)
+def threshold(array , thresh_max=None , thresh_min=None , val_max=None , val_min=None , inPlace_pref=False):
+    """
+    Thresholds values in an array and sets them to defined values
+    RH 2021
 
-    scores = X.T @ loadings
-    
-    if plot_pref:
-        fig , axs = plt.subplots(3 , figsize=(7,12))
-        axs[0].plot(np.arange(n_components)+1,
-                    decomp.explained_variance_ratio_)
-        axs[0].set_xscale('log')
-        axs[0].set_xlabel('component #')
-        axs[0].set_ylabel('explained variance ratio')
+    Args:
+        array (np.ndarray):  the mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D gaussian
+        thresh_max (number, scalar): values in array above this are set to val_max
+        thresh_min (number, scalar): values in array below this are set to val_min
+        val_max (number, scalar): values in array above thresh_max are set to this
+        val_min (number, scalar): values in array above thresh_min are set to this
+        inPlace_pref (bool): whether to do the calculation 'in place', and change the local input variable directly
 
-        axs[1].plot(loadings[:,:n_PCs_toPlot])
-        axs[1].set_xlabel('sample num')
-        axs[1].set_ylabel('a.u.')
+    Return:
+        output_array (np.ndarray): same as input array but with values thresheld
+    """
+    if val_max is None:
+        val_max = thresh_max
+    if val_min is None:
+        val_min = thresh_min
 
-        axs[2].plot(scores[:,:n_PCs_toPlot])
-        axs[2].set_xlabel('feature num')
-        axs[2].set_ylabel('score')
-    
-    return loadings , scores
+    if inPlace_pref:
+        output_array = array
+    else:
+        output_array = copy.deepcopy(array)
 
-
-
-def make_xcorrMat(vector_set1 , vector_set2=None):
-    if vector_set2 is None:
-        vector_set2 = vector_set1
-    return (scipy.stats.zscore(vector_set1, axis=0).T @ scipy.stats.zscore(vector_set2, axis=0)) / ((vector_set1.shape[0] + vector_set2.shape[0])/2)
+    if thresh_max is None:
+        output_array[output_array < thresh_min] = val_min
+    elif thresh_min is None:
+        output_array[output_array > thresh_max] = val_max
+    else:
+        output_array[output_array < thresh_min] = val_min
+        output_array[output_array > thresh_max] = val_max
+    return output_array
