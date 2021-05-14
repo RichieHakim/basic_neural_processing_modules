@@ -2,7 +2,7 @@ import numpy as np
 from numpy.linalg import norm
 from scipy.stats import zscore
     
-def pairwise_similarity(vector_set1 , vector_set2=None , method):
+def pairwise_similarity(vector_set1 , vector_set2=None , method='pearson'):
     '''
     computes similarity matrices between two sets of vectors (columns within 2-D arrays) using either pearson correlation, R^2, or cosine_similarity
     Think of this function as a more general version of np.corrcoef
@@ -90,3 +90,39 @@ def self_similarity_pairwise(mat_set , method):
         corr_avg[i_combo] , corr_matched[:,i_combo] , ind1[:,i_combo] , ind2[:,i_combo]  =  best_permutation(mat_set[:,:,combo[0]]  ,  mat_set[:,:,combo[1]] , method)
     # print(corr_avg)
     return corr_avg, corr_matched, ind1, ind2, combos
+
+
+def proj(v1, v2):
+    '''
+    projects one or more vectors (columns of v1) onto a single vector (v2)
+    RH 2021
+
+        Args:
+            v1 (ndarray): vector set 1. Either a single vector or a 2-D array where the columns are the vectors
+            v2 (ndarray): vector 2. A single vector
+        
+        Returns:
+            proj_vec (ndarray): vector set 1 projected onto vector 2. Same size as v1.
+            proj_score (ndarray or scalar): projection scores. 1-D of length v1.shape[1]
+    '''
+    u = v2 / norm(v2)
+    proj_score = np.array([v1.T @ u])
+    proj_vec = np.squeeze( u[:,None] * proj_score )
+
+    return proj_vec , np.squeeze(proj_score)
+
+
+def orthogonalize(v1, v2):
+        '''
+    orthogonalizes one or more vectors (columns of v1) relative to a single vector (v2)
+    RH 2021
+
+        Args:
+            v1 (ndarray): vector set 1. Either a single vector or a 2-D array where the columns are the vectors
+            v2 (ndarray): vector 2. A single vector
+        
+        Returns:
+            output (ndarray): vector set 1 with the projection onto vector 2 subtracted off. Same size as v1.
+    '''
+    proj_vec,_ = proj(v1, v2)
+    return v1 - proj_vec
