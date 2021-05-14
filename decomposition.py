@@ -34,10 +34,3 @@ def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
         axs[3].set_ylabel('score')
     
     return loadings , scores , decomp.explained_variance_ratio_
-
-
-
-def make_xcorrMat(vector_set1 , vector_set2=None):
-    if vector_set2 is None:
-        vector_set2 = vector_set1
-    return (scipy.stats.zscore(vector_set1, axis=0).T @ scipy.stats.zscore(vector_set2, axis=0)) / ((vector_set1.shape[0] + vector_set2.shape[0])/2)

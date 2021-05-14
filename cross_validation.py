@@ -1,7 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def make_cv_indices(cv, groups, cmap_cv=plt.cm.binary, cmap_data=plt.cm.binary, lw=20, plot_pref=True):
+def make_cv_indices(
+    cv, 
+    groups, 
+    cmap_cv=plt.cm.binary, 
+    cmap_data=plt.cm.binary, 
+    lw=20, 
+    plot_pref=True):
 
     """Create a sample plot for indices of a cross-validation object."""
 

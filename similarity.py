@@ -5,6 +5,7 @@ from scipy.stats import zscore
 def pairwise_similarity(vector_set1 , vector_set2=None , method):
     '''
     computes similarity matrices between two sets of vectors (columns within 2-D arrays) using either pearson correlation, R^2, or cosine_similarity
+    Think of this function as a more general version of np.corrcoef
     RH 2021
 
     Args:
@@ -59,7 +60,7 @@ def best_permutation(mat1 , mat2 , method):
 
 def self_similarity_pairwise(mat_set , method):
     '''
-    This function compares sets of 2-D matrices within a 3-D array using the best_permutation function.
+    This function compares sets of 2-D matrices within a 3-D array using the 'best_permutation' function.
     We assume that the vectors within the matrices are similar up to a permutation.
     We therefore find the 'best' permutation that maximizes the similarity between the sets of vectors within each matrix
     RH 2021

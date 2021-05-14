@@ -7,7 +7,13 @@ import copy
 from . import parallel_helpers
 
 
-def make_dFoF(F , Fneu=None , neuropil_fraction=0.7 , percentile_baseline=30 , multicore_pref=False , verbose=True):
+def make_dFoF(
+    F, 
+    Fneu=None, 
+    neuropil_fraction=0.7, 
+    percentile_baseline=30, 
+    multicore_pref=False, 
+    verbose=True):
     """
     calculates the dF/F and other signals. Designed for Suite2p data.
     If Fneu is left empty or =None, then no neuropil subtraction done.
@@ -160,7 +166,13 @@ def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
     return kernel
 
 
-def threshold(array , thresh_max=None , thresh_min=None , val_max=None , val_min=None , inPlace_pref=False):
+def threshold(
+    array, 
+    thresh_max=None, 
+    thresh_min=None, 
+    val_max=None, 
+    val_min=None, 
+    inPlace_pref=False):
     """
     Thresholds values in an array and sets them to defined values
     RH 2021

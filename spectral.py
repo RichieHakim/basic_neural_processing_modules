@@ -131,7 +131,16 @@ def mtaper_specgram(
 
 
 
-def simple_cwt(X, freqs_toUse=None, fs=30, wavelet_type='cmor', bwf=None, cf=None, psd_scaling=True, plot_pref=True, axis=-1):
+def simple_cwt(
+    X,
+    freqs_toUse=None, 
+    fs=30, 
+    wavelet_type='cmor', 
+    bwf=None, 
+    cf=None, 
+    psd_scaling=True, 
+    plot_pref=True, 
+    axis=-1):
     '''
     performs a simple continuous wavelet transform (cwt) using pywt.cwt
     RH 2021
