@@ -50,7 +50,9 @@ def orthogonalize(v1, v2):
         EVR (ndarray): 
             Explained Variance Ratio for each column of v1. 
             Amount of variance that all the vectors in v2 can explain for each vector in v1.
-            Equivalent to pearsons R^2; as in np.corrcoef(OLS(v1) , )
+            Equivalent to pearsons R^2; as in np.diag(np.corrcoef(OLS(v2, v1)[1] , v1)**2)
+        EVR_total (scalar):
+            total amount of variance explained in v1 by v2
     '''
     if v1.ndim < 2:
         v1 = v1[:,None]
