@@ -7,57 +7,6 @@ import copy
 from . import parallel_helpers
 
 
-def make_dFoF(
-    F, 
-    Fneu=None, 
-    neuropil_fraction=0.7, 
-    percentile_baseline=30, 
-    multicore_pref=False, 
-    verbose=True):
-    """
-    calculates the dF/F and other signals. Designed for Suite2p data.
-    If Fneu is left empty or =None, then no neuropil subtraction done.
-    See S2p documentation for more details
-    RH 2021
-    
-    Args:
-        F (Path): raw fluorescence values of each ROI. dims(time, ...)
-        Fneu (np.ndarray): Neuropil signals corresponding to each ROI. dims match F.
-        neuropil_fraction (float): value, 0-1, of neuropil signal (Fneu) to be subtracted off of ROI signals (F)
-        percentile_baseline (float/int): value, 0-100, of percentile to be subtracted off from signals
-        verbose (boolean): True/False or 1/0. Whether you'd like printed updates
-    Returns:
-        dFoF (np.ndarray): array, dF/F
-        dF (np.ndarray): array
-        F_neuSub (np.ndarray): F with neuropil subtracted
-        F_baseline (np.ndarray): 1-D array of size F.shape[1]. Baseline value for each ROI
-    """
-    tic = time.time()
-
-    if Fneu is None:
-        F_neuSub = F
-    else:
-        F_neuSub = F - neuropil_fraction*Fneu
-
-    if multicore_pref:
-        def ptileFun(iter):
-            return np.percentile(F_neuSub[:,iter] , percentile_baseline)
-
-        output_list = parallel_helpers.multithreading(ptileFun, range(F_neuSub.shape[1]) , workers=None)
-
-        if verbose:
-            print(f'ThreadPool elapsed time : {round(time.time() - tic , 2)} s. Now unpacking list into array.')
-        F_baseline = np.array(output_list).T
-
-    else:
-        F_baseline = np.percentile(F_neuSub , percentile_baseline , axis=0)
-    dF = F_neuSub - F_baseline
-    dFoF = dF / F_baseline
-    if verbose:
-        print(f'Calculated dFoF. Total elapsed time: {round(time.time() - tic,2)} seconds')
-    
-    return dFoF , dF , F_neuSub , F_baseline
-
 def zscore_multicore(array , verbose=True):
     """
     calculates the zscore using parallel processing along the first dimension of a 2-D array.
@@ -206,3 +155,55 @@ def threshold(
         output_array[output_array < thresh_min] = val_min
         output_array[output_array > thresh_max] = val_max
     return output_array
+
+
+def make_dFoF(
+    F, 
+    Fneu=None, 
+    neuropil_fraction=0.7, 
+    percentile_baseline=30, 
+    multicore_pref=False, 
+    verbose=True):
+    """
+    calculates the dF/F and other signals. Designed for Suite2p data.
+    If Fneu is left empty or =None, then no neuropil subtraction done.
+    See S2p documentation for more details
+    RH 2021
+    
+    Args:
+        F (Path): raw fluorescence values of each ROI. dims(time, ...)
+        Fneu (np.ndarray): Neuropil signals corresponding to each ROI. dims match F.
+        neuropil_fraction (float): value, 0-1, of neuropil signal (Fneu) to be subtracted off of ROI signals (F)
+        percentile_baseline (float/int): value, 0-100, of percentile to be subtracted off from signals
+        verbose (boolean): True/False or 1/0. Whether you'd like printed updates
+    Returns:
+        dFoF (np.ndarray): array, dF/F
+        dF (np.ndarray): array
+        F_neuSub (np.ndarray): F with neuropil subtracted
+        F_baseline (np.ndarray): 1-D array of size F.shape[1]. Baseline value for each ROI
+    """
+    tic = time.time()
+
+    if Fneu is None:
+        F_neuSub = F
+    else:
+        F_neuSub = F - neuropil_fraction*Fneu
+
+    if multicore_pref:
+        def ptileFun(iter):
+            return np.percentile(F_neuSub[:,iter] , percentile_baseline)
+
+        output_list = parallel_helpers.multithreading(ptileFun, range(F_neuSub.shape[1]) , workers=None)
+
+        if verbose:
+            print(f'ThreadPool elapsed time : {round(time.time() - tic , 2)} s. Now unpacking list into array.')
+        F_baseline = np.array(output_list).T
+
+    else:
+        F_baseline = np.percentile(F_neuSub , percentile_baseline , axis=0)
+    dF = F_neuSub - F_baseline
+    dFoF = dF / F_baseline
+    if verbose:
+        print(f'Calculated dFoF. Total elapsed time: {round(time.time() - tic,2)} seconds')
+    
+    return dFoF , dF , F_neuSub , F_baseline

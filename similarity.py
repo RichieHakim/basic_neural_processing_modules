@@ -1,18 +1,111 @@
 import numpy as np
-from numpy.linalg import norm
+from numpy.linalg import norm, qr
 from scipy.stats import zscore
+import copy
+import sklearn.decomposition
+
+def proj(v1, v2):
+    '''
+    Projects one or more vectors (columns of v1) onto one or more vectors (v2)
+    RH 2021
+
+    Args:
+        v1 (ndarray): 
+            vector set 1. Either a single vector or a 2-D array where the columns are the vectors
+        v2 (ndarray): 
+            vector set 2. Either a single vector or a 2-D array where the columns are the vectors
     
+    Returns:
+        proj_vec (ndarray): 
+            vector set 1 projected onto vector set 2. shape: (v1.shape[0], v1.shape[1], v2.shape[1])
+        proj_score (ndarray or scalar): 
+            projection scores. shape: (v1.shape[1], v2.shape[1])
+    '''
+    if v1.ndim < 2:
+        v1 = v1[:,None]
+    if v2.ndim < 2:
+        v2 = v2[:,None]
+
+    u = v2 / norm(v2, axis=0)
+    proj_score = v1.T @ u
+    proj_vec = np.einsum('ik,jk->ijk', u, proj_score)
+
+    return proj_vec , proj_score
+
+
+def orthogonalize(v1, v2):
+    '''
+    Orthogonalizes one or more vectors (columns of v1) relative to a single vector (v2)
+    RH 2021
+
+    Args:
+        v1 (ndarray): 
+            vector set 1. Either a single vector or a 2-D array where the columns are the vectors
+        v2 (ndarray): 
+            vector set 2. Either a single vector or a 2-D array where the columns are the vectors
+    
+    Returns:
+        output (ndarray): 
+            vector set 1 with the projections onto vector set 2 subtracted off. Same size as v1.
+        EVR (ndarray): 
+            Explained Variance Ratio for each column of v1. 
+            Amount of variance that all the vectors in v2 can explain for each vector in v1.
+            Equivalent to pearsons R^2; as in np.corrcoef(OLS(v1) , )
+    '''
+    if v1.ndim < 2:
+        v1 = v1[:,None]
+    if v2.ndim < 2:
+        v2 = v2[:,None]
+    
+    decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
+    v2_PCs = decomp.fit_transform(v2)
+
+    v1_orth = copy.deepcopy(v1)
+    for ii in range(v2.shape[1]):
+        proj_vec = proj(v1_orth , v2_PCs[:,ii])[0]
+        v1_orth = np.squeeze(v1_orth) - np.squeeze(proj_vec)
+
+    EVR = 1 - (np.var(v1_orth, axis=0) / np.var(v1, axis=0))
+    EVR_total = 1 - ( np.sum(np.var(v1_orth,axis=0),axis=0) / np.sum(np.var(v1,axis=0),axis=0) )
+
+    return v1_orth, v2_PCs, EVR, EVR_total
+
+
+def OLS(X,y):
+    '''
+    Ordinary Least Squares regression
+    RH 2021
+
+    Args:
+        X (ndarray):
+            array where columns are vectors to regress against 'y'
+        y (ndarray):
+            1-D or 2-D array
+    Returns:
+        theta (ndarray):
+            regression coefficents
+        y_rec (ndarray):
+            y reconstructions
+    '''
+    theta = np.linalg.inv(X.T @ X) @ X.T @ y
+    y_rec = X @ theta
+    return theta, y_rec
+
+
 def pairwise_similarity(vector_set1 , vector_set2=None , method='pearson'):
     '''
-    computes similarity matrices between two sets of vectors (columns within 2-D arrays) using either pearson correlation, R^2, or cosine_similarity
+    Computes similarity matrices between two sets of vectors (columns within 2-D arrays) using either pearson correlation, R^2, or cosine_similarity
     Think of this function as a more general version of np.corrcoef
     RH 2021
 
     Args:
-        vector_set1 (ndarray): 2-D array of column vectors
-        vector_set2 (ndarray): 2-D array of column vectors to compare to vector_set1. If None, then the function is a type of autosimilarity matrix
+        vector_set1 (ndarray): 
+            2-D array of column vectors
+        vector_set2 (ndarray): 
+            2-D array of column vectors to compare to vector_set1. If None, then the function is a type of autosimilarity matrix
     Returns:
-        ouput (ndarray): similarity matrix
+        ouput (ndarray): s
+            imilarity matrix
     '''
 
     if vector_set2 is None:
@@ -34,15 +127,22 @@ def best_permutation(mat1 , mat2 , method):
     RH 2021
     
     Args:
-        mat1 (np.ndarray): a 2D array where the columns are vectors we wish to match with mat2
-        mat2 (np.ndarray): a 2D array where the columns are vectors we wish to match with mat1
-        method (string)  : defines method of calculating pairwise similarity between vectors
+        mat1 (np.ndarray): 
+            a 2D array where the columns are vectors we wish to match with mat2
+        mat2 (np.ndarray): 
+            a 2D array where the columns are vectors we wish to match with mat1
+        method (string)  : 
+            defines method of calculating pairwise similarity between vectors
         
     Returns:
-        sim_avg (double)    : the average similarity between matched vectors. Units depend on method
-        sim_matched (double): the similarity between each pair of matched vectors.
-        ind1 (int)          : indices of vectors in mat1 matched to ind2 in mat2 (usually just sequential for ind1)
-        ind2 (int)          : indices of vectors in mat2 matched to ind1 in mat1
+        sim_avg (double): 
+            the average similarity between matched vectors. Units depend on method
+        sim_matched (double): 
+            the similarity between each pair of matched vectors.
+        ind1 (int): 
+            indices of vectors in mat1 matched to ind2 in mat2 (usually just sequential for ind1)
+        ind2 (int): 
+            indices of vectors in mat2 matched to ind1 in mat1
     '''
     corr = mat1.T @ mat2
     ind1 , ind2 = scipy.optimize.linear_sum_assignment(corr, maximize=True)
@@ -66,8 +166,10 @@ def self_similarity_pairwise(mat_set , method):
     RH 2021
     
     Args:
-        mat_set (np.ndarray): a 3D array where the columns within the first two dims are vectors we wish to match with the columns from matrices from other slices in the third dimension
-        method (string)     : defines method of calculating pairwise similarity between vectors
+        mat_set (np.ndarray): 
+            a 3D array where the columns within the first two dims are vectors we wish to match with the columns from matrices from other slices in the third dimension
+        method (string): 
+            defines method of calculating pairwise similarity between vectors
 
     Returns:
         same as 'best_permutation', but over each combo
@@ -90,39 +192,3 @@ def self_similarity_pairwise(mat_set , method):
         corr_avg[i_combo] , corr_matched[:,i_combo] , ind1[:,i_combo] , ind2[:,i_combo]  =  best_permutation(mat_set[:,:,combo[0]]  ,  mat_set[:,:,combo[1]] , method)
     # print(corr_avg)
     return corr_avg, corr_matched, ind1, ind2, combos
-
-
-def proj(v1, v2):
-    '''
-    projects one or more vectors (columns of v1) onto a single vector (v2)
-    RH 2021
-
-        Args:
-            v1 (ndarray): vector set 1. Either a single vector or a 2-D array where the columns are the vectors
-            v2 (ndarray): vector 2. A single vector
-        
-        Returns:
-            proj_vec (ndarray): vector set 1 projected onto vector 2. Same size as v1.
-            proj_score (ndarray or scalar): projection scores. 1-D of length v1.shape[1]
-    '''
-    u = v2 / norm(v2)
-    proj_score = np.array([v1.T @ u])
-    proj_vec = np.squeeze( u[:,None] * proj_score )
-
-    return proj_vec , np.squeeze(proj_score)
-
-
-def orthogonalize(v1, v2):
-        '''
-    orthogonalizes one or more vectors (columns of v1) relative to a single vector (v2)
-    RH 2021
-
-        Args:
-            v1 (ndarray): vector set 1. Either a single vector or a 2-D array where the columns are the vectors
-            v2 (ndarray): vector 2. A single vector
-        
-        Returns:
-            output (ndarray): vector set 1 with the projection onto vector 2 subtracted off. Same size as v1.
-    '''
-    proj_vec,_ = proj(v1, v2)
-    return v1 - proj_vec

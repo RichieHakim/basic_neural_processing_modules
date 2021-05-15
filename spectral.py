@@ -67,7 +67,6 @@ def mtaper_specgram(
 ):
     """
     Multi-taper spectrogram
-    Adapted from Jeff Markowitz's code
     RH 2021
 
         Args:
