@@ -3,17 +3,19 @@ import numpy as np
 import sklearn
 import time
 
-from . import similarity
-
 def LinearRegression_sweep(X,
                             y,
-                            alphas,
-                            l1_ratios,
                             cv_idx,
-                            rolls,
+                            alphas=0,
+                            l1_ratios=0.5,
+                            rolls=0,
                             method_package='sklearn',
                             method_model='LinearRegression',
                             verbose=True,
+                            theta_inPlace=None, 
+                            intercept_inPlace=None, 
+                            EV_train_inPlace=None, 
+                            EV_test_inPlace=None,
                             **model_params,
                             ):
     '''
@@ -22,6 +24,14 @@ def LinearRegression_sweep(X,
     size of the parameter grid. The number of regression runs and
     shape of the outputs will be:
         n_y * n_alphas * n_l1_ratios * n_cv_idx * n_rolls.
+
+    This function is similar to using sklearn's CV-GridSearch
+    functions. Benefits to this function are that you can use
+    a variety of different models, including CuML's functions.
+    Also allows for in-place computation so you can stop it early
+    and tune the model easier.
+
+    RH 2021
 
     Args:
         X (ndarray): 
@@ -54,12 +64,30 @@ def LinearRegression_sweep(X,
             does not use l1_ratio or alpha). So, if there are multiple
             values for an unused parameter, then the regression will be
             unnecessarily computed multiple times.
+        verbose (bool):
+            Preference of whether to print reconstruction scores
+        theta_inPlace (ndarray): (optional)
+            Allows for stopping the function while it is running and 
+            recovering the data up to that point. 
+            Input a pre-allocated array with appropriate shape (see function below)
+        intercept_inPlace (ndarray): (optional)
+            Allows for stopping the function while it is running and 
+            recovering the data up to that point. 
+            Input a pre-allocated array with appropriate shape (see function below)
+        EV_train_inPlace (ndarray): (optional)
+            Allows for stopping the function while it is running and 
+            recovering the data up to that point. 
+            Input a pre-allocated array with appropriate shape (see function below)
+        EV_test_inPlace (ndarray): (optional)
+            Allows for stopping the function while it is running and 
+            recovering the data up to that point. 
+            Input a pre-allocated array with appropriate shape (see function below)
         **model_params (**kwargs):
             Pass into this function as **params.
             Different models require different parameters beyond alphas and 
-            l1_ratios. You may input those parameters here.
-        verbose (bool):
-            Preference of whether to print reconstruction scores
+            l1_ratios. You should input those parameters here.
+            Check documentation for sklearn/CuML's documentation for what to
+            put in here.
 
     Returns:
         theta (ndarray):
@@ -72,8 +100,47 @@ def LinearRegression_sweep(X,
         R_train (ndarray):
             Pearson correlation scores between train data and reconstructed
             train data.
+
+    ============ DEMO ===============
+    
+    model_params_cuml_ElasticNet = {
+            'fit_intercept': True,
+            'normalize': False,
+            'max_iter': 1000,
+            'tol': 0.0001,
+            'selection': 'cyclic',
+    }
+
+    # prepare output variables for in-place computations
+    n_y = y.shape[1]
+    n_alphas = len(alphas)
+    n_l1Ratios = len(l1_ratios)
+        
+    theta = np.ones((X.shape[1] , n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
+    intercept = np.ones((n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
+    EV_train  = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
+    EV_test   = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
+
+    # Run regression sweep
+    theta, intercept, EV_train, EV_test = LinearRegression_sweep(
+                                                                    X,
+                                                                    y,
+                                                                    cv_idx,
+                                                                    alphas=alphas,
+                                                                    l1_ratios=l1_ratios,
+                                                                    rolls=rolls,
+                                                                    method_package='cuml',
+                                                                    method_model='ElasticNet',
+                                                                    verbose=True,
+                                                                    theta_inPlace=theta, 
+                                                                    intercept_inPlace=intercept,
+                                                                    EV_train_inPlace=EV_train,
+                                                                    EV_test_inPlace=EV_test,
+                                                                    **model_params_cuml_ElasticNet
     '''
 
+    gc.collect()
+    
     if method_package in ['cuml']:
         import cudf
         import cuml
@@ -82,6 +149,10 @@ def LinearRegression_sweep(X,
         print('making cupy arrays')    
         X = cupy.asarray(X)
         y = cupy.asarray(y)
+
+        # I thought this might help with the memory leak issue,
+        # but it doesn't seem to help that much
+        model_params['handle'] = cuml.Handle()
     
 
     n_alphas = len(alphas)
@@ -96,10 +167,26 @@ def LinearRegression_sweep(X,
     n_y = y.shape[1]
 
 
-    theta = np.ones((X.shape[1] , n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
-    intercept = np.ones((n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
-    R_train = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
-    R_test = np.zeros((n_y,n_splits , n_rolls , n_alphas , n_l1Ratios))
+    if theta_inPlace is not None:
+        theta = theta_inPlace
+    else:
+        theta = np.ones((X.shape[1] , n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
+    
+    if intercept_inPlace is not None:
+        intercept = intercept_inPlace
+    else:
+        intercept = np.ones((n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
+    
+    if EV_train_inPlace is not None:
+        EV_train = EV_train_inPlace
+    else:
+        EV_train  = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
+    
+    if EV_test_inPlace is not None:
+        EV_test = EV_test_inPlace
+    else:
+        EV_test   = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
+
 
     for iter_factor in range(n_y):
         for iter_roll in range(n_rolls):
@@ -134,30 +221,20 @@ def LinearRegression_sweep(X,
                             theta[:, iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.coef_
                             intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.intercept_
 
-                        tic = time.time()
-                        y_reconstructed = clf.predict(X)
-                        y_train_reconstructed = clf.predict(X_train)
-                        y_test_reconstructed  = clf.predict(X_test)
-
-                        R_train = (np.corrcoef(y_train_reconstructed, y_train))[1,0]
-                        R_test = (np.corrcoef(y_test_reconstructed, y_test))[1,0]
-                            
-                        if method_package=='cuml':
-                            y_reconstructed = cupy.asnumpy(y_reconstructed)
-                            y_train_reconstructed = cupy.asnumpy(y_train_reconstructed)
-                            y_test_reconstructed  = cupy.asnumpy(y_test_reconstructed)
-                            R_train = cupy.asnumpy(R_train)
-                            R_test = cupy.asnumpy(R_test)
+                        EV_train_tmp = clf.score(X_train, y_train)
+                        EV_test_tmp = clf.score(X_test, y_test)
+                        
+                        EV_train[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_train_tmp
+                        EV_test[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_test_tmp                        
 
 
                         if verbose:
-                            print(np.round(R_train**2,5))
-                            print(np.round(clf.score(X_train,y_train),5))
-                            print(np.round(similarity.pairwise_similarity(cupy.asnumpy(y_train) , cupy.asnumpy(y_train_reconstructed), 'R^2'),5))
-                            # print(f'factor #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , train  R: {round(R_train,3)} , train R^2: {round(R_train**2,3)}')
-                            # print(f'factor #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , test   R: {round(R_test,3)} , test  R^2: {round(R_test**2,3)} \n')
-                        print(time.time()-tic)
+                            print(f'y #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , train R^2: {round(EV_train_tmp,3)}')
+                            print(f'y #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , test  R^2: {round(EV_test_tmp,3)} \n')
 
-            # gc.collect()
+            # This is pretty important when using CuML on GPU. 
+            # Move this line of code up or down within the for-loops to make it more or less frequent.
+            # Generally move it as far up the for-loop hierarchy as possible without running out of memory
+            gc.collect()
 
-    return theta, intercept, R_train, R_test
+    return theta, intercept, EV_train, EV_test
