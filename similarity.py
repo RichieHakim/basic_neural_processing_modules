@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import norm, qr
 from scipy.stats import zscore
+import scipy.optimize
 import copy
 import sklearn.decomposition
 
