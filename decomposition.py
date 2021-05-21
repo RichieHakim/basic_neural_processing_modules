@@ -8,9 +8,11 @@ def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
     if n_components is None:
         n_components = X.shape[1]
     decomp = sklearn.decomposition.PCA(n_components=n_components)
-    loadings = decomp.fit_transform(X)
+    decomp.fit_transform(X)
+    components = decomp.components_
+    scores = decomp.transform(X)
 
-    scores = X.T @ loadings # this shouldn't have to be done
+    # scores = X.T @ loadings # this shouldn't have to be done
     
     if plot_pref:
         fig , axs = plt.subplots(4 , figsize=(7,15))
@@ -25,12 +27,12 @@ def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
         axs[1].set_xscale('log')
         axs[1].set_ylabel('cumulative explained variance ratio')
 
-        axs[2].plot(loadings[:,:n_PCs_toPlot])
+        axs[2].plot(scores[:,:n_PCs_toPlot])
         axs[2].set_xlabel('sample num')
         axs[2].set_ylabel('a.u.')
 
-        axs[3].plot(scores[:,:n_PCs_toPlot])
+        axs[3].plot(components.T[:,:n_PCs_toPlot])
         axs[3].set_xlabel('feature num')
         axs[3].set_ylabel('score')
     
-    return loadings , scores , decomp.explained_variance_ratio_
+    return components , scores , decomp.explained_variance_ratio_

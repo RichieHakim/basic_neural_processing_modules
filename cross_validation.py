@@ -38,6 +38,6 @@ def make_cv_indices(
         yticklabels = list(range(n_splits)) + ['group']
         ax.set(yticks=np.arange(n_splits+1) + .5, yticklabels=yticklabels,
                xlabel='Sample index', ylabel="CV iteration",
-               ylim=[n_splits+1.2, -.2], xlim=[0, 108000])
+               ylim=[n_splits+1.2, -.2], xlim=[0, X.shape[0]])
         ax.set_title('{}'.format(type(cv).__name__), fontsize=15)
     return cv_idx

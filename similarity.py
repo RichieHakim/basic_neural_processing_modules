@@ -31,6 +31,7 @@ def proj(v1, v2):
 
     u = v2 / norm(v2, axis=0)
     proj_score = v1.T @ u
+    # this einsum can probably be optimized better
     proj_vec = np.einsum('ik,jk->ijk', u, proj_score)
 
     return proj_vec , proj_score
@@ -39,7 +40,7 @@ def proj(v1, v2):
 def orthogonalize(v1, v2):
     '''
     Orthogonalizes one or more vectors (columns of v1) relative to a single 
-    vector (v2)
+    vector (v2). Subtracts the projection of v1 onto v2 off of v1.
     RH 2021
 
     Args:
@@ -70,9 +71,17 @@ def orthogonalize(v1, v2):
     if v2.ndim < 2:
         v2 = v2[:,None]
     
+    # I'm pretty sure using PCA is fine for this, but it might be a good idea
+    # to look into QR decompositions, basic SVD, and whether mean subtracting
+    # actually matters to the outcome. Pretty sure this is fine though.
     decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
     v2_PCs = decomp.fit_transform(v2)
 
+    # Serial orthogonalization. I think doing it serially isn't necessary 
+    # since we are orthogonalizing the v2 vectors. This method might have
+    # some numerical instability issues given it's similarity to a 
+    # Gram-Schmidt process, but I doubt it because v2 is orthogonal.
+    # I'll leave optimization to a future me.
     v1_orth = copy.deepcopy(v1)
     for ii in range(v2.shape[1]):
         proj_vec = proj(v1_orth , v2_PCs[:,ii])[0]
@@ -154,14 +163,22 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         v2_ms = v2 - np.mean(v2, axis=0)
         output = (v1_ms.T @ v2_ms) / (v1.shape[0] - ddof)
     if method in ['pearson', 'R']: 
-        # Below method should be as fast as numpy.corrcoef . Output should be same within precision, but numpy.corrcoef makes a doublewide matrix and can be annoying
-        # Note: this Pearson's R-value can be different than sqrt(EV) calculated below if the residuals are not orthogonal to the prediction. Best to use EV for R^2 in most cases
+        # Below method should be as fast as numpy.corrcoef . 
+        # Output should be same within precision, but 
+        # numpy.corrcoef makes a doublewide matrix and can be annoying
+        
+        # Note: this Pearson's R-value can be different than sqrt(EV) 
+        # calculated below if the residuals are not orthogonal to the 
+        # prediction. Best to use EV for R^2 if unsure
         v1_ms = v1 - np.mean(v1, axis=0) # 'mean subtracted'
         v2_ms = v2 - np.mean(v2, axis=0)
         output = (v1_ms.T @ v2_ms) / np.sqrt(np.tile(np.sum(v1_ms**2, axis=0),(v2.shape[1],1)).T * np.tile(np.sum(v2_ms**2, axis=0), (v1.shape[1],1)))
     if method in ['EV', 'R^2']:
         # Calculating as 1 - SS_residual_variance / SS_original_variance
-        # Should be exactly equivalent to sklearn.metrics.r2_score(v1,v2, multioutput='raw_values') but slightly faster
+        # Should be exactly equivalent to 
+        # sklearn.metrics.r2_score(v1,v2, multioutput='raw_values') but slightly faster
+
+        # Should make it a matrix output like other methods in future.
         output = 1 - np.sum((v1 - v2)**2, axis=0) / np.sum((v1 - np.mean(v1, axis=0))**2, axis=0)
     if method=='cosine_similarity':    
         output = (v1 / (np.expand_dims(norm(v1 , axis=0) , axis=0))).T  @ (v2  / np.expand_dims(norm(v2 , axis=0) , axis=0))
