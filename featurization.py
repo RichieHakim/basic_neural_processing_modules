@@ -1,4 +1,6 @@
 import numpy as np
+import scipy.interpolate
+import matplotlib.pyplot as plt
 
 def make_cosine_bases_kernels(y, y_resolution=500, y_range=None, n_kernels=6, warping_curve=None, plot_pref=True):
     if y_range is None:
