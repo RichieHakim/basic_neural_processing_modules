@@ -234,8 +234,7 @@ def LinearRegression_sweep(X,
                             print(f'y #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , train R^2: {round(EV_train_tmp,3)}')
                             print(f'y #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , test  R^2: {round(EV_test_tmp,3)} \n')
         if verbose==1:
-            print(f'y #: {iter_factor}')
-            print(f'y #: {iter_factor}')
+            print(f'computed y #: {iter_factor}')
 
             # This is pretty important when using CuML on GPU. 
             # Move this line of code up or down within the for-loops to make it more or less frequent.
