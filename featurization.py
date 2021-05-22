@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
+import time
 
 def make_cosine_kernels(y=None,
                         y_resolution=500,
@@ -49,9 +50,10 @@ def make_cosine_kernels(y=None,
             set to 2: show intermediate provessing curves
 
     Returns:
-        bases_interp (ndarray):
+        kernels_output (ndarray):
             The output cosine kernels
-        xAxis_of_curves (1-D array):
+        LUT (1-D array):
+            Look Up Table.
             The look up table defined by 'y_range' or the
             min/max of 'y'. Use this axis to expand some signal
             'y' using the kernel bases functions
@@ -86,13 +88,13 @@ def make_cosine_kernels(y=None,
     f_interp = scipy.interpolate.interp1d(np.arange(bases_highRes_cropped.shape[0]),
                                           bases_highRes_cropped, axis=0)
 
-    bases_interp = f_interp(WC_norm[np.uint64(np.round(np.linspace(0, len(WC_norm)-1, y_resolution)))])
+    kernels_output = f_interp(WC_norm[np.uint64(np.round(np.linspace(0, len(WC_norm)-1, y_resolution)))])
 
-    xAxis_of_curves = np.linspace(y_range[0] , y_range[1], y_resolution)
+    LUT = np.linspace(y_range[0] , y_range[1], y_resolution)
 
     if plot_pref==1:
         fig, axs = plt.subplots(1)
-        axs.plot(xAxis_of_curves, bases_interp)
+        axs.plot(LUT, kernels_output)
         axs.set_xlabel('y_range look up axis')
         axs.set_title('kernels_warped')
     if plot_pref>=2:
@@ -105,11 +107,60 @@ def make_cosine_kernels(y=None,
         axs[2].set_title('warping_curve')
         axs[3].plot(WC_norm)
         axs[3].set_title('warping_curve_normalized')
-        axs[4].plot(xAxis_of_curves, bases_interp)
+        axs[4].plot(LUT, kernels_output)
         axs[4].set_title('kernels_warped')
         axs[4].set_xlabel('y_range look up axis')
-        axs[5].plot(np.sum(bases_interp, axis=1))
+        axs[5].plot(np.sum(kernels_output, axis=1))
         axs[5].set_ylim([0,1.1])
         axs[5].set_title('sum of kernels')
         
-    return bases_interp , xAxis_of_curves
+    return kernels_output , LUT
+
+
+def amplitude_basis_expansion(y, LUT, kernels):
+    '''
+    Performs amplitude basis expansion of one or more arrays using a set
+    of kernels.
+    Use a function like 'make_cosine_kernels' to make 'LUT' and 'kernels'
+    RH 2021
+
+    Args:
+        y (ndarray): 
+            1-D or 2-D array. First dimension is samples (eg time) and second 
+            dimension is feature number (eg neuron number). 
+            The values of the array should be scaled to be within the range of
+            'LUT'. You can use 'timeSeries.scale_between' for scaling.
+        LUT (1-D array):
+            Look Up Table. This is the conversion between y-value and 
+            index of kernel. Basically the value of y at each sample point 
+            is compared to LUT and the index of the closest match determines
+            the index kernels to use, therefore resulting in an amplitude 
+            output for each kernel. This array is output from a function
+            like 'make_cosine_kernels'
+        kernels (ndarray):
+            Basis functions/kernels to use for expanding 'y'.
+            shape: (len(LUT) , n_kernels)
+            Output of this function will be based on where the y-values
+            land within these kernels. This array is output from a function
+            like 'make_cosine_kernels'
+    
+    Returns:
+        y_expanded (ndarray):
+            Basis-expanded 'y'.
+            shape: (y.shape[0], y.shape[1], kernels.shape[1])
+    '''
+
+    tic = time.time()
+    LUT_array = np.tile(LUT, (len(y),1)).T
+    
+    print(f'computing basis expansion')
+    LUT_idx = np.argmin(
+        np.abs(LUT_array[:,:,None] - y),
+        axis=0)
+
+    y_expanded = kernels[LUT_idx,:]
+
+    print(f'finished in {round(time.time() - tic, 3)} s')
+    print(f'output array size: {y_expanded.shape}')
+
+    return y_expanded

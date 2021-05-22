@@ -31,6 +31,7 @@ def zscore_multicore(array , verbose=True):
         print(f'Calculated zscores. Total elapsed time: {round(time.time() - tic,2)} seconds')
     return output_array
 
+
 def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , verbose=False):
     '''
     Convolves an array with a kernel along a defined axis
@@ -63,6 +64,7 @@ def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , ve
 
     return output
     
+
 def gaussian(x, mu, sig , plot_pref=False):
     '''
     A gaussian function (normalized similarly to scipy's function)
@@ -157,9 +159,9 @@ def threshold(
     return output_array
 
 
-def scale_between(x, lower=0, upper=1):
+def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_percentile=None, crop_pref=True):
     '''
-    Scales the first dimension of an array to be between 
+    Scales the first (or more) dimension of an array to be between 
     lower and upper bounds.
     RH 2021
 
@@ -167,16 +169,46 @@ def scale_between(x, lower=0, upper=1):
         x (ndarray):
             Any dimensional array. First dimension is scaled
         lower (scalar):
-            lower bounds for scaling
+            lower bound for scaling
         upper (scalar):
-            upper bounds for scaling
+            upper bound for scaling
+        axes (tuple):
+            UNTESTED for values other than 0.
+            It should work for tuples defining axes, so long
+            as the axes are sequential starting from 0
+            (eg. (0,1,2,3) ).
+        lower_percentile (scalar):
+            Ranges between 0-100. Defines what percentile of
+            the data to set as the lower bound
+        upper_percentile (scalar):
+            Ranges between 0-100. Defines what percentile of
+            the data to set as the upper bound
+        crop_pref (bool):
+            If true then data is cropped to be between lower
+            and upper. Only meaningful if lower_percentile or
+            upper_percentile is not None.
 
     Returns:
-        output (ndarray):
+        x_out (ndarray):
             Scaled array
     '''
-    return ((x - np.min(x, axis=0)) * (upper - lower) / np.max(x,axis=0) ) + lower
 
+    if lower_percentile is not None:
+        lowest_val = np.percentile(x, lower_percentile, axis=axes)
+    else:
+        lowest_val = np.min(x, axis=axes)
+    if upper_percentile is not None:
+        highest_val = np.percentile(x, upper_percentile, axis=axes)
+    else:
+        highest_val = np.max(x, axis=axes)
+
+    x_out = ((x - lowest_val) * (upper - lower) / (highest_val - lowest_val) ) + lower
+
+    if crop_pref:
+        x_out[x_out < lower] = lower
+        x_out[x_out > upper] = upper
+
+    return x_out
 
 def make_dFoF(
     F, 
