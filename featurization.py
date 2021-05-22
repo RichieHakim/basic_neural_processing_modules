@@ -45,7 +45,8 @@ def make_cosine_kernels(y=None,
             shape of the cosine kernels. This allows for
             non-uniform widths of kernels. Make this array
             large (>=100000) values to keep interpolation smooth.
-        plot_pref (bool):
+        plot_pref (int 0-2):
+            set to 0: plot nothing
             set to 1: show output curves
             set to 2: show intermediate provessing curves
 

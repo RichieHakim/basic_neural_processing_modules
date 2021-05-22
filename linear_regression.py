@@ -30,7 +30,6 @@ def LinearRegression_sweep(X,
     a variety of different models, including CuML's functions.
     Also allows for in-place computation so you can stop it early
     and tune the model easier.
-
     RH 2021
 
     Args:
@@ -64,8 +63,11 @@ def LinearRegression_sweep(X,
             does not use l1_ratio or alpha). So, if there are multiple
             values for an unused parameter, then the regression will be
             unnecessarily computed multiple times.
-        verbose (bool):
-            Preference of whether to print reconstruction scores
+        verbose (int 0-2):
+            Preference of whether to print reconstruction scores.
+            0: Print nothing
+            1: Print for every y input
+            2: Print at every regression step
         theta_inPlace (ndarray): (optional)
             Allows for stopping the function while it is running and 
             recovering the data up to that point. 
@@ -228,9 +230,12 @@ def LinearRegression_sweep(X,
                         EV_test[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_test_tmp                        
 
 
-                        if verbose:
+                        if verbose==2:
                             print(f'y #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , train R^2: {round(EV_train_tmp,3)}')
                             print(f'y #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , test  R^2: {round(EV_test_tmp,3)} \n')
+        if verbose==1:
+            print(f'y #: {iter_factor}')
+            print(f'y #: {iter_factor}')
 
             # This is pretty important when using CuML on GPU. 
             # Move this line of code up or down within the for-loops to make it more or less frequent.
