@@ -10,14 +10,20 @@ def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
     RH 2021
 
         Args:
-            lowcut (scalar): frequency (in Hz) of low pass band
-            highcut (scalar): frequency (in Hz) of high pass band
-            fs (scalar): sample rate (frequency in Hz)
-            order (int): order of the butterworth filter
+            lowcut (scalar): 
+                frequency (in Hz) of low pass band
+            highcut (scalar):  
+                frequency (in Hz) of high pass band
+            fs (scalar): 
+                sample rate (frequency in Hz)
+            order (int): 
+                order of the butterworth filter
         
         Returns:
-            b (ndarray): Numerator polynomial coeffs of the IIR filter
-            a (ndarray): Denominator polynomials coeffs of the IIR filter
+            b (ndarray): 
+                Numerator polynomial coeffs of the IIR filter
+            a (ndarray): 
+                Denominator polynomials coeffs of the IIR filter
     '''
     nyq = 0.5 * fs
     low = lowcut / nyq
@@ -39,14 +45,20 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=5, plot_pref=False):
     RH 2021
     
         Args:
-            data (ndarray): data array. filtering done on last axis 
-            lowcut (scalar): frequency (in Hz) of low pass band
-            highcut (scalar): frequency (in Hz) of high pass band
-            fs (scalar): sample rate (frequency in Hz)
-            order (int): order of the butterworth filter
+            data (ndarray): 
+                data array. filtering done on last axis 
+            lowcut (scalar): 
+                frequency (in Hz) of low pass band
+            highcut (scalar): 
+                frequency (in Hz) of high pass band
+            fs (scalar): 
+                sample rate (frequency in Hz)
+            order (int): 
+                order of the butterworth filter
         
         Returns:
-            y (ndarray): filtered data array
+            y (ndarray): 
+                filtered data array
     '''
     b, a = butter_bandpass(lowcut, highcut, fs, order=order, plot_pref=plot_pref)
     y = scipy.signal.lfilter(b, a, data, axis=-1)
@@ -70,23 +82,37 @@ def mtaper_specgram(
     RH 2021
 
         Args:
-            signal (array type): Signal.
-            nw (float): Time-bandwidth product
-            ntapers (int): Number of tapers (None to set to 2 * nw -1)
-            win_len (float): Window length in seconds
-            win_overlap (float): Window overlap in seconds
-            fs (float): Sampling rate in Hz
-            clip (2-tuple of floats): Normalize amplitudes to 0-1 using clips (in dB)
-            freq_res_frac (float): frequency resolution fraction. 
-                                    generates nfft. If none then nfft=None,
-                                    which makes nfft=win nfft=nperseg=len_samples. 
-                                    else nfft = freq_resolution_frac * round(win_len * fs)
-            mode (string): mode of the scipy.signal.spectrogram to use. Can be 'psd', 'complex', ‘magnitude’, ‘angle’, ‘phase’
-            **kwargs: Additional arguments for scipy.signal.spectrogram
+            signal (array type): 
+                Signal.
+            nw (float): 
+                Time-bandwidth product
+            ntapers (int): 
+                Number of tapers (None to set to 2 * nw -1)
+            win_len (float): 
+                Window length in seconds
+            win_overlap (float): 
+                Window overlap in seconds
+            fs (float): 
+                Sampling rate in Hz
+            clip (2-tuple of floats): 
+                Normalize amplitudes to 0-1 using clips (in dB)
+            freq_res_frac (float): 
+                frequency resolution fraction. 
+                generates nfft. If none then nfft=None,
+                which makes nfft=win nfft=nperseg=len_samples. 
+                else nfft = freq_resolution_frac * round(win_len * fs)
+            mode (string): 
+                mode of the scipy.signal.spectrogram to use. Can be
+                'psd', 'complex', ‘magnitude’, ‘angle’, ‘phase’
+            **kwargs: 
+                Additional arguments for scipy.signal.spectrogram
         Returns:
-            f (ndarray): Frequency bin centers
-            t (ndarray): Time indices
-            sxx (ndarray): Spectrogram
+            f (ndarray): 
+                Frequency bin centers
+            t (ndarray): 
+                Time indices
+            sxx (ndarray): 
+                Spectrogram
     """
     len_samples = np.round(win_len * fs).astype("int")
     if freq_res_frac is None:
@@ -145,18 +171,31 @@ def simple_cwt(
     RH 2021
 
         Args:
-            X (ndarray): data array
-            freqs_toUse (1-D ndarray): values of frequencies to perform cwt on
+            X (ndarray): 
+                data array
+            freqs_toUse (1-D ndarray): 
+                values of frequencies to perform cwt on
             fs (scalar): sample rate in Hz
-            wavelet_type (string): name of wavelet type to use. See pywt.wavelist() for all possible inputs
-            bwf (scalar): bandwidth (in units of frequency). Used only if using complex morlet ('cmor')
-            cf (scalar): center frequency. Used only if using complex morlet ('cmor')
-            axis (int): axis along which to perform cwt
-            psd_scaling (bool): preference of whether to scale the output to compute the power spectral density or leave as raw output of pywt.cwt 
+            wavelet_type (string): 
+                name of wavelet type to use. See pywt.wavelist() for all 
+                possible inputs
+            bwf (scalar): 
+                bandwidth (in units of frequency). Used only if using complex 
+                morlet ('cmor')
+            cf (scalar): 
+                center frequency. Used only if using complex morlet ('cmor')
+            axis (int): 
+                axis along which to perform cwt
+            psd_scaling (bool): 
+                preference of whether to scale the output to compute the power 
+                spectral density or leave as raw output of pywt.cwt 
         Returns:
-            coeff (ndarray): output cwt array (with temporal dimension=='axis').
-                             A natural way to normalize output is to put it in units of 'spectral density' = np.abs(coeff**2 / (1/freqs_toUse)[:,None])
-                             Another nice normalization is np.abs(coeff / (1/freqs_toUse)[:,None]**1)**1.5
+            coeff (ndarray): 
+                output cwt array (with temporal dimension=='axis').
+                A natural way to normalize output is to put it in units of
+                'spectral density' = np.abs(coeff**2 / (1/freqs_toUse)[:,None])
+                Another nice normalization is
+                np.abs(coeff / (1/freqs_toUse)[:,None]**1)**1.5
     '''
     if wavelet_type=='cmor' and bwf is None:
         bwf = 2

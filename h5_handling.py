@@ -14,6 +14,8 @@ def close_all_h5():
 def show_group_items(hObj):
     '''
     simple function that displays all the items and groups in an h5 object or python dict
+    RH 2021
+
     args:
         hObj: 'hierarchical Object' hdf5 object or subgroup object OR python dictionary
     returns: NONE
@@ -42,6 +44,8 @@ def show_group_items(hObj):
 def show_item_tree(hObj , show_metadata=True , print_metadata=False, indent_level=0):
     '''
     recurive function that displays all the items and groups in an h5 object or python dict
+    RH 2021
+
     args:
         hObj: 'hierarchical Object'. hdf5 object OR python dictionary
         show_metadata (bool): whether or not to list metadata with items
@@ -54,8 +58,6 @@ def show_item_tree(hObj , show_metadata=True , print_metadata=False, indent_leve
     example usage:
         with h5py.File(path , 'r') as f:
             h5_handling.show_item_tree(f)
-
-    RH 2021
     '''
     indent = f'  '*indent_level
     if hasattr(hObj, 'attrs') and show_metadata:
@@ -85,6 +87,8 @@ def make_h5_tree(dict_obj , h5_obj , group_string=''):
     This function is meant to be called by write_dict_to_h5. It probably shouldn't be called alone.
     This function creates an h5 group and dataset tree structure based on the hierarchy and values within a python dict.
     There is a recursion in this function.
+
+    RH 2021
     '''
     for ii,(key,val) in enumerate(dict_obj.items()):
         if group_string=='':
@@ -100,7 +104,9 @@ def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pr
     '''
     Writes an h5 file that matches the hierarchy and data within a pythin dict.
     This function calls the function 'make_h5_tree'
-    
+
+    RH 2021
+   
     args:
         path_save (string or Path): full path name of file to write
         input_dict (dict): dict containing only variables that can be written as a 'dataset' in an h5 file (generally np.ndarrays and strings)
