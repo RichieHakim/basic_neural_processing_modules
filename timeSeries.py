@@ -157,6 +157,27 @@ def threshold(
     return output_array
 
 
+def scale_between(x, lower=0, upper=1):
+    '''
+    Scales the first dimension of an array to be between 
+    lower and upper bounds.
+    RH 2021
+
+    Args:
+        x (ndarray):
+            Any dimensional array. First dimension is scaled
+        lower (scalar):
+            lower bounds for scaling
+        upper (scalar):
+            upper bounds for scaling
+
+    Returns:
+        output (ndarray):
+            Scaled array
+    '''
+    return ((x - np.min(x, axis=0)) * (upper - lower) / np.max(x,axis=0) ) + lower
+
+
 def make_dFoF(
     F, 
     Fneu=None, 

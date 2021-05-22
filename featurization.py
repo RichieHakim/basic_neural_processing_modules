@@ -8,7 +8,7 @@ def make_cosine_kernels(y=None,
                         n_kernels=6, 
                         crop_first_and_last_kernels=True, 
                         warping_curve=None, 
-                        plot_pref=True):
+                        plot_pref=1):
     '''
     Makes a set of cosines offset by pi/2.
     This function is useful for doing amplitude basis expansions.
@@ -16,6 +16,8 @@ def make_cosine_kernels(y=None,
     for some one dimensional signal to effectively make its 
     representation nonlinear and high dimensional.
 
+    This function works great up to ~100 kernels, then some
+    rounding errors mess up the range slightly, but not badly.
     RH 2021
 
     Args:
@@ -43,7 +45,8 @@ def make_cosine_kernels(y=None,
             non-uniform widths of kernels. Make this array
             large (>=100000) values to keep interpolation smooth.
         plot_pref (bool):
-            Whether or not to plot the output curves
+            set to 1: show output curves
+            set to 2: show intermediate provessing curves
 
     Returns:
         bases_interp (ndarray):
@@ -87,7 +90,12 @@ def make_cosine_kernels(y=None,
 
     xAxis_of_curves = np.linspace(y_range[0] , y_range[1], y_resolution)
 
-    if plot_pref:
+    if plot_pref==1:
+        fig, axs = plt.subplots(1)
+        axs.plot(xAxis_of_curves, bases_interp)
+        axs.set_xlabel('y_range look up axis')
+        axs.set_title('kernels_warped')
+    if plot_pref>=2:
         fig, axs = plt.subplots(6, figsize=(5,15))
         axs[0].plot(bases_highRes)
         axs[0].set_title('kernels')
@@ -97,10 +105,11 @@ def make_cosine_kernels(y=None,
         axs[2].set_title('warping_curve')
         axs[3].plot(WC_norm)
         axs[3].set_title('warping_curve_normalized')
-        axs[4].plot(bases_interp)
+        axs[4].plot(xAxis_of_curves, bases_interp)
         axs[4].set_title('kernels_warped')
+        axs[4].set_xlabel('y_range look up axis')
         axs[5].plot(np.sum(bases_interp, axis=1))
         axs[5].set_ylim([0,1.1])
         axs[5].set_title('sum of kernels')
-
+        
     return bases_interp , xAxis_of_curves
