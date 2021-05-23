@@ -118,6 +118,8 @@ def OLS(X,y):
 
 def EV(y_true, y_pred):
     '''
+    Explained Variance
+    Calculating as 1 - (SS_residual_variance / SS_original_variance)
     Should be exactly equivalent to sklearn's 
     sklearn.metrics.explained_variance_score but slightly faster and provides
     most relevant outputs all together
@@ -155,15 +157,9 @@ def EV(y_true, y_pred):
 def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
     '''
     Computes similarity matrices between two sets of vectors (columns within
-    2-D arrays) using either covariance, Pearson correlation, EV/R^2, or 
-    cosine_similarity.
-
-    If method=='EV' or 'R^2':
-        - v1 is original data or y_true (total variance)
-        - v2 is prediction or reconstruction or y_pred (regressed variance)
-        - v1.shape[1] must equal v2.shape[1]
+    2-D arrays) using either covariance, Pearson correlation or cosine_similarity.
     
-    Think of this function as a more general version of np.corrcoef
+    Think of this function as a more general version of np.cov or np.corrcoef
     RH 2021
 
     Args:
@@ -172,18 +168,12 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         v2 (ndarray): 
             2-D array of column vectors to compare to vector_set1. If None, then
              the function is a type of autosimilarity matrix
-            If method=='EV' or 'R^2':
-                v1 is prediction or reconstruction
-                then v1.shape[1] must equal v2.shape[1]
         ddof (scalar/int):
             Used if method=='cov'. Define the degrees of freedom. Set to 1 for
             unbiased calculation, 0 for biased calculation.
     Returns:
         ouput (ndarray):
-            For methods: 'cov', 'pearson'/'R'
-                Output is a similarity matrix
-            For methods: 'EV'/'R^2', 'cosine_similarity'
-                Output is a simialrity vector (since inputs must be paired)
+            similarity matrix dependent on method
     '''
 
     if v2 is None:
@@ -203,19 +193,12 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         # Output should be same within precision, but 
         # numpy.corrcoef makes a doublewide matrix and can be annoying
         
-        # Note: this Pearson's R-value can be different than sqrt(EV) 
+        # Note: Pearson's R-value can be different than sqrt(EV) 
         # calculated below if the residuals are not orthogonal to the 
         # prediction. Best to use EV for R^2 if unsure
         v1_ms = v1 - np.mean(v1, axis=0) # 'mean subtracted'
         v2_ms = v2 - np.mean(v2, axis=0)
         output = (v1_ms.T @ v2_ms) / np.sqrt(np.tile(np.sum(v1_ms**2, axis=0),(v2.shape[1],1)).T * np.tile(np.sum(v2_ms**2, axis=0), (v1.shape[1],1)))
-    if method in ['EV', 'R^2']:
-        # Calculating as 1 - SS_residual_variance / SS_original_variance
-        # Should be exactly equivalent to 
-        # sklearn.metrics.r2_score(v1,v2, multioutput='raw_values') but slightly faster
-
-        # Should make it a matrix output like other methods in future.
-        output = 1 - np.sum((v1 - v2)**2, axis=0) / np.sum((v1 - np.mean(v1, axis=0))**2, axis=0)
     if method=='cosine_similarity':    
         output = (v1 / (np.expand_dims(norm(v1 , axis=0) , axis=0))).T  @ (v2  / np.expand_dims(norm(v2 , axis=0) , axis=0))
     return output
