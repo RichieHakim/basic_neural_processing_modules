@@ -116,6 +116,41 @@ def OLS(X,y):
     y_rec = X @ theta
     return theta, y_rec
 
+def EV(y_true, y_pred):
+    '''
+    Should be exactly equivalent to sklearn's 
+    sklearn.metrics.explained_variance_score but slightly faster and provides
+    most relevant outputs all together
+    RH 2021
+
+    Args:
+        y_true (ndarray): 
+            array with same size as y_pred. The columns are
+            individual y vectors
+        y_pred (ndarray):
+            array with same size as y_true. The columns are the predicted
+            y vectors
+    
+    Returns:
+        EV (1-D array):
+            explained variance of each y_true column by each corresponding
+            y_pred column. Same as 
+            sklearn.metrics.explained_variance_score(y_true, y_pred, multioutput='raw_values')
+        EV_total_weighted (scalar):
+            total weighted explained variance. Same as
+            sklearn.metrics.explained_variance_score(y_true, y_pred, multioutput='variance_weighted')
+        EV_total_unweighted (scalar):
+            average of all EV values. Same as
+            sklearn.metrics.explained_variance_score(y_true, y_pred, multioutput='uniform_average')
+    '''
+
+    EV = 1 - np.sum((y_true - y_pred)**2, axis=0) / np.sum((y_true - np.mean(y_true, axis=0))**2, axis=0)
+    y_true_var = np.var(y_true, axis=0)
+    EV_total_weighted = np.sum( y_true_var* EV ) / np.sum(y_true_var)
+    EV_total_unweighted = np.mean(EV)
+
+    return EV , EV_total_weighted , EV_total_unweighted
+
 
 def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
     '''
@@ -200,7 +235,8 @@ def best_permutation(mat1 , mat2 , method):
         mat2 (np.ndarray): 
             a 2D array where the columns are vectors we wish to match with mat1
         method (string)  : 
-            defines method of calculating pairwise similarity between vectors
+            defines method of calculating pairwise similarity between vectors:
+                'pearson' or 'cosine_similarity'
         
     Returns:
         sim_avg (double): 
@@ -220,8 +256,6 @@ def best_permutation(mat1 , mat2 , method):
     for ii in range(len(ind1)):
         if method=='pearson':
             sim_matched[ii] = np.corrcoef(mat1[:,ind1[ii]] , mat2[:,ind2[ii]])[0][1]
-        if method=='R^2':
-            sim_matched[ii] = (np.corrcoef(mat1[:,ind1[ii]] , mat2[:,ind2[ii]])[0][1])**2
         if method=='cosine_similarity':
             sim_matched[ii] = pairwise_similarity( mat1[:,ind1[ii]] , mat2[:,ind2[ii]] , 'cosine_similarity')
 
