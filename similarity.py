@@ -1,3 +1,19 @@
+'''
+Table of Contents
+
+Functions and Interdependencies:
+    proj
+    orthogonalize
+        - proj
+    OLS
+    EV
+    pairwise_similarity
+    best_permutation
+        - pairwise_similarity
+    self_similarity_pairwise
+        - best_permutation
+'''
+
 import numpy as np
 from numpy.linalg import norm, qr
 from scipy.stats import zscore
@@ -96,7 +112,9 @@ def orthogonalize(v1, v2):
 
 def OLS(X,y):
     '''
-    Ordinary Least Squares regression
+    Ordinary Least Squares regression.
+    This method works great and is fast under most conditions.
+    It tends to do poorly when X.shape[1] is small.
     RH 2021
 
     Args:
@@ -115,6 +133,7 @@ def OLS(X,y):
     theta = np.linalg.inv(X.T @ X) @ X.T @ y
     y_rec = X @ theta
     return theta, y_rec
+
 
 def EV(y_true, y_pred):
     '''

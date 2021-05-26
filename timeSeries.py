@@ -1,41 +1,46 @@
+'''
+Table of Contents
+
+Functions and Interdependencies:
+    convolve_along_axis
+        - parallel_helpers.multithreading
+    gaussian
+    gaussian_kernel_2D
+    threshold
+    scale_between
+
+    percentile_numba
+    zscore_numba
+    convolve_numba
+'''
+
+from logging import warn
 import numpy as np
 import scipy.stats
 import time
 from matplotlib import pyplot as plt
 import copy
+from numba import njit, jit, prange
 
 from . import parallel_helpers
-
-
-def zscore_multicore(array , verbose=True):
-    """
-    calculates the zscore using parallel processing along the first dimension of a 2-D array.
-    Currently using ConcurrentFutures multithreading
-    RH 2021
-    
-    Args:
-        array (np.ndarray): 2-D array
-        verbose (boolean): True/False or 1/0. Whether you'd like printed updates
-    Returns:
-        output_array (np.ndarray): array after computed zscore along first dimension
-    """
-    tic = time.time()
-
-    def zscoreFun(iter):
-        return scipy.stats.zscore(array[:,iter])
-    output_list = parallel_helpers.multithreading(zscoreFun, range(array.shape[1]), workers=None)
-    if verbose:
-            print(f'ThreadPool elapsed time : {round(time.time() - tic , 2)} s. Now unpacking list into array.')
-    output_array = np.array(output_list).T
-    if verbose:
-        print(f'Calculated zscores. Total elapsed time: {round(time.time() - tic,2)} seconds')
-    return output_array
 
 
 def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , verbose=False):
     '''
     Convolves an array with a kernel along a defined axis
-    if multicore_pref==True, array must be 2-D and convolution is performed along dim-0
+    Use a continguous array ( np.ascontinguousarray() ) 
+    along axis=1 for top speed.
+    if multicore_pref==True, array must be 2-D
+    
+    Also try 'convolve_numba' which is a manual implemenatation
+    of a convolution, and of similar speed (sometimes faster)
+    when using continguous arrays along axis=1, but it makes NaNs
+    at edges instead of the various mode options in numpy.convolve
+
+    if you want more speed see (try using CuPy.convolve):
+        https://numba.discourse.group/t/numba-convolutions/33/4
+        https://github.com/randompast/python-convolution-comparisons
+
     RH 2021
     
     Args:
@@ -48,13 +53,24 @@ def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , ve
     '''
     tic = time.time()
     if multicore_pref:
-        def convFun(iter):
+        def convFun_axis0(iter):
             return np.convolve(array[:,iter], kernel, mode=mode)
+        def convFun_axis1(iter):
+            return np.convolve(array[iter,:], kernel, mode=mode)
 
-        output_list = parallel_helpers.multithreading(convFun, range(array.shape[1]), workers=None)
+        kernel = np.ascontiguousarray(kernel)
+        if axis==0:
+            output_list = parallel_helpers.multithreading(convFun_axis0, range(array.shape[1]), workers=None)
+        if axis==1:
+            output_list = parallel_helpers.multithreading(convFun_axis1, range(array.shape[0]), workers=None)
+        
         if verbose:
             print(f'ThreadPool elapsed time : {round(time.time() - tic , 2)} s. Now unpacking list into array.')
-        output = np.array(output_list).T
+        
+        if axis==0:
+            output = np.array(output_list).T
+        if axis==1:
+            output = np.array(output_list)
 
     else:
         output = np.apply_along_axis(lambda m: np.convolve(m, kernel, mode=mode), axis=axis, arr=array)
@@ -210,53 +226,106 @@ def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_perc
 
     return x_out
 
-def make_dFoF(
-    F, 
-    Fneu=None, 
-    neuropil_fraction=0.7, 
-    percentile_baseline=30, 
-    multicore_pref=False, 
-    verbose=True):
-    """
-    calculates the dF/F and other signals. Designed for Suite2p data.
-    If Fneu is left empty or =None, then no neuropil subtraction done.
-    See S2p documentation for more details
+
+######### NUMBA implementations of simple algorithms #########
+
+@njit(parallel=True)
+def percentile_numba(X, ptile):
+    '''
+    Parallel (multicore) Percentile. Uses numba
+    RH 2021
+
+    Args:
+        X (ndarray):
+            2-D array. Percentile will be calculated
+            along first dimension (columns)
+        ptile (scalar 0-100):
+            Percentile
+    
+    Returns:
+        X_ptile (ndarray):
+            1-D array. Percentiles of X
+    '''
+
+    X_ptile = np.zeros(X.shape[0])
+    for ii in prange(X.shape[0]):
+        X_ptile[ii] = np.percentile(X[ii,:] , ptile)
+    return X_ptile
+
+
+@jit(parallel=True)
+def zscore_numba(array):
+    '''
+    Parallel (multicore) Z-Score. Uses numba.
+    Computes along second dimension (axis=1) for speed
+    Best to input a contiguous array.
+    RH 2021
+
+    Args:
+        array (ndarray):
+            2-D array. Percentile will be calculated
+            along first dimension (columns)
+    
+    Returns:
+        output_array (ndarray):
+            2-D array. Z-Scored array
+    '''
+
+    output_array = np.zeros_like(array)
+    for ii in prange(array.shape[0]):
+        array_tmp = array[ii,:]
+        output_array[ii,:] = (array_tmp - np.mean(array_tmp)) / np.std(array_tmp)
+    return output_array
+
+
+def convolve_numba(X, k, axis=1):
+    '''
+    Convolves an array with a kernel along a defined axis
+    if multicore_pref==True, array must be 2-D and 
+    convolution is performed along dim-0. A 1-D array is 
+    okay if you do X=array[:,None]
+    Faster and more memory efficient than that above
+    function 'zscore_multicore' for massive arrays
     RH 2021
     
     Args:
-        F (Path): raw fluorescence values of each ROI. dims(time, ...)
-        Fneu (np.ndarray): Neuropil signals corresponding to each ROI. dims match F.
-        neuropil_fraction (float): value, 0-1, of neuropil signal (Fneu) to be subtracted off of ROI signals (F)
-        percentile_baseline (float/int): value, 0-100, of percentile to be subtracted off from signals
-        verbose (boolean): True/False or 1/0. Whether you'd like printed updates
+        array (np.ndarray): 
+            array you wish to convolve
+        kernel (np.ndarray): 
+            array to be used as the convolutional kernel (see numpy.convolve documentation)
+            LENGTH MUST BE AN ODD NUMBER
+        axis (int): 
+            axis to convolve array along. NOT USED IF multicore_pref==True
+
     Returns:
-        dFoF (np.ndarray): array, dF/F
-        dF (np.ndarray): array
-        F_neuSub (np.ndarray): F with neuropil subtracted
-        F_baseline (np.ndarray): 1-D array of size F.shape[1]. Baseline value for each ROI
-    """
-    tic = time.time()
-
-    if Fneu is None:
-        F_neuSub = F
-    else:
-        F_neuSub = F - neuropil_fraction*Fneu
-
-    if multicore_pref:
-        def ptileFun(iter):
-            return np.percentile(F_neuSub[:,iter] , percentile_baseline)
-
-        output_list = parallel_helpers.multithreading(ptileFun, range(F_neuSub.shape[1]) , workers=None)
-
-        if verbose:
-            print(f'ThreadPool elapsed time : {round(time.time() - tic , 2)} s. Now unpacking list into array.')
-        F_baseline = np.array(output_list).T
-
-    else:
-        F_baseline = np.percentile(F_neuSub , percentile_baseline , axis=0)
-    dF = F_neuSub - F_baseline
-    dFoF = dF / F_baseline
-    if verbose:
-        print(f'Calculated dFoF. Total elapsed time: {round(time.time() - tic,2)} seconds')
+        output (np.ndarray): input array convolved with kernel
+    '''
+    if len(k)%2==0:
+        raise TypeError('RH WARNING: k must have ODD LENGTH')
+    @njit(parallel=True)
+    def conv(X, k_rev):
+        y = np.empty_like(X)
+        y.fill(np.nan)
+        k_hs = k_rev.size//2
+        for ii in prange(X.shape[0]):
+            for i in prange( k_hs , X.shape[1]-(k_hs+1) ):
+                y[ii, i] = np.dot(X[ii, 0+i-k_hs : 1+i+k_hs], k_rev)
+        return y
     
-    return dFoF , dF , F_neuSub , F_baseline
+    if axis==0:
+        X = X.T
+    k_rev = np.ascontiguousarray(np.flip(k), dtype=X.dtype)
+    y = conv(X, k_rev)
+
+    if axis==0:
+        return y.T
+    else:
+        return y
+
+    
+@njit(parallel=True)
+def var_numba(X):
+    Y = np.zeros(X.shape[0], dtype=X.dtype)
+    for ii in prange(X.shape[0]):
+        Y[ii] = np.var(X[ii,:])
+    return Y

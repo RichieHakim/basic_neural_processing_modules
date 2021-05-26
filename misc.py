@@ -4,7 +4,6 @@ def estimate_size_of_float_array(numel=None, input_shape=None, bitsize=64):
     '''
     Estimates the size of a hypothetical array based on shape or number of 
     elements and the bitsize
-
     RH 2021
 
     Args:

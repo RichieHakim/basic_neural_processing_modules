@@ -3,7 +3,12 @@ import scipy.stats
 import numpy as np
 import matplotlib.pyplot as plt
 
-def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
+def simple_pca(X , n_components=None , mean_sub=True, zscore=False, plot_pref=False , n_PCs_toPlot=2):
+
+    if mean_sub:
+        X = X - np.mean(X, axis=0)
+    if zscore:
+        X = scipy.stats.zscore(X, axis=0)
     
     if n_components is None:
         n_components = X.shape[1]
@@ -11,8 +16,6 @@ def simple_pca(X , n_components=None , plot_pref=False , n_PCs_toPlot=2):
     decomp.fit_transform(X)
     components = decomp.components_
     scores = decomp.transform(X)
-
-    # scores = X.T @ loadings # this shouldn't have to be done
     
     if plot_pref:
         fig , axs = plt.subplots(4 , figsize=(7,15))

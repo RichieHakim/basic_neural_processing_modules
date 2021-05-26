@@ -1,3 +1,14 @@
+'''
+Table of Contents
+
+Functions and Interdependencies:
+    butter_bandpass
+    butter_bandpass_filter
+        - butter_bandpass
+    mtaper_specgram
+    simple_cwt
+'''
+
 import scipy.signal
 import numpy as np
 import matplotlib.pyplot as plt

@@ -1,3 +1,11 @@
+'''
+Table of Contents
+
+Functions and Interdependencies:
+    make_cosine_kernels
+    amplitude_basis_expansion
+'''
+
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
