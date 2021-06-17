@@ -173,3 +173,32 @@ def amplitude_basis_expansion(y, LUT, kernels):
     print(f'output array size: {y_expanded.shape}')
 
     return y_expanded
+
+
+def make_distance_image(center_idx, vid_height, vid_width):
+    """
+    creates a matrix of cartesian coordinate distances from the center
+    RH 2021
+    
+    Args:
+        center_idx (list): chosen center index
+        vid_height (int): height of the video in pixels
+        vid_width (int): width of the video in pixels
+
+    Returns:
+        distance_image (np.ndarray): array of distances to the center index
+
+    """
+
+    x, y = np.meshgrid(range(vid_width), range(vid_height))  # note dim 1:X and dim 2:Y
+    return np.sqrt((y - int(center_idx[1])) ** 2 + (x - int(center_idx[0])) ** 2)
+
+
+def make_cosine_taurus(offset, width):
+    l = (offset + width)*2 + 1
+    c_idx = (l-1)/2
+    cosine = np.cos(np.linspace((-np.pi) , (np.pi), width)) + 1
+    cosine = np.concatenate((np.zeros(offset), cosine))
+    dist_im = make_distance_image([c_idx , c_idx], l, l)
+    taurus = cosine[np.searchsorted(np.arange(len(cosine)), dist_im, side='left')-1]
+    return taurus

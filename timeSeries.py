@@ -21,6 +21,7 @@ import time
 from matplotlib import pyplot as plt
 import copy
 from numba import njit, jit, prange
+import pandas as pd
 
 from . import parallel_helpers
 
@@ -227,7 +228,62 @@ def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_perc
     return x_out
 
 
+def rolling_percentile(X, ptile=50, window=21, interpolation='linear', output_type='numpy', **kwargs):
+    '''
+    Computes a rolling percentile over one dimension 
+     (defaults to dim 1 / rows).
+    Uses pandas' rolling library.
+    Input can be pandas DataFrame or numpy array, and output
+     can also be either.
+    RH 2021
+
+    Args:
+        X (numpy.ndarray OR pd.core.frame.DataFrame):
+            Input array of signals. Calculation done over
+            dim 1 (rows) by default.
+        ptile (scalar):
+            Percentile. 0-100.
+        window (scalar):
+            Size of window in samples. Ideally odd integer.
+        interpolation (string):
+            For details see: pandas.core.window.rolling.Rolling.quantile
+            https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.core.window.rolling.Rolling.quantile.html
+            Can be: linear, lower, higher, nearest, midpoint
+        output_type (string):
+            Either 'numpy' or 'pandas'
+            If 'numpy', then output is a continguous array
+        **kwargs (dict):
+            kwargs for pandas' rolling function call.
+            Includes: min_periods, center, axis, win_type, closed
+
+    Returns:
+        output (numpy.ndarray OR pd.core.frame.DataFrame):
+            Output array of signals.
+    '''
+    
+    if 'min_periods' not in kwargs:
+        kwargs['min_periods'] = 1
+    if 'center' not in kwargs:
+        kwargs['center'] = True
+    if 'axis' not in kwargs:
+        kwargs['axis'] = 1
+    if 'win_type' not in kwargs:
+        kwargs['win_type'] = None
+    if 'closed' not in kwargs:
+        kwargs['closed'] = None
+        
+    if not isinstance(X, pd.core.frame.DataFrame):
+        X = pd.DataFrame(X)
+    output = X.rolling(window=window, **kwargs).quantile(ptile/100, interpolation=interpolation)
+    if output_type == 'numpy':
+        output = np.ascontiguousarray(output)
+    return output
+
+
+##############################################################
 ######### NUMBA implementations of simple algorithms #########
+##############################################################
+
 
 @njit(parallel=True)
 def percentile_numba(X, ptile):

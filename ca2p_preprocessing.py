@@ -13,6 +13,7 @@ Functions and Interdependencies:
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
+from ScanImageTiffReader import ScanImageTiffReader
 
 from varname import nameof
 
@@ -171,31 +172,47 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
     EV_F_by_Fneu = 1 - (var_FneuSub / var_F)
 
     base_FneuSub = percentile_numba(F_neuSub, percentile_baseline)
+    base_F = percentile_numba(F, percentile_baseline)
     
     noise_levels = calculate_noise_levels(dFoF, Fs)
     # noise_levels = np.median(np.abs(np.diff(dFoF, axis=1)), axis=1) # Use this line of code if numba is acting up
     noise_levels[np.abs(noise_levels) > 1e3] = np.nan
 
+    max_dFoF = np.max(dFoF, axis=1)
+
     metrics = {
         'var_ratio': var_ratio,
         'EV_F_by_Fneu': EV_F_by_Fneu,
         'base_FneuSub': base_FneuSub,
+        'base_F': base_F,
         'noise_levels': noise_levels,
+        'max_dFoF': max_dFoF,
     }
 
     # ############# HARD-CODED exclusion criteria ###############
     thresh = {
     'var_ratio': 1,
-    'EV_F_by_Fneu': 0.5,
-    'base_FneuSub': 10,
-    'noise_levels': 15,
+    'EV_F_by_Fneu': 0.6,
+    'base_FneuSub': 50,
+    'base_F': 50,
+    'noise_levels': 12,
+    'max_dFoF': 30,
     }
+    # thresh = {
+    # 'var_ratio': 3,
+    # 'EV_F_by_Fneu': 1,
+    # 'base_FneuSub': 0,
+    # 'base_F': 0,
+    # 'noise_levels': 5,
+    # }
 
     sign = {
     'var_ratio': 1,
     'EV_F_by_Fneu': 1,
     'base_FneuSub': -1,
+    'base_F': -1,
     'noise_levels': 1,
+    'max_dFoF': 1,
     }
 
     # Exclude ROIs
@@ -221,20 +238,22 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
 
     # plot
     if plot_pref:
-        fig, axs = plt.subplots(len(tqm['metrics']))
+        fig, axs = plt.subplots(len(tqm['metrics']), figsize=(7,10))
         for ii, val in enumerate(tqm['metrics']):
             if val=='noise_levels':
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 100, range=(-10,100), histtype='step')
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 100, range=(-10,100), histtype='step')
+                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
+                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
+                axs[ii].set_xlim([0,20])
             else:
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 100, histtype='step')
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 100, histtype='step')
+                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
+                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
 
             axs[ii].title.set_text(val)
             axs[ii].set_yscale('log')
 
             axs[ii].plot(np.array([tqm['thresh'][val],tqm['thresh'][val]])  ,  np.array([0,100]), 'k')
         fig.legend(('thresh', 'included','excluded'))
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
         plt.figure()
         plt.plot(good_ROIs)
@@ -245,3 +264,19 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
 
     good_ROIs = np.array(good_ROIs, dtype=bool)
     return tqm, good_ROIs
+
+
+def get_chan1_offset(path_to_tif):
+    vol=ScanImageTiffReader(path_to_tif)
+    md = vol.metadata().split("\n")
+    for ii, val in enumerate(md):
+        if val[:25] == 'SI.hScan2D.channelOffsets':
+            chan1_offset = int(val[29:33])
+
+    print(f'{chan1_offset=}')
+    return chan1_offset
+def get_metadata(path_to_tif):
+    vol=ScanImageTiffReader(path_to_tif)
+    md = vol.metadata().split("\n")
+    print(md)
+    return md
