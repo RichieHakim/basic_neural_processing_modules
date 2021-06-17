@@ -253,7 +253,8 @@ def rolling_percentile(X, ptile=50, window=21, interpolation='linear', output_ty
             Either 'numpy' or 'pandas'
             If 'numpy', then output is a continguous array
         **kwargs (dict):
-            kwargs for pandas' rolling function call.
+            kwargs for pandas.DataFrame.rolling function call.
+            https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.rolling.html
             Includes: min_periods, center, axis, win_type, closed
 
     Returns:
