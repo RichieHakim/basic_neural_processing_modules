@@ -235,6 +235,12 @@ def rolling_percentile(X, ptile=50, window=21, interpolation='linear', output_ty
     Uses pandas' rolling library.
     Input can be pandas DataFrame or numpy array, and output
      can also be either.
+    I tried to accelerate this with multithreading and numba and
+    they don't seem to help or work. Also tried the new 
+    rolling_quantiles stuff (https://github.com/marmarelis/rolling-quantiles)
+    and saw only modest speed ups at the cost of all the
+    parameters. I'm still not sure if anyone is using efficient
+    insertion sorting.
     RH 2021
 
     Args:
