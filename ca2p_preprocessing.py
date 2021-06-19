@@ -21,7 +21,8 @@ import time
 
 from numba import jit, njit, prange
 
-from .timeSeries import percentile_numba, var_numba
+from .timeSeries import percentile_numba, var_numba, rolling_percentile, min_numba, max_numba
+
 
 def make_dFoF(
     F, 
@@ -180,6 +181,10 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
 
     max_dFoF = np.max(dFoF, axis=1)
 
+    # # currently hardcoding the rolling baseline window to be 2 minutes
+    # rolling_baseline = rolling_percentile(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
+    # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
+
     metrics = {
         'var_ratio': var_ratio,
         'EV_F_by_Fneu': EV_F_by_Fneu,
@@ -187,24 +192,28 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
         'base_F': base_F,
         'noise_levels': noise_levels,
         'max_dFoF': max_dFoF,
+        # 'baseline_range': baseline_range,
     }
 
     # ############# HARD-CODED exclusion criteria ###############
-    thresh = {
-    'var_ratio': 1,
-    'EV_F_by_Fneu': 0.6,
-    'base_FneuSub': 50,
-    'base_F': 50,
-    'noise_levels': 12,
-    'max_dFoF': 30,
-    }
     # thresh = {
-    # 'var_ratio': 3,
-    # 'EV_F_by_Fneu': 1,
-    # 'base_FneuSub': 0,
-    # 'base_F': 0,
-    # 'noise_levels': 5,
+    # 'var_ratio': 1,
+    # 'EV_F_by_Fneu': 0.6,
+    # 'base_FneuSub': 50,
+    # 'base_F': 50,
+    # 'noise_levels': 12,
+    # 'max_dFoF': 30,
+    # 'baseline_range': 100,
     # }
+    thresh = {
+    'var_ratio': 3,
+    'EV_F_by_Fneu': 1,
+    'base_FneuSub': -1000,
+    'base_F': -1000,
+    'noise_levels': 500,
+    'max_dFoF': 3000,
+    'baseline_range': 4,
+    }
 
     sign = {
     'var_ratio': 1,
@@ -213,6 +222,7 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
     'base_F': -1,
     'noise_levels': 1,
     'max_dFoF': 1,
+    'baseline_range': 1,
     }
 
     # Exclude ROIs
@@ -244,6 +254,10 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
                 axs[ii].set_xlim([0,20])
+            elif val=='baseline_range':
+                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
+                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
+                axs[ii].set_xlim([0,25])
             else:
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')

@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit
 
 def estimate_size_of_float_array(numel=None, input_shape=None, bitsize=64):
     '''
@@ -32,3 +33,65 @@ def estimate_size_of_float_array(numel=None, input_shape=None, bitsize=64):
     
     size_estimate_in_bytes = numel * bytes_per_element
     return size_estimate_in_bytes
+
+
+@njit
+def binary_search(arr, lb, ub, val):
+    '''
+    Recursive binary search
+    adapted from https://www.geeksforgeeks.org/python-program-for-binary-search/
+    RH 2021
+    
+    Args:
+        arr (sorted list):
+            1-D array of numbers that are already sorted.
+            To use numba's jit features, arr MUST be a
+            typed list. These include:
+                - numpy.ndarray (ideally np.ascontiguousarray)
+                - numba.typed.List
+        lb (int):
+            lower bound index.
+        ub (int):
+            upper bound index.
+        val (scalar):
+            value being searched for
+    
+    Returns:
+        output (int):
+            index of val in arr.
+            returns -1 if value is not present
+            
+    Demo:
+        # Test array
+        arr = np.array([ 2, 3, 4, 10, 40 ])
+        x = 100
+
+        # Function call
+        result = binary_search(arr, 0, len(arr)-1, x)
+
+        if result != -1:
+            print("Element is present at index", str(result))
+        else:
+            print("Element is not present in array")
+    '''
+    # Check base case
+    if ub >= lb:
+ 
+        mid = (ub + lb) // 2
+ 
+        # If element is present at the middle itself
+        if arr[mid] == val:
+            return mid
+ 
+        # If element is smaller than mid, then it can only
+        # be present in left subarray
+        elif arr[mid] > val:
+            return binary_search(arr, lb, mid - 1, val)
+ 
+        # Else the element can only be present in right subarray
+        else:
+            return binary_search(arr, mid + 1, ub, val)
+ 
+    else:
+        # Element is not present in the array
+        return -1

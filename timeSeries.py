@@ -232,7 +232,8 @@ def rolling_percentile(X, ptile=50, window=21, interpolation='linear', output_ty
     '''
     Computes a rolling percentile over one dimension 
      (defaults to dim 1 / rows).
-    Uses pandas' rolling library.
+    This function is currently just a wrapper for pandas'
+     rolling library.
     Input can be pandas DataFrame or numpy array, and output
      can also be either.
     I tried to accelerate this with multithreading and numba and
@@ -392,3 +393,19 @@ def var_numba(X):
     for ii in prange(X.shape[0]):
         Y[ii] = np.var(X[ii,:])
     return Y
+
+
+@njit(parallel=True)
+def min_numba(X):
+    output = np.zeros(X.shape[0])
+    for ii in prange(X.shape[0]):
+        output[ii] = np.min(X[ii])
+    return output
+
+
+@njit(parallel=True)
+def max_numba(X):
+    output = np.zeros(X.shape[0])
+    for ii in prange(X.shape[0]):
+        output[ii] = np.max(X[ii])
+    return output
