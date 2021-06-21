@@ -1,6 +1,7 @@
 import gc
 import numpy as np
 import sklearn
+import sklearn.linear_model
 import time
 
 def LinearRegression_sweep(X,
@@ -104,6 +105,20 @@ def LinearRegression_sweep(X,
             train data.
 
     ============ DEMO ===============
+
+    from sklearn.model_selection import (TimeSeriesSplit, KFold, ShuffleSplit,
+                                     StratifiedKFold, GroupShuffleSplit,
+                                     GroupKFold, StratifiedShuffleSplit)
+    group_len = 60*2 * Fs # seconds * Fs
+    n_splits = 10
+    test_size = 0.3
+    groups = np.arange(X.shape[0])//group_len
+    n_groups = np.max(groups)
+    cv = GroupShuffleSplit(n_splits, test_size=test_size)
+    cv_idx = cross_validation.make_cv_indices(cv,
+                                            groups,
+                                            lw=5,
+                                            plot_pref=True)
     
     model_params_cuml_ElasticNet = {
             'fit_intercept': True,
