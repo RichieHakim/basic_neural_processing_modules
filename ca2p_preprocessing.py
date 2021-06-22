@@ -21,7 +21,7 @@ import time
 
 from numba import jit, njit, prange
 
-from .timeSeries import percentile_numba, var_numba, rolling_percentile, min_numba, max_numba
+from .timeSeries import percentile_numba, var_numba, rolling_percentile_pd, min_numba, max_numba
 
 
 def make_dFoF(
@@ -181,9 +181,9 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
 
     max_dFoF = np.max(dFoF, axis=1)
 
-    # # currently hardcoding the rolling baseline window to be 2 minutes
-    # rolling_baseline = rolling_percentile(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
-    # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
+    # currently hardcoding the rolling baseline window to be 2 minutes
+    rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
+    baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
 
     metrics = {
         'var_ratio': var_ratio,
@@ -192,7 +192,7 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
         'base_F': base_F,
         'noise_levels': noise_levels,
         'max_dFoF': max_dFoF,
-        # 'baseline_range': baseline_range,
+        'baseline_range': baseline_range,
     }
 
     # ############# HARD-CODED exclusion criteria ###############

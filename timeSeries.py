@@ -22,8 +22,10 @@ from matplotlib import pyplot as plt
 import copy
 from numba import njit, jit, prange
 import pandas as pd
+import rolling_quantiles as rq
 
 from . import parallel_helpers
+from .parallel_helpers import multiprocessing_pool_along_axis
 
 
 def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , verbose=False):
@@ -228,7 +230,7 @@ def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_perc
     return x_out
 
 
-def rolling_percentile(X, ptile=50, window=21, interpolation='linear', output_type='numpy', **kwargs):
+def rolling_percentile_pd(X, ptile=50, window=21, interpolation='linear', output_type='numpy', **kwargs):
     '''
     Computes a rolling percentile over one dimension 
      (defaults to dim 1 / rows).
@@ -287,6 +289,16 @@ def rolling_percentile(X, ptile=50, window=21, interpolation='linear', output_ty
         output = np.ascontiguousarray(output)
     return output
 
+
+def rolling_percentile_rq(x_in, win_len, ptile=10, stride=1, center=True):
+    pipe = rq.Pipeline( rq.LowPass(window=win_len, quantile=(ptile/100), subsample_rate=stride) )
+    lag = int(np.floor(pipe.lag))
+    if center:
+        return pipe.feed(x_in)[lag:]
+    else:
+        return pipe.feed(x_in)
+def rolling_percentile_rq_multicore(x_in, win_len, ptile, stride=1, center=True, n_workers=None):
+    return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=None, axis=0, **{'win_len': win_len , 'ptile': ptile, 'stride': stride, 'center': False} )
 
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########
