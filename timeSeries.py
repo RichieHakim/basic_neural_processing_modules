@@ -290,15 +290,15 @@ def rolling_percentile_pd(X, ptile=50, window=21, interpolation='linear', output
     return output
 
 
-def rolling_percentile_rq(x_in, win_len, ptile=10, stride=1, center=True):
-    pipe = rq.Pipeline( rq.LowPass(window=win_len, quantile=(ptile/100), subsample_rate=stride) )
+def rolling_percentile_rq(x_in, window, ptile=10, stride=1, center=True):
+    pipe = rq.Pipeline( rq.LowPass(window=window, quantile=(ptile/100), subsample_rate=stride) )
     lag = int(np.floor(pipe.lag))
     if center:
         return pipe.feed(x_in)[lag:]
     else:
         return pipe.feed(x_in)
-def rolling_percentile_rq_multicore(x_in, win_len, ptile, stride=1, center=True, n_workers=None):
-    return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=None, axis=0, **{'win_len': win_len , 'ptile': ptile, 'stride': stride, 'center': False} )
+def rolling_percentile_rq_multicore(x_in, window, ptile, stride=1, center=True, n_workers=None):
+    return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=None, axis=0, **{'window': window , 'ptile': ptile, 'stride': stride, 'center': False} )
 
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########

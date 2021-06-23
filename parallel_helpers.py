@@ -12,8 +12,8 @@ def multiprocessing(func, args, workers):
         res = ex.map(func, args)
     return list(res)
 
-def multiprocessing_pool_along_axis(x_in, function, axis=0, **kwargs):
-    pool = mp.Pool(processes=None)
+def multiprocessing_pool_along_axis(x_in, function, n_workers=None, axis=0, **kwargs):
+    pool = mp.Pool(processes=n_workers)
     if axis==0:
         results = pool.map(partial(function , **kwargs), [x_in[ii] for ii in range(x_in.shape[0])])
         pool.close()

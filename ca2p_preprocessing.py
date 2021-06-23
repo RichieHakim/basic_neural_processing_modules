@@ -21,7 +21,7 @@ import time
 
 from numba import jit, njit, prange
 
-from .timeSeries import percentile_numba, var_numba, rolling_percentile_pd, min_numba, max_numba
+from .timeSeries import percentile_numba, var_numba, rolling_percentile_pd, rolling_percentile_rq_multicore, min_numba, max_numba
 
 
 def make_dFoF(
@@ -182,8 +182,10 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
     max_dFoF = np.max(dFoF, axis=1)
 
     # currently hardcoding the rolling baseline window to be 2 minutes
-    rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
-    baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
+    # rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
+    rolling_baseline = rolling_percentile_rq_multicore(dFoF, ptile=percentile_baseline, window=int(Fs*60*20 + 1))
+    baseline_var = var_numba(rolling_baseline)
+    # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
 
     metrics = {
         'var_ratio': var_ratio,
@@ -192,28 +194,28 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
         'base_F': base_F,
         'noise_levels': noise_levels,
         'max_dFoF': max_dFoF,
-        'baseline_range': baseline_range,
+        'baseline_var': baseline_var,
     }
 
     # ############# HARD-CODED exclusion criteria ###############
-    # thresh = {
-    # 'var_ratio': 1,
-    # 'EV_F_by_Fneu': 0.6,
-    # 'base_FneuSub': 50,
-    # 'base_F': 50,
-    # 'noise_levels': 12,
-    # 'max_dFoF': 30,
-    # 'baseline_range': 100,
-    # }
     thresh = {
-    'var_ratio': 3,
-    'EV_F_by_Fneu': 1,
-    'base_FneuSub': -1000,
-    'base_F': -1000,
-    'noise_levels': 500,
-    'max_dFoF': 3000,
-    'baseline_range': 4,
+    'var_ratio': 1,
+    'EV_F_by_Fneu': 0.6,
+    'base_FneuSub': 0,
+    'base_F': 50,
+    'noise_levels': 12,
+    'max_dFoF': 50,
+    'baseline_var': 1,
     }
+    # thresh = {
+    # 'var_ratio': 3,
+    # 'EV_F_by_Fneu': 1,
+    # 'base_FneuSub': -1000,
+    # 'base_F': -1000,
+    # 'noise_levels': 500,
+    # 'max_dFoF': 3000,
+    # 'baseline_var': 1,
+    # }
 
     sign = {
     'var_ratio': 1,
@@ -222,7 +224,7 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
     'base_F': -1,
     'noise_levels': 1,
     'max_dFoF': 1,
-    'baseline_range': 1,
+    'baseline_var': 1,
     }
 
     # Exclude ROIs
@@ -254,15 +256,16 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
                 axs[ii].set_xlim([0,20])
-            elif val=='baseline_range':
+            elif val=='baseline_var':
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
-                axs[ii].set_xlim([0,25])
+                axs[ii].set_xlim(right=50)
+                # axs[ii].set_xscale('log')
             else:
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
 
-            axs[ii].title.set_text(val)
+            axs[ii].title.set_text(f"{val}: {np.sum(tqm['classifications'][val]==0)} excl")
             axs[ii].set_yscale('log')
 
             axs[ii].plot(np.array([tqm['thresh'][val],tqm['thresh'][val]])  ,  np.array([0,100]), 'k')
