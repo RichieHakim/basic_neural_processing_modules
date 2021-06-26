@@ -40,7 +40,7 @@ def get_vars(globals, size_thresh=0, var_type=None, return_vars_pref=False):
     '''
     Returns variable info that matches defined criteria.
     RH 2021
-    
+
     Args:
         globals:
             `globals()` must be passed here
@@ -88,6 +88,7 @@ def get_vars(globals, size_thresh=0, var_type=None, return_vars_pref=False):
     
     if return_vars_pref:
         return var_names[idx_toInclude], var_sizes[idx_toInclude], var_types[idx_toInclude]
+
 
 @njit
 def binary_search(arr, lb, ub, val):
@@ -149,3 +150,23 @@ def binary_search(arr, lb, ub, val):
     else:
         # Element is not present in the array
         return -1
+
+
+
+def recursive_for_loop(final_ndim, func, data, loop_depth=0):
+# def recursive_for_loop(n_loops, func, data, loop_depth=0, **kwargs):
+    '''
+    A cute recursive function for running an operation (func) on
+     the last n dimensions (final_ndim) of a high dimensional
+     array.
+    RH 2021
+    '''
+    if data.ndim > final_ndim:
+        output = [ [] for _ in range(len(data))]
+        for ii, i_data in enumerate(data):
+#             output[ii] = recursive_for_loop(n_loops, func, i_data, loop_depth=loop_depth+1, **kwargs)
+            output[ii] = recursive_for_loop(final_ndim, func, i_data, loop_depth=loop_depth+1)
+#     return func(data, **kwargs)
+    else:
+        return func(data)
+    return output

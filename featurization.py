@@ -194,6 +194,26 @@ def make_distance_image(center_idx, vid_height, vid_width):
     return np.sqrt((y - int(center_idx[1])) ** 2 + (x - int(center_idx[0])) ** 2)
 
 
+def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
+    """
+    Generate a 2D or 1D gaussian kernel
+    
+    Args:
+        center (tuple):  the mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D gaussian
+        image_size (tuple): The total image size (width, height). Make second value 0 to make 1D gaussian
+        sig (scalar): The sigma value of the gaussian
+    
+    Return:
+        kernel (np.ndarray): 2D or 1D array of the gaussian kernel
+    """
+    x_axis = np.linspace(0, image_size[0]-1, image_size[0]) - center[0]
+    y_axis = np.linspace(0, image_size[1]-1, image_size[1]) - center[1]
+    xx, yy = np.meshgrid(x_axis, y_axis)
+    kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sig))
+
+    return kernel
+
+
 def make_cosine_taurus(offset, width):
     l = (offset + width)*2 + 1
     c_idx = (l-1)/2

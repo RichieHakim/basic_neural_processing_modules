@@ -20,6 +20,9 @@ from scipy.stats import zscore
 import scipy.optimize
 import copy
 import sklearn.decomposition
+from opt_einsum import contract
+
+from time import time
 
 def proj(v1, v2):
     '''
@@ -49,7 +52,8 @@ def proj(v1, v2):
     u = v2 / norm(v2, axis=0)
     proj_score = v1.T @ u
     # this einsum can probably be optimized better
-    proj_vec = np.einsum('ik,jk->ijk', u, proj_score)
+    # proj_vec = np.einsum('ik,jk->ijk', u, proj_score)
+    proj_vec = contract('ik,jk->ijk', u, proj_score)
 
     return proj_vec , proj_score
 
