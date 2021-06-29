@@ -222,3 +222,17 @@ def make_cosine_taurus(offset, width):
     dist_im = make_distance_image([c_idx , c_idx], l, l)
     taurus = cosine[np.searchsorted(np.arange(len(cosine)), dist_im, side='left')-1]
     return taurus
+
+def shift(X, lag, fill_val):
+    X_shift = np.empty_like(X)
+    if lag>0:
+        X_shift[:lag] = fill_val
+        X_shift[lag:] = X[:-lag]
+    elif lag<0:
+        X_shift[lag:] = fill_val
+        X_shift[:lag] = X[-lag:]
+    else:
+        X_shift[:] = X
+    return X_shift
+def shift_along_axis(X, lag, fill_val, axis):
+    return np.apply_along_axis(shift, axis, X, lag, fill_val)

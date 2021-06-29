@@ -170,3 +170,19 @@ def recursive_for_loop(final_ndim, func, data, loop_depth=0):
     else:
         return func(data)
     return output
+
+
+def get_last_true_idx(input_array):
+    '''
+    for 1-d arrays only. gets idx of last entry
+    that == True
+    RH 2021
+    '''
+    nz = np.nonzero(input_array)[0]
+    print(nz.size)
+    if nz.size==0:
+        output = len(input_array)-1
+    else:
+        output = np.max(nz)
+#     print(output)
+    return output

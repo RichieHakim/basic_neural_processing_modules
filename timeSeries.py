@@ -4,8 +4,6 @@ Table of Contents
 Functions and Interdependencies:
     convolve_along_axis
         - parallel_helpers.multithreading
-    gaussian
-    gaussian_kernel_2D
     threshold
     scale_between
 
@@ -83,58 +81,6 @@ def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , ve
 
     return output
     
-
-def gaussian(x, mu, sig , plot_pref=False):
-    '''
-    A gaussian function (normalized similarly to scipy's function)
-    RH 2021
-    
-    Args:
-        x (np.ndarray): 1-D array of the x-axis of the kernel
-        mu (float): center position on x-axis
-        sig (float): standard deviation (sigma) of gaussian
-        plot_pref (boolean): True/False or 1/0. Whether you'd like the kernel plotted
-    Returns:
-        gaus (np.ndarray): gaussian function (normalized) of x
-        params_gaus (dict): dictionary containing the input params
-    '''
-
-    gaus = 1/(np.sqrt(2*np.pi)*sig)*np.exp(-np.power((x-mu)/sig, 2)/2)
-
-    if plot_pref:
-        plt.figure()
-        plt.plot(x , gaus)
-        plt.xlabel('x')
-        plt.title(f'$\mu$={mu}, $\sigma$={sig}')
-    
-    params_gaus = {
-        "x": x,
-        "mu": mu,
-        "sig": sig,
-    }
-
-    return gaus , params_gaus
-
-
-def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
-    """
-    Generate a 2D or 1D gaussian kernel
-    
-    Args:
-        center (tuple):  the mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D gaussian
-        image_size (tuple): The total image size (width, height). Make second value 0 to make 1D gaussian
-        sig (scalar): The sigma value of the gaussian
-    
-    Return:
-        kernel (np.ndarray): 2D or 1D array of the gaussian kernel
-    """
-    x_axis = np.linspace(0, image_size[0]-1, image_size[0]) - center[0]
-    y_axis = np.linspace(0, image_size[1]-1, image_size[1]) - center[1]
-    xx, yy = np.meshgrid(x_axis, y_axis)
-    kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sig))
-
-    return kernel
-
 
 def threshold(
     array, 
@@ -420,4 +366,12 @@ def max_numba(X):
     output = np.zeros(X.shape[0])
     for ii in prange(X.shape[0]):
         output[ii] = np.max(X[ii])
+    return output
+
+@njit(parallel=True)
+def round_numba(x):
+    output = np.zeros_like(x)
+    for ii in prange(x.shape[0]):
+        for jj in prange(x.shape[1]):
+            output[ii,jj] = np.round(x[ii,jj])
     return output

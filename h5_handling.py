@@ -1,5 +1,8 @@
 import gc
 import h5py
+import hdfdict
+from pathlib import Path
+
 
 def close_all_h5():
     '''
@@ -39,7 +42,7 @@ def show_group_items(hObj):
             h5_handling.show_group_items(f)
     '''
     for ii,val in enumerate(list(iter(hObj))):
-        if isinstance(hObj[val] , h5py.Group):
+        if isinstance(hObj[val] , h5py.Group) or isinstance(hObj[val], hdfdict.hdfdict.LazyHdfDict):
             print(f'{ii+1}. {val}:----------------')
         if isinstance(hObj[val] , dict):
             print(f'{ii+1}. {val}:----------------')
@@ -89,7 +92,7 @@ def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=Fa
                     print(f'{indent}METADATA: {val}: shape={hObj.attrs[val].shape} , dtype={hObj.attrs[val].dtype}')
         
         for ii,val in enumerate(list(iter(hObj))):
-            if isinstance(hObj[val] , h5py.Group):
+            if isinstance(hObj[val] , h5py.Group) or isinstance(hObj[val], hdfdict.hdfdict.LazyHdfDict):
                 print(f'{indent}{ii+1}. {val}:----------------')
                 show_item_tree(hObj[val], show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
             elif isinstance(hObj[val] , dict):
@@ -136,10 +139,39 @@ def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pr
     with h5py.File(path_save , write_mode) as hf:
         make_h5_tree(input_dict , hf , '')
         if show_item_tree_pref:
-            print(f'==== Successfully wrote h5 ile. Displaying h5 hierarchy ====')
+            print(f'==== Successfully wrote h5 file. Displaying h5 hierarchy ====')
             show_item_tree(hf)
 
 
+def simple_load(path=None, directory=None, fileName=None, verbose=False):
+    '''
+    Returns a lazy dictionary object (specific
+    to hdfdict package) containing the groups
+    as keys and the datasets as values from
+    given hdf file.
+    '''
+
+    if path is None:
+        directory = Path(directory).resolve()
+        fileName_load = fileName
+        path = directory / fileName_load
+
+    h5Obj = hdfdict.load(str(path), **{'mode': 'r'})
+    
+    if verbose:
+        show_item_tree(hObj=h5Obj)
+    
+    return h5Obj
+
+
+def simple_save(dict_to_save, path=None, directory=None, fileName=None, write_mode='w-', verbose=False):
+
+    if path is None:
+        directory = Path(directory).resolve()
+        fileName_load = fileName
+        path = directory / fileName_load
+
+    write_dict_to_h5(path, dict_to_save, write_mode=write_mode, show_item_tree_pref=verbose)
 
 
 def h5py_dataset_iterator(g, prefix=''):
