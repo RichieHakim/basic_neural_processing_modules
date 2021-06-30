@@ -246,6 +246,74 @@ def rolling_percentile_rq(x_in, window, ptile=10, stride=1, center=True):
 def rolling_percentile_rq_multicore(x_in, window, ptile, stride=1, center=True, n_workers=None):
     return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=None, axis=0, **{'window': window , 'ptile': ptile, 'stride': stride, 'center': False} )
 
+
+def event_triggered_traces(arr, trigger_signal, win_bounds):
+    '''
+    Makes event triggered traces along last dimension
+    RH 2021
+    
+    Args:
+        arr (np.ndarray):
+            Input array. Last will be aligned to boolean
+             True values in 'trigger_signal'
+        trigger_signal (boolean np.ndarray):
+            1-D boolean array. True values are trigger
+             events
+        win_bounds (size 2 integer np.ndarray):
+            2 value integer array. win_bounds[0] is the
+             number of samples prior to the event that
+             the window starts. win_bounds[1] is the 
+             number of samples following the event.
+            Events that would have a window extending
+             before or after the bounds of the length
+             of the trace are discarded.
+     
+     Returns:
+         et_traces (np.ndarray):
+             Event Triggered Traces. et_traces.ndim = 
+              arr.ndim+1. Last dimension is new and is
+              the event number axis. Note that events 
+              near edges are discarded if window extends
+              past edge bounds.
+        xAxis (np.ndarray):
+            x-axis of the traces. Aligns with dimension
+             et_traces.shape[-2]
+        windows (np.ndarray):
+            
+            
+    '''
+    def bounds_to_win(x_pos, win_bounds):
+        return x_pos + np.arange(win_bounds[0], win_bounds[1])
+    def make_windows(x_pos, win_bounds):
+        return np.apply_along_axis(bounds_to_win, 0, tuple([x_pos]), win_bounds).T
+
+    axis=arr.ndim-1
+    len_axis = arr.shape[axis]
+
+    windows = make_windows(np.nonzero(trigger_signal)[0], win_bounds)
+    win_toInclude = (np.sum(windows<0, axis=1)==0) * (np.sum(windows>len_axis, axis=1)==0)
+    win_toExclude = win_toInclude==False
+    n_win_included = np.sum(win_toInclude)
+    n_win_excluded = np.sum(win_toExclude)
+    windows = windows[win_toInclude]
+
+
+    windows_flat = np.reshape(windows, (windows.size))
+
+    axes_all = np.arange(arr.ndim)
+    axes_non = axes_all[axes_all != axis]
+    et_traces_flat = np.take_along_axis(arr, np.expand_dims(np.array(windows_flat, dtype=np.int64), axis=tuple(axes_non)), axis=axis)
+
+    new_shape = np.array(et_traces_flat.shape)
+    new_shape[axis] = new_shape[axis] / windows.shape[1]
+    new_shape = np.concatenate((new_shape, np.array([windows.shape[1]])))
+    et_traces = np.reshape(et_traces_flat, new_shape)
+    
+    xAxis = np.arange(win_bounds[0], win_bounds[1])
+    
+    return et_traces, xAxis, windows
+
+
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########
 ##############################################################
