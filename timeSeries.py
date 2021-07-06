@@ -24,6 +24,8 @@ import rolling_quantiles as rq
 
 from . import parallel_helpers
 from .parallel_helpers import multiprocessing_pool_along_axis
+from . import cross_validation
+
 
 
 def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , verbose=False):
@@ -254,8 +256,9 @@ def event_triggered_traces(arr, trigger_signal, win_bounds):
     
     Args:
         arr (np.ndarray):
-            Input array. Last will be aligned to boolean
-             True values in 'trigger_signal'
+            Input array. Last dimension will be 
+             aligned to boolean True values in 
+             'trigger_signal'
         trigger_signal (boolean np.ndarray):
             1-D boolean array. True values are trigger
              events
@@ -314,9 +317,83 @@ def event_triggered_traces(arr, trigger_signal, win_bounds):
     return et_traces, xAxis, windows
 
 
+def make_sorted_event_triggered_average(arr, trigger_signal, win_bounds, cv_group_size=2, test_frac=0.5, show_plot=False):
+    '''
+    Makes a sorted event triggered average plot
+    RH 2021
+    
+    Args:
+        arr (np.ndarray):
+            Input array. Last dimension will be aligned
+             to boolean True values in 'trigger_signal'.
+             Same as in event_triggered_traces.
+        trigger_signal (boolean np.ndarray):
+            1-D boolean array. True values are trigger
+             events.
+             Same as in event_triggered_traces.
+        win_bounds (size 2 integer np.ndarray):
+            2 value integer array. win_bounds[0] is the
+             number of samples prior to the event that
+             the window starts. win_bounds[1] is the 
+             number of samples following the event.
+            Events that would have a window extending
+             before or after the bounds of the length
+             of the trace are discarded.
+            Same as in event_triggered_traces.
+        cv_group_size (int):
+            Number of samples per group. Uses sklearn's
+             model_selection.GroupShuffleSplit.
+            Same as in cross_validation.group_split
+         test_frac (scalar):
+             Fraction of samples in test set.
+             Same as in cross_validation.group_split
+         show_plot (bool):
+             Whether or not to show the plot
+     
+     Returns:
+        mean_traces_sorted (np.ndarray):
+            Output traces/image. Size (arr.shape[0],
+             win_bounds[1]-win_bounds[0])
+            Shows the event triggered average of the 
+             test set, sorted by the peak times found 
+             in the training set.
+        et_traces (np.ndarray):
+            All event triggered traces.
+            Same as return 'et_traces' in 
+             timeSeries.event_triggered_traces
+        cv_idx (list of 2 lists):
+            List of 2 lists.
+            Outer list entries: Splits
+            Inner list entries: Train, Test indices
+            Same as return 'cv_idx' in 
+             cross_validation.group_split
+            
+    '''
+
+    et_traces = event_triggered_traces(arr, trigger_signal, win_bounds)
+
+    cv_idx = cross_validation.group_split(1, et_traces[0].shape[1], cv_group_size, test_size=test_frac)
+
+    mean_traces_train = et_traces[0][:,cv_idx[0][0],:].mean(1)
+    mean_traces_test = et_traces[0][:,cv_idx[0][1],:].mean(1)
+
+    mean_traces_sorted = mean_traces_test[np.argsort(np.argmax(mean_traces_train,axis=1))]
+    
+    if show_plot:
+        plt.figure()
+        plt.imshow(mean_traces_sorted, aspect='auto', 
+                   extent=(et_traces[1][0], et_traces[1][-1],
+                          mean_traces_sorted.shape[0], 0),
+#                    vmin=-1, vmax=3
+                  )
+    return mean_traces_sorted, et_traces, cv_idx
+
+
+
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########
 ##############################################################
+
 
 
 @njit(parallel=True)
@@ -354,7 +431,7 @@ def zscore_numba(array):
     Args:
         array (ndarray):
             2-D array. Percentile will be calculated
-            along first dimension (columns)
+            along second dimension (rows)
     
     Returns:
         output_array (ndarray):

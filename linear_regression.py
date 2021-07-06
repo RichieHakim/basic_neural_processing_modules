@@ -139,8 +139,7 @@ def LinearRegression_sweep(X,
     EV_test   = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
 
     # Run regression sweep
-    theta, intercept, EV_train, EV_test = LinearRegression_sweep(
-                                                                    X,
+    theta, intercept, EV_train, EV_test = LinearRegression_sweep(   X,
                                                                     y,
                                                                     cv_idx,
                                                                     alphas=alphas,
@@ -154,7 +153,8 @@ def LinearRegression_sweep(X,
                                                                     EV_train_inPlace=EV_train,
                                                                     EV_test_inPlace=EV_test,
                                                                     **model_params_cuml_ElasticNet
-    '''
+                                                                    )
+'''
 
     gc.collect()
     

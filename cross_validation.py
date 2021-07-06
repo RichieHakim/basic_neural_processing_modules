@@ -41,3 +41,30 @@ def make_cv_indices(
                ylim=[n_splits+1.2, -.2], xlim=[0, X.shape[0]])
         ax.set_title('{}'.format(type(cv).__name__), fontsize=15)
     return cv_idx
+
+
+def group_split(n_splits, n_samples, group_size, test_size=0.5):
+    '''
+    Makes cross-validation indices
+    RH 2021
+
+    Args:
+        n_splits (int):
+            Number of splits to perform
+        n_samples (int):
+            Number of samples
+        group_size (int):
+            Number of samples per group
+        test_size (scalar):
+            Fraction of samples in test set
+    
+    Returns:
+        cv_idx (list):
+            List of 2 lists.
+            Outer list entries: Splits
+            Inner list entries: Train, Test indices
+    '''
+    from sklearn.model_selection import GroupShuffleSplit
+    
+    cv = GroupShuffleSplit(n_splits, test_size=test_size)
+    return list(cv.split(X=np.arange(n_samples), y=np.arange(n_samples), groups = np.arange(n_samples)//group_size))

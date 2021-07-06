@@ -17,7 +17,9 @@ import pywt
 
 def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
     '''
-    designs a butterworth bandpass filter
+    designs a butterworth bandpass filter.
+    Found on a stackoverflow, but can't find it
+     anymore.
     RH 2021
 
         Args:
@@ -50,14 +52,15 @@ def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
     return b, a
 
 
-def butter_bandpass_filter(data, lowcut, highcut, fs, order=5, plot_pref=False):
+def butter_bandpass_filter(data, lowcut, highcut, fs, axis=-1, order=5, plot_pref=False):
     '''
     applies a butterworth bandpass filter
     RH 2021
     
         Args:
             data (ndarray): 
-                data array. filtering done on last axis 
+                data array. filtering done on 
+                 defined axis 
             lowcut (scalar): 
                 frequency (in Hz) of low pass band
             highcut (scalar): 
@@ -72,7 +75,7 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=5, plot_pref=False):
                 filtered data array
     '''
     b, a = butter_bandpass(lowcut, highcut, fs, order=order, plot_pref=plot_pref)
-    y = scipy.signal.lfilter(b, a, data, axis=-1)
+    y = scipy.signal.lfilter(b, a, data, axis=axis)
     return y
 
 
