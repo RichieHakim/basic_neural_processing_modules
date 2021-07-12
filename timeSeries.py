@@ -506,6 +506,54 @@ def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=No
     return trace_times
 
 
+@njit
+def find_nearest(array, value):
+    '''
+    Finds the value and index of the nearest
+     value in an array.
+    RH 2021
+    
+    Args:
+        array (np.ndarray):
+            Array of values to search through.
+        value (scalar):
+            Value to search for.
+
+    Returns:
+        array_idx (int):
+            Index of the nearest value in array.
+        array_val (scalar):
+            Value of the nearest value in array.
+    '''
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx] , idx
+@njit(parallel=True)
+def find_nearest_array(array, values):
+    '''
+    Finds the values and indices of the nearest
+     values in an array.
+    RH 2021
+
+    Args:
+        array (np.ndarray):
+            Array of values to search through.
+        values (np.ndarray):
+            Values to search for.
+
+    Returns:
+        array_idx (np.ndarray):
+            Indices of the nearest values in array.
+        array_val (np.ndarray):
+            Values of the nearest values in array.
+    '''
+    vals_nearest = np.zeros_like(values)
+    idx_nearest = np.zeros_like(values)
+    for ii in prange(len(values)):
+        vals_nearest[ii] , idx_nearest[ii] = find_nearest(array , values[ii])
+    return vals_nearest, idx_nearest
+
+
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########
 ##############################################################
