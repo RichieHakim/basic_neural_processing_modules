@@ -389,6 +389,122 @@ def make_sorted_event_triggered_average(arr, trigger_signal, win_bounds, cv_grou
     return mean_traces_sorted, et_traces, cv_idx
 
 
+def widen_boolean(arr, n_before, n_after, axis=None):
+    '''
+    Widens boolean events by n_before and n_after.    
+    RH 2021    
+
+    Args:
+        arr (np.ndarray):
+            Input array. Widening will be applied
+             to the last dimension.
+        n_before (int):
+            Number of samples before 'True' values
+             that will also be set to 'True'.
+        n_after (int):
+            Number of samples after 'True' values
+             that will also be set to 'True'.
+        axis (int):
+            Axis to apply the event widening.
+             If None then arr should be a 1-D array.
+    
+    Returns:
+        widened arr (np.ndarray):
+            Output array. Same as input arr, but
+             with additional 'True' values before
+             and after initial 'True' values.
+    '''
+    
+    kernel = np.zeros(np.max(np.array([n_before, n_after])) * 2 + 1)
+    kernel_center = int(np.ceil(len(kernel) / 2))
+    kernel[kernel_center - (n_before+1): kernel_center] = 1
+    kernel[kernel_center: kernel_center + n_after] = 1
+    
+    if axis is None:
+        return scipy.signal.convolve(arr, kernel/np.sum(kernel), mode='same')
+    else:
+        return np.apply_along_axis(lambda m: scipy.signal.convolve(m, kernel/np.sum(kernel), mode='same'),
+                                                              axis=axis, arr=arr)
+
+
+@njit
+def idx2bool(idx, length):
+    '''
+    Converts a vector of indices to a boolean vector.
+    RH 2021
+
+    Args:
+        idx (np.ndarray):
+            1-D array of indices.
+        length (int):
+            Length of boolean vector.
+    
+    Returns:
+        bool_vec (np.ndarray):
+            1-D boolean array.
+    '''
+    out = np.zeros(length)
+    out[idx] = True
+    return out
+
+
+def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=None, plot_pref=False):
+    '''
+    Converts a trace of modulo counter values to a linear counter.
+    Useful for converting a pixel clock with a modulus
+     to total times. Use this for FLIR camera top pixel
+     stuff.
+    The function basically just finds where the modulus
+     events occur in the trace and adds 'modulus_value'
+     to the next element in the trace.
+    RH 2021
+
+    Args:
+        trace (np.ndarray):
+            1-D array of modulo counter values.
+        modulus (scalar):
+            Modulus of the counter. Values in trace
+             should range from 0 to modulus-1.
+        modulus_value (scalar):
+            Multiplier for the modulus counter. The
+             value of a modulus event.
+        diff_thresh (scalar):
+            Threshold for defining a modulus event.
+            Should typically be a negative value
+             smaller than 'modulus', but larger
+             than the difference between consecutive
+             trace values.
+        plot_pref (bool):
+            Whether or not to plot the trace.
+
+    Returns:
+        linearCounter (np.ndarray):
+            1-D array of linearized counter values.
+    '''
+
+    if diff_thresh is None:
+        diff_thresh = -modulus/2
+
+    diff_trace = np.diff(np.double(trace))
+    mod_times = np.where(diff_trace<diff_thresh)[0]
+
+
+    mod_times_bool = np.zeros(len(trace))
+    mod_times_bool[mod_times+1] = modulus_value
+    mod_times_steps = np.cumsum(mod_times_bool)
+    trace_times = (trace/modulus)*modulus_value + mod_times_steps
+
+    if plot_pref:
+        plt.figure()
+        plt.plot(trace)
+        plt.plot(mod_times , trace[mod_times] , 'o')
+
+        plt.figure()
+        plt.plot(mod_times_steps)
+        plt.plot(trace_times)
+    
+    return trace_times
+
 
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########
