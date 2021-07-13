@@ -427,7 +427,7 @@ def widen_boolean(arr, n_before, n_after, axis=None):
                                                               axis=axis, arr=arr)
 
 
-@njit
+# @njit # jit doesn't work
 def idx2bool(idx, length):
     '''
     Converts a vector of indices to a boolean vector.
@@ -450,7 +450,8 @@ def idx2bool(idx, length):
 
 def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=None, plot_pref=False):
     '''
-    Converts a trace of modulo counter values to a linear counter.
+    Converts a (sawtooth) trace of modulo counter
+     values to a linear counter.
     Useful for converting a pixel clock with a modulus
      to total times. Use this for FLIR camera top pixel
      stuff.
@@ -609,14 +610,21 @@ def zscore_numba(array):
     return output_array
 
 
+@njit(parallel=True)
+def conv(X, k_rev):
+    y = np.empty_like(X)
+    y.fill(np.nan)
+    k_hs = k_rev.size//2
+    for ii in prange(X.shape[0]):
+        for i in prange( k_hs , X.shape[1]-(k_hs+1) ):
+            y[ii, i] = np.dot(X[ii, 0+i-k_hs : 1+i+k_hs], k_rev)
+    return y
 def convolve_numba(X, k, axis=1):
     '''
     Convolves an array with a kernel along a defined axis
     if multicore_pref==True, array must be 2-D and 
     convolution is performed along dim-0. A 1-D array is 
     okay if you do X=array[:,None]
-    Faster and more memory efficient than that above
-    function 'zscore_multicore' for massive arrays
     RH 2021
     
     Args:
@@ -633,16 +641,7 @@ def convolve_numba(X, k, axis=1):
     '''
     if len(k)%2==0:
         raise TypeError('RH WARNING: k must have ODD LENGTH')
-    @njit(parallel=True)
-    def conv(X, k_rev):
-        y = np.empty_like(X)
-        y.fill(np.nan)
-        k_hs = k_rev.size//2
-        for ii in prange(X.shape[0]):
-            for i in prange( k_hs , X.shape[1]-(k_hs+1) ):
-                y[ii, i] = np.dot(X[ii, 0+i-k_hs : 1+i+k_hs], k_rev)
-        return y
-    
+
     if axis==0:
         X = X.T
     k_rev = np.ascontiguousarray(np.flip(k), dtype=X.dtype)
@@ -653,7 +652,17 @@ def convolve_numba(X, k, axis=1):
     else:
         return y
 
+
+@njit(parallel=True)
+def conv1d_numba(X, k):
+    y = np.empty_like(X)
+    y.fill(np.nan)
+    k_hs = k.size//2
+    for ii in prange( k_hs , len(X)-(k_hs+1) ):
+        y[ii] = np.dot(X[0+ii-k_hs : 1+ii+k_hs], k)
+    return y
     
+
 @njit(parallel=True)
 def var_numba(X):
     Y = np.zeros(X.shape[0], dtype=X.dtype)
