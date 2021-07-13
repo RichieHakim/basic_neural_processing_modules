@@ -249,7 +249,7 @@ def rolling_percentile_rq_multicore(x_in, window, ptile, stride=1, center=True, 
     return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=None, axis=0, **{'window': window , 'ptile': ptile, 'stride': stride, 'center': False} )
 
 
-def event_triggered_traces(arr, trigger_signal, win_bounds):
+def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_idx=False):
     '''
     Makes event triggered traces along last dimension
     RH 2021
@@ -270,6 +270,12 @@ def event_triggered_traces(arr, trigger_signal, win_bounds):
             Events that would have a window extending
              before or after the bounds of the length
              of the trace are discarded.
+        trigger_signal_is_idx (bool):
+            If True then trigger_signal is an index array.
+            If False then trigger_signal is a boolean array.
+            Use an index array if there are multiple events
+             with the same index, else they will be
+             collapsed when this is 'True'.
      
      Returns:
          et_traces (np.ndarray):
@@ -293,7 +299,10 @@ def event_triggered_traces(arr, trigger_signal, win_bounds):
     axis=arr.ndim-1
     len_axis = arr.shape[axis]
 
-    windows = make_windows(np.nonzero(trigger_signal)[0], win_bounds)
+    if trigger_signal_is_idx:
+        windows = make_windows(trigger_signal, win_bounds)
+    else:
+        windows = make_windows(np.nonzero(trigger_signal)[0], win_bounds)
     win_toInclude = (np.sum(windows<0, axis=1)==0) * (np.sum(windows>len_axis, axis=1)==0)
     win_toExclude = win_toInclude==False
     n_win_included = np.sum(win_toInclude)
@@ -317,7 +326,7 @@ def event_triggered_traces(arr, trigger_signal, win_bounds):
     return et_traces, xAxis, windows
 
 
-def make_sorted_event_triggered_average(arr, trigger_signal, win_bounds, cv_group_size=2, test_frac=0.5, show_plot=False):
+def make_sorted_event_triggered_average(arr, trigger_signal, win_bounds, cv_group_size=2, test_frac=0.5, trigger_signal_is_idx=False, show_plot=False):
     '''
     Makes a sorted event triggered average plot
     RH 2021
@@ -347,6 +356,12 @@ def make_sorted_event_triggered_average(arr, trigger_signal, win_bounds, cv_grou
          test_frac (scalar):
              Fraction of samples in test set.
              Same as in cross_validation.group_split
+        trigger_signal_is_idx (bool):
+            If True then trigger_signal is an index array.
+            If False then trigger_signal is a boolean array.
+            Use an index array if there are multiple events
+             with the same index, else they will be
+             collapsed when this is 'True'.
          show_plot (bool):
              Whether or not to show the plot
      
@@ -370,7 +385,7 @@ def make_sorted_event_triggered_average(arr, trigger_signal, win_bounds, cv_grou
             
     '''
 
-    et_traces = event_triggered_traces(arr, trigger_signal, win_bounds)
+    et_traces = event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_idx=trigger_signal_is_idx)
 
     cv_idx = cross_validation.group_split(1, et_traces[0].shape[1], cv_group_size, test_size=test_frac)
 
