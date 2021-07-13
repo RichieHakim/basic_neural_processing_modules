@@ -427,7 +427,7 @@ def widen_boolean(arr, n_before, n_after, axis=None):
                                                               axis=axis, arr=arr)
 
 
-# @njit # jit doesn't work
+@njit
 def idx2bool(idx, length):
     '''
     Converts a vector of indices to a boolean vector.
@@ -443,7 +443,7 @@ def idx2bool(idx, length):
         bool_vec (np.ndarray):
             1-D boolean array.
     '''
-    out = np.zeros(length)
+    out = np.zeros(length, dtype=np.bool8)
     out[idx] = True
     return out
 
@@ -611,7 +611,7 @@ def zscore_numba(array):
 
 
 @njit(parallel=True)
-def conv(X, k_rev):
+def conv2d(X, k_rev):
     y = np.empty_like(X)
     y.fill(np.nan)
     k_hs = k_rev.size//2
@@ -645,7 +645,7 @@ def convolve_numba(X, k, axis=1):
     if axis==0:
         X = X.T
     k_rev = np.ascontiguousarray(np.flip(k), dtype=X.dtype)
-    y = conv(X, k_rev)
+    y = conv2d(X, k_rev)
 
     if axis==0:
         return y.T
@@ -655,6 +655,9 @@ def convolve_numba(X, k, axis=1):
 
 @njit(parallel=True)
 def conv1d_numba(X, k):
+    '''
+    remember to flip k
+    '''
     y = np.empty_like(X)
     y.fill(np.nan)
     k_hs = k.size//2
