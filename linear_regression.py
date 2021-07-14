@@ -119,7 +119,14 @@ def LinearRegression_sweep(X,
                                             groups,
                                             lw=5,
                                             plot_pref=True)
-    
+
+    OR:
+
+    n_splits = 4
+    cv = StratifiedKFold(n_splits, shuffle=False, random_state=None, )
+    cv_idx = list(cv.split(X=scores.T, y=trial_types_aligned, groups=trial_types_aligned))
+
+
     model_params_cuml_ElasticNet = {
             'fit_intercept': True,
             'normalize': False,
@@ -229,13 +236,20 @@ def LinearRegression_sweep(X,
                                                                                         l1_ratio=l1_ratio,
                                                                                         **model_params)
 
+                        if method_model in ['LogisticRegression']:
+                            clf = eval(f'{method_package}.linear_model.{method_model}')(C=1/alpha,
+                                                                                        l1_ratio=l1_ratio,
+                                                                                        **model_params)
+
                         clf.fit(X_train , y_train )
 
                         if method_package=='cuml':
                             theta[:, iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = cupy.asnumpy(clf.coef_)
                             intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = cupy.asnumpy(clf.intercept_)
                         else:
-                            theta[:, iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.coef_
+                            # theta[:, iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.coef_
+                            # intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.intercept_
+                            theta[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.coef_
                             intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.intercept_
 
                         EV_train_tmp = clf.score(X_train, y_train)
