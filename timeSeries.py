@@ -434,12 +434,13 @@ def widen_boolean(arr, n_before, n_after, axis=None):
     kernel_center = int(np.ceil(len(kernel) / 2))
     kernel[kernel_center - (n_before+1): kernel_center] = 1
     kernel[kernel_center: kernel_center + n_after] = 1
+    kernel = kernel / np.mean(kernel)
     
     if axis is None:
-        return scipy.signal.convolve(arr, kernel/np.sum(kernel), mode='same')
+        return np.bool8(scipy.signal.convolve(arr, kernel, mode='same'))
     else:
-        return np.apply_along_axis(lambda m: scipy.signal.convolve(m, kernel/np.sum(kernel), mode='same'),
-                                                              axis=axis, arr=arr)
+        return np.bool8(np.apply_along_axis(lambda m: scipy.signal.convolve(m, kernel, mode='same'),
+                                                              axis=axis, arr=arr))
 
 
 @njit
