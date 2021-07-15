@@ -17,6 +17,7 @@ def LinearRegression_sweep(X,
                             intercept_inPlace=None, 
                             EV_train_inPlace=None, 
                             EV_test_inPlace=None,
+                            preds_inPlace=None,
                             **model_params,
                             ):
     '''
@@ -190,12 +191,23 @@ def LinearRegression_sweep(X,
 
     n_y = y.shape[1]
 
+    if method_model in ['LogisticRegression']:
+        n_classes = len(np.unique(y))
+    else:
+        n_classes = 1
+
 
     if theta_inPlace is not None:
         theta = theta_inPlace
     else:
-        theta = np.ones((X.shape[1] , n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
+        theta = np.ones((n_y , n_splits , n_rolls , n_alphas , n_l1Ratios, n_classes, X.shape[1]))
     
+    if preds_inPlace is not None:
+        preds = preds_inPlace
+    else:
+        preds = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios, n_classes, X.shape[0]))
+
+
     if intercept_inPlace is not None:
         intercept = intercept_inPlace
     else:
@@ -210,7 +222,6 @@ def LinearRegression_sweep(X,
         EV_test = EV_test_inPlace
     else:
         EV_test   = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
-
 
     for iter_factor in range(n_y):
         for iter_roll in range(n_rolls):
@@ -238,13 +249,15 @@ def LinearRegression_sweep(X,
 
                         if method_model in ['LogisticRegression']:
                             clf = eval(f'{method_package}.linear_model.{method_model}')(C=1/alpha,
-                                                                                        l1_ratio=l1_ratio,
+                                                                                        l1_ratio=l1_ratio if model_params['penalty'] == 'elasticnet' else None,
                                                                                         **model_params)
 
                         clf.fit(X_train , y_train )
 
                         if method_package=='cuml':
-                            theta[:, iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = cupy.asnumpy(clf.coef_)
+                            # theta[:, iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = cupy.asnumpy(clf.coef_)
+                            # intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = cupy.asnumpy(clf.intercept_)
+                            theta[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = cupy.asnumpy(clf.coef_)
                             intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = cupy.asnumpy(clf.intercept_)
                         else:
                             # theta[:, iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = clf.coef_
@@ -256,7 +269,9 @@ def LinearRegression_sweep(X,
                         EV_test_tmp = clf.score(X_test, y_test)
                         
                         EV_train[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_train_tmp
-                        EV_test[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_test_tmp                        
+                        EV_test[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_test_tmp       
+                        
+                        preds[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = (theta[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] @ X.T) + intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio][:,None]
 
 
                         if verbose==2:
@@ -270,4 +285,4 @@ def LinearRegression_sweep(X,
             # Generally move it as far up the for-loop hierarchy as possible without running out of memory
             gc.collect()
 
-    return theta, intercept, EV_train, EV_test
+    return theta, intercept, EV_train, EV_test, preds
