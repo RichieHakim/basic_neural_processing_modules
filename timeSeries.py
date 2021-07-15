@@ -424,7 +424,7 @@ def widen_boolean(arr, n_before, n_after, axis=None):
              If None then arr should be a 1-D array.
     
     Returns:
-        widened arr (np.ndarray):
+        widened arr (np.ndarray, dtype=bool):
             Output array. Same as input arr, but
              with additional 'True' values before
              and after initial 'True' values.
