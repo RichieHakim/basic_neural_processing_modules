@@ -129,7 +129,7 @@ def CP_logitReg(X, y, weights=None, rank=4, lambda_L2=0.1, non_neg_pref=False):
                                                 approx_grad=True,
                                                 factr=1e7,
                                                 m=10,
-                                                epsilon=1e-8,
+                                                # epsilon=1e-8,
     #                                             iprint=2,
                                                 pgtol=1e-7,
                                                 maxfun=2e6,
