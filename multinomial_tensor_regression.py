@@ -67,7 +67,9 @@ def BcpFlat_to_Bcp(B_cp_flat, B_dims, rank):
 def Bcp_to_BcpFlat(B_cp):
     return np.concatenate([ii.ravel() for ii in B_cp])
 
-def Bcp_to_B(B_cp, weights):
+def Bcp_to_B(B_cp, weights=None):
+    if weights is None:
+        weights = np.ones(B_cp[0].shape[1])
     return tensorly.cp_tensor.cp_to_tensor((weights, B_cp))
 
 #########################################
