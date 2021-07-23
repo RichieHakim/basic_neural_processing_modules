@@ -31,7 +31,7 @@ def predict_proba(X, B):
     return scipy.special.softmax(tensorly.tenalg.inner(X, B, n_modes=B.ndim-1), axis=1)
 def predict(X, B_cp, weights=None):
     if weights is None:
-        weights = np.ones(len(B_cp))
+        weights = np.ones(B_cp[0].shape[1])
     return np.argmax(predict_proba(X, Bcp_to_B(B_cp, weights)), axis=1)
 
 
