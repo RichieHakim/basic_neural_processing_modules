@@ -300,7 +300,7 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
     len_axis = arr.shape[axis]
 
     if trigger_signal_is_idx:
-        windows = make_windows(trigger_signal, win_bounds)
+        windows = make_windows(trigger_signal[np.isnan(trigger_signal)==0], win_bounds)
     else:
         windows = make_windows(np.nonzero(trigger_signal)[0], win_bounds)
     win_toInclude = (np.sum(windows<0, axis=1)==0) * (np.sum(windows>len_axis, axis=1)==0)
@@ -443,7 +443,7 @@ def widen_boolean(arr, n_before, n_after, axis=None):
                                                               axis=axis, arr=arr))
 
 
-@njit
+# @njit
 def idx2bool(idx, length):
     '''
     Converts a vector of indices to a boolean vector.
