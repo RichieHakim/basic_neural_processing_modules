@@ -311,7 +311,7 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
 
 
     windows_flat = np.reshape(windows, (windows.size))
-
+    
     axes_all = np.arange(arr.ndim)
     axes_non = axes_all[axes_all != axis]
     et_traces_flat = np.take_along_axis(arr, np.expand_dims(np.array(windows_flat, dtype=np.int64), axis=tuple(axes_non)), axis=axis)

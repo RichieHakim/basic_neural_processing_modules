@@ -34,6 +34,9 @@ def show_all_tensors(globals):
             print(f'var: {var}, device:{globals[var].device}, shape: {globals[var].shape}, size: {globals[var].element_size() * globals[var].nelement()/1000000} MB')           
 
 def delete_all_cuda_tensors(globals):
+    '''
+    Call with: delete_all_cuda_tensors(globals())
+    '''
     types = [type(ii[1]) for ii in globals.items()]
     keys = list(globals.keys())
     for ii, (i_type, i_key) in enumerate(zip(types, keys)):
@@ -43,3 +46,11 @@ def delete_all_cuda_tensors(globals):
                 del(globals[i_key])
     gc.collect()
     torch.cuda.empty_cache()
+
+
+def tensor_sizeOnDisk(tensor, print_pref=True):
+    # in MB
+    size = tensor.element_size() * tensor.nelement()
+    if print_pref:
+        print(f'{tensor.device}, {tensor.shape}, {size/1000000} MB')
+    return size

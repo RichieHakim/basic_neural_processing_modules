@@ -4,6 +4,7 @@
 # Core Library
 import os
 from typing import List
+import numpy as np
 
 # Third party
 import pkg_resources
@@ -45,3 +46,26 @@ def get_from_package(package_name: str, path: str) -> str:
     """
     filepath = pkg_resources.resource_filename(package_name, path)
     return os.path.abspath(filepath)
+
+
+def get_nums_from_string(string_with_nums):
+    """
+    Return the numbers from a string as an int
+    RH 2021
+
+    Args:
+        string_with_nums (str):
+            string with numbers in it
+    
+    Returns:
+        nums (int):
+            the numbers from the string            
+    """
+    idx_nums = [ii in str(np.arange(10)) for ii in string_with_nums]
+    
+    nums = []
+    for jj, val in enumerate(idx_nums):
+        if val:
+            nums.append(string_with_nums[jj])
+    nums = int(''.join(nums))
+    return nums

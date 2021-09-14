@@ -16,7 +16,7 @@ def idx_to_oneHot(arr):
     return oneHot
 def confusion_matrix_prob(probs, y):
     cmat = probs.T @ idx_to_oneHot(y)
-    return cmat / np.sum(cmat, axis=0)
+    return cmat / np.sum(cmat, axis=0)[None,:]
 #     return cmat
 def mean_confusion_loss(B, X, y):
     cmat = confusion_matrix_prob(predict_proba(X, B), y)
@@ -76,7 +76,7 @@ def Bcp_to_B(B_cp, weights=None):
 ############ CORE FUNCTION ##############
 #########################################
 
-def CP_logitReg(X, y, weights=None, rank=4, lambda_L2=0.1, non_neg_pref=False):
+def CP_logitReg(X, y, weights=None, rank=4, lambda_L2=0.1, non_neg_pref=False, **lbfgs_params):
     '''
     Performs a multinomial logistic CP regression.
 
@@ -124,19 +124,24 @@ def CP_logitReg(X, y, weights=None, rank=4, lambda_L2=0.1, non_neg_pref=False):
     else:
         bounds = (-np.inf, np.inf)
     bounds_list = [bounds for ii in range(len(x0))]
+
+    if lbfgs_params is None:
+        lbfgs_params = {'approx_grad': True,
+                        'm': 10,
+                        'factr': 1e7,
+                        'pgtol': 1e-5,
+                        'epsilon': 1e-8,
+                        'iprint': -1,
+                        'maxfun': 2e6,
+                        'maxiter': 2e6,
+                        'disp': True,
+                        'maxls': 20}
     run_output = scipy.optimize.fmin_l_bfgs_b(score_with_BcpFlat,
                                                 x0=x0,
                                                 bounds=bounds_list,
                                                 args=(X, y, weights, B_dims, rank, lambda_L2),
-                                                approx_grad=True,
-                                                factr=1e7,
-                                                m=10,
-                                                # epsilon=1e-8,
-    #                                             iprint=2,
-                                                pgtol=1e-7,
-                                                maxfun=2e6,
-                                                disp = True,
-                                                maxls=20,
+                                                **lbfgs_params,
                                                )
+    
     B_cp_final = BcpFlat_to_Bcp(run_output[0], B_dims, rank)
     return B_cp_final, run_output

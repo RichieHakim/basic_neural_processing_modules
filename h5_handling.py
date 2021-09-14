@@ -185,3 +185,23 @@ def h5py_dataset_iterator(g, prefix=''):
             yield (path, item)
         elif isinstance(item, h5py.Group): # test for group (go down)
             yield from h5py_dataset_iterator(item, path)
+
+
+def dump_nwb(nwb_path):
+    """
+    Print out nwb contents
+
+    Args:
+        nwb_path (str): path to the nwb file
+
+    Returns:
+    """
+    import pynwb
+    with pynwb.NWBHDF5IO(nwb_path, 'r') as io:
+        nwbfile = io.read()
+        for interface in nwbfile.processing['Face Rhythm'].data_interfaces:
+            print(interface)
+            time_series_list = list(nwbfile.processing['Face Rhythm'][interface].time_series.keys())
+            for ii, time_series in enumerate(time_series_list):
+                data_tmp = nwbfile.processing['Face Rhythm'][interface][time_series].data
+                print(f"     {time_series}:    {data_tmp.shape}   ,  {data_tmp.dtype}   ,   {round((data_tmp.size * data_tmp.dtype.itemsize)/1000000000, 6)} GB")
