@@ -1,16 +1,27 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from sklearn.model_selection import (TimeSeriesSplit, KFold, ShuffleSplit,
+                                     StratifiedKFold, GroupShuffleSplit,
+                                     GroupKFold, StratifiedShuffleSplit)
+                                     
 def make_cv_indices(
     cv, 
-    groups, 
+    groups=None, 
+    n_samples=None,
     cmap_cv=plt.cm.binary, 
     cmap_data=plt.cm.binary, 
     lw=20, 
     plot_pref=True):
 
-    """Create a sample plot for indices of a cross-validation object."""
+    """Create a sample plot for indices of a cross-validation object.
+        Use either n_samples or groups.
+    """
+    if (groups is None) and (n_samples is None):
+        raise ValueError('Either n_samples or groups must be specified')
 
+    if groups is None:
+        groups = np.arange(n_samples)
     X = np.arange(len(groups))
     y = np.arange(len(groups))
     cv_idx = list(cv.split(X=X , y=y , groups=groups))
@@ -20,7 +31,7 @@ def make_cv_indices(
     if plot_pref:
         fig, ax = plt.subplots()
 
-        for ii, (tr, tt) in enumerate(cv.split(X=X, y=y, groups=groups)):
+        for ii, (tr, tt) in enumerate(cv_idx):
             # Fill in indices with the training/test groups
             indices = np.array([np.nan] * len(X))
             indices[tt] = 1
@@ -39,9 +50,26 @@ def make_cv_indices(
         ax.set(yticks=np.arange(n_splits+1) + .5, yticklabels=yticklabels,
                xlabel='Sample index', ylabel="CV iteration",
                ylim=[n_splits+1.2, -.2], xlim=[0, X.shape[0]])
-        ax.set_title('{}'.format(type(cv).__name__), fontsize=15)
+        # ax.set_title('{}'.format(type(cv).__name__), fontsize=15)
     return cv_idx
 
+def make_groups(n_samples, group_size):
+    '''
+    Makes groups
+    RH 2021
+
+    Args:
+        n_samples (int):
+            Number of samples
+        group_size (int):
+            Number of samples per group
+    
+    Returns:
+        groups (list):
+            List of group identities for each sample.
+    '''
+    groups = np.hstack([[ii]*group_size for ii in range(int(np.ceil(n_samples/group_size)))])[:n_samples]
+    return groups
 
 def group_split(n_splits, n_samples, group_size, test_size=0.5):
     '''
