@@ -4,14 +4,15 @@ import sklearn
 import sklearn.linear_model
 import time
 
-def LinearRegression_sweep(X,
-                            y,
+def LinearRegression_sweep(X_in,
+                            y_in,
                             cv_idx,
                             alphas=0,
                             l1_ratios=0.5,
                             rolls=0,
                             method_package='sklearn',
                             method_model='LinearRegression',
+                            compute_preds=False,
                             verbose=True,
                             theta_inPlace=None, 
                             intercept_inPlace=None, 
@@ -36,9 +37,10 @@ def LinearRegression_sweep(X,
 
     Args:
         X (ndarray): 
-            Predictors
+            Predictors. Shape: (n_samples, n_features).
         y (ndarray): 
             Outputs. Regression performed on one column at a time.
+            Shape: (n_samples, n_outputs).
         alphas (ndarray): 
             Alpha parameters. Sets strength of regularization.
         l1_ratios (ndarray): 
@@ -65,6 +67,9 @@ def LinearRegression_sweep(X,
             does not use l1_ratio or alpha). So, if there are multiple
             values for an unused parameter, then the regression will be
             unnecessarily computed multiple times.
+        compute_preds (bool):
+            If True, will compute the predictions for the model.
+             preds = theta @ X.T + intercept
         verbose (int 0-2):
             Preference of whether to print reconstruction scores.
             0: Print nothing
@@ -107,9 +112,11 @@ def LinearRegression_sweep(X,
 
     ============ DEMO ===============
 
+    from basic_neural_processing_modules import cross_validation
+
     from sklearn.model_selection import (TimeSeriesSplit, KFold, ShuffleSplit,
-                                     StratifiedKFold, GroupShuffleSplit,
-                                     GroupKFold, StratifiedShuffleSplit)
+                                    StratifiedKFold, GroupShuffleSplit,
+                                    GroupKFold, StratifiedShuffleSplit)
     group_len = 60*2 * Fs # seconds * Fs
     n_splits = 10
     test_size = 0.3
@@ -118,7 +125,7 @@ def LinearRegression_sweep(X,
     cv = GroupShuffleSplit(n_splits, test_size=test_size)
     cv_idx = cross_validation.make_cv_indices(cv,
                                             groups,
-                                            lw=5,
+                                            lw=10,
                                             plot_pref=True)
 
     OR:
@@ -128,6 +135,14 @@ def LinearRegression_sweep(X,
     cv_idx = list(cv.split(X=scores.T, y=trial_types_aligned, groups=trial_types_aligned))
 
 
+    from basic_neural_processing_modules.linear_regression import LinearRegression_sweep
+
+    n_nonzero_rolls = 2
+    min_roll = 60*10*Fs
+    max_roll = X.shape[0] - min_roll
+    rolls = np.concatenate(([0] , np.random.randint(min_roll, max_roll, n_nonzero_rolls)))
+    n_rolls = n_nonzero_rolls + 1
+
     model_params_cuml_ElasticNet = {
             'fit_intercept': True,
             'normalize': False,
@@ -136,18 +151,21 @@ def LinearRegression_sweep(X,
             'selection': 'cyclic',
     }
 
+    l1_ratios = np.array([0, 0.01, 0.1, 0.5, 0.9, 0.99, 1])
+    alphas = np.array([0.0001, 0.001, 0.01, 0.1, 1])
+
     # prepare output variables for in-place computations
     n_y = y.shape[1]
     n_alphas = len(alphas)
     n_l1Ratios = len(l1_ratios)
-        
-    theta = np.ones((X.shape[1] , n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
+
+    theta = np.ones((n_y , n_splits , n_rolls , n_alphas , n_l1Ratios, X.shape[1]))
     intercept = np.ones((n_y , n_splits , n_rolls , n_alphas , n_l1Ratios))
     EV_train  = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
     EV_test   = np.zeros((n_y, n_splits , n_rolls , n_alphas , n_l1Ratios))
 
     # Run regression sweep
-    theta, intercept, EV_train, EV_test = LinearRegression_sweep(   X,
+    theta, intercept, EV_train, EV_test, preds = LinearRegression_sweep(   X,
                                                                     y,
                                                                     cv_idx,
                                                                     alphas=alphas,
@@ -172,12 +190,15 @@ def LinearRegression_sweep(X,
         import cupy
 
         print('making cupy arrays')    
-        X = cupy.asarray(X)
-        y = cupy.asarray(y)
+        X = cupy.asarray(X_in)
+        y = cupy.asarray(y_in)
 
         # I thought this might help with the memory leak issue,
         # but it doesn't seem to help that much
         model_params['handle'] = cuml.Handle()
+    else:
+        X = np.array(X_in)
+        y = np.array(y_in)
     
 
     n_alphas = len(alphas)
@@ -271,8 +292,10 @@ def LinearRegression_sweep(X,
                         EV_train[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_train_tmp
                         EV_test[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_test_tmp       
                         
-                        preds[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = (theta[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] @ X.T) + intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio][:,None]
-
+                        if compute_preds:
+                            preds[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = (theta[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] @ X_in.T) + intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio]
+                        else:
+                            preds = np.nan
 
                         if verbose==2:
                             print(f'y #: {iter_factor} , Roll iter: {iter_roll} , CV repeat #: {iter_cv} , alpha val: {alpha} , l1_ratio: {l1_ratio} , train R^2: {round(EV_train_tmp,3)}')
