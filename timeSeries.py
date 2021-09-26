@@ -632,7 +632,7 @@ def conv2d(X, k_rev):
     y.fill(np.nan)
     k_hs = k_rev.size//2
     for ii in prange(X.shape[0]):
-        for i in prange( k_hs , X.shape[1]-(k_hs+1) ):
+        for i in prange( k_hs , X.shape[1]-(k_hs) ):
             y[ii, i] = np.dot(X[ii, 0+i-k_hs : 1+i+k_hs], k_rev)
     return y
 def convolve_numba(X, k, axis=1):
@@ -677,7 +677,7 @@ def conv1d_numba(X, k):
     y = np.empty_like(X)
     y.fill(np.nan)
     k_hs = k.size//2
-    for ii in prange( k_hs , len(X)-(k_hs+1) ):
+    for ii in prange( k_hs , len(X)-(k_hs) ):
         y[ii] = np.dot(X[0+ii-k_hs : 1+ii+k_hs], k)
     return y
     

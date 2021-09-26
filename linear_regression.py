@@ -44,7 +44,7 @@ def LinearRegression_sweep(X_in,
         alphas (ndarray): 
             Alpha parameters. Sets strength of regularization.
         l1_ratios (ndarray): 
-            L1 to L2 ratio parameters.
+            L1 to L2 ratio parameters. 0:L2 only, 1:L1 only
         cv_idx (list of lists of 1-D arrays): 
             Cross-validation indices. Each entry in the outer list is
             for a different run. Each entry in the outer list should 
@@ -70,6 +70,7 @@ def LinearRegression_sweep(X_in,
         compute_preds (bool):
             If True, will compute the predictions for the model.
              preds = theta @ X.T + intercept
+            This is currently done on CPU so it is very slow.
         verbose (int 0-2):
             Preference of whether to print reconstruction scores.
             0: Print nothing
@@ -100,15 +101,19 @@ def LinearRegression_sweep(X_in,
 
     Returns:
         theta (ndarray):
-            Regression coefficients
+            Regression coefficients.
+            Shape: (n_y, n_splits, n_rolls, n_alphas, n_l1Ratios, X.shape[1])
         intercept (ndarray):
             Intercept values
-        R_test (ndarray):
+            Shape: (n_y, n_splits, n_rolls, n_alphas, n_l1Ratios)
+        EV_test (ndarray):
             Pearson correlation scores between test data and reconstructed
             test data.
-        R_train (ndarray):
+            Shape: (n_y, n_splits, n_rolls, n_alphas, n_l1Ratios)
+        EV_train (ndarray):
             Pearson correlation scores between train data and reconstructed
             train data.
+            Shape: (n_y, n_splits, n_rolls, n_alphas, n_l1Ratios)
 
     ============ DEMO ===============
 
@@ -293,7 +298,10 @@ def LinearRegression_sweep(X_in,
                         EV_test[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = EV_test_tmp       
                         
                         if compute_preds:
-                            preds[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = (theta[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] @ X_in.T) + intercept[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio]
+                            if method_package=='cuml':
+                                preds[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = ((clf.coef_ @ X.T) + clf.intercept_).get()
+                            else:
+                                preds[iter_factor, iter_cv, iter_roll, iter_alpha, iter_l1Ratio] = ((clf.coef_ @ X.T) + clf.intercept_)
                         else:
                             preds = np.nan
 
