@@ -172,7 +172,7 @@ def recursive_for_loop(final_ndim, func, data, loop_depth=0):
     return output
 
 
-def get_last_true_idx(input_array):
+def get_last_True_idx(input_array):
     '''
     for 1-d arrays only. gets idx of last entry
     that == True
