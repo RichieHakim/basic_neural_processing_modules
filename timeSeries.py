@@ -15,6 +15,7 @@ Functions and Interdependencies:
 from logging import warn
 import numpy as np
 import scipy.stats
+import scipy.signal
 import time
 from matplotlib import pyplot as plt
 import copy
