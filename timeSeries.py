@@ -464,6 +464,20 @@ def idx2bool(idx, length):
     out[idx] = True
     return out
 
+def bool2idx(bool_vec):
+    '''
+    Converts a boolean vector to indices.
+    RH 2021
+
+    Args:
+        bool_vec (np.ndarray):
+            1-D boolean array.
+    
+    Returns:
+        idx (np.ndarray):
+            1-D array of indices.
+    '''
+    return np.where(bool_vec)[0]
 
 def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=None, plot_pref=False):
     '''
