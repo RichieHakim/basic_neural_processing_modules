@@ -3,6 +3,63 @@ import numpy as np
 import sklearn
 import sklearn.linear_model
 import time
+from numba import njit, jit, prange
+
+
+# @njit
+def OLS(X,y):
+    '''
+    Ordinary Least Squares regression.
+    This method works great and is fast under most conditions.
+    It tends to do poorly when X.shape[1] is small or too big 
+     (overfitting can occur). Using OLS + EV is probably
+     better than the 'orthogonalize' function.
+    RH 2021
+
+    Args:
+        X (ndarray):
+            array where columns are vectors to regress against 'y'
+        y (ndarray):
+            1-D or 2-D array
+    Returns:
+        theta (ndarray):
+            regression coefficents
+        y_rec (ndarray):
+            y reconstructions
+    '''
+    if X.ndim==1:
+        X = X[:,None]
+    theta = np.linalg.inv(X.T @ X) @ X.T @ y
+    y_rec = X @ theta
+    return theta, y_rec
+
+
+# @njit
+def Ridge(X, y, lam=1):
+    '''
+    Ridge regression.
+    This method works great and is fast under most conditions.
+    RH 2021
+
+    Args:
+        X (ndarray):
+            array where columns are vectors to regress against 'y'
+        y (ndarray):
+            1-D or 2-D array
+        lam (float):
+            regularization parameter
+    Returns:
+        theta (ndarray):
+            regression coefficents
+        y_rec (ndarray):
+            y reconstructions
+    '''
+    if X.ndim==1:
+        X = X[:,None]
+    theta = np.linalg.inv(X.T @ X + lam*np.eye(X.shape[1])) @ X.T @ y
+    y_rec = X @ theta
+    return theta, y_rec
+
 
 def LinearRegression_sweep(X_in,
                             y_in,
@@ -178,6 +235,7 @@ def LinearRegression_sweep(X_in,
                                                                     rolls=rolls,
                                                                     method_package='cuml',
                                                                     method_model='ElasticNet',
+                                                                    compute_preds=True,
                                                                     verbose=True,
                                                                     theta_inPlace=theta, 
                                                                     intercept_inPlace=intercept,

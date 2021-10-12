@@ -21,6 +21,7 @@ import scipy.optimize
 import copy
 import sklearn.decomposition
 from opt_einsum import contract
+from numba import njit, prange, jit
 
 from time import time
 
@@ -105,7 +106,7 @@ def orthogonalize(v1, v2):
     # Serial orthogonalization. I think doing it serially isn't necessary 
     # since we are orthogonalizing the v2 vectors. This method might have
     # some numerical instability issues given it's similarity to a 
-    # Gram-Schmidt process, but I doubt it because v2 is orthogonal.
+    # Gram-Schmidt process, but maybe less because v2 is orthogonal.
     # I'll leave optimization to a future me.
     v1_orth = copy.deepcopy(v1)
     for ii in range(v2.shape[1]):
@@ -116,6 +117,101 @@ def orthogonalize(v1, v2):
     EVR_total = 1 - ( np.sum(np.var(v1_orth,axis=0),axis=0) / np.sum(np.var(v1,axis=0),axis=0) )
 
     return v1_orth, v2_PCs, EVR, EVR_total
+
+
+@njit
+def pairwise_orthogonalization(v1, v2, center_v1=True, center_v2=True, zscore_v1=False, zscore_v2=False):
+    """
+    Orthogonalizes columns of v2 off of the columns of v1.
+    Each column of v1 and v2 is first mean-centered and then
+     each column of v2 is projected onto and subtracted from 
+     the corresponding column of v1.
+    Since it's just pairwise, there should not be any 
+     numerical instability issues.
+    Centering is nice when calculating EVR because it 
+     prevents negative EVR values.
+    For some reason @njit(parallel=True) sucks.
+    RH 2021
+
+    Args:
+        v1 (ndarray):
+            y_true
+            Vector set 1. Either a single vector or a 2-D 
+             array where the columns are the vectors.
+        v2 (ndarray):  
+            y_pred
+            Vector set 2. Either a single vector or a 2-D
+             array where the columns are the vectors.
+        center_v1 (bool):
+            Whether to mean center v1.
+        center_v2 (bool):
+            Whether to mean center v2.
+    
+    Returns:
+        v1_orth (ndarray):
+            Vector set 1 with the projections onto vector 
+             set 2 subtracted off.
+            Same size as v1.
+        EVR (ndarray):
+            Explained Variance Ratio for each column of v1.
+            Amount of variance that all the vectors in v2 
+             can explain for each vector in v1.
+        EVR_total_weighted (scalar):
+            Average amount of variance explained in v1 by v2
+             weighted by the variance of each column of v1.
+        EVR_total_unweighted (scalar):
+            Average amount of variance explained in v1 by v2
+    """
+    assert v1.ndim == v2.ndim
+    # if v1.ndim==1:
+    #     v1 = v1[:,None]
+    #     v2 = v2[:,None]
+    assert v1.shape[1] == v2.shape[1]
+    assert v1.shape[0] == v2.shape[0]
+
+    v1 = np.ascontiguousarray(np.transpose(v1))
+    v2 = np.ascontiguousarray(np.transpose(v2))
+
+    if center_v1 and not zscore_v1:
+        # v1 = v1 - np.mean(v1, axis=0, keepdims=True)
+        # v1 = v1 - np.transpose(mean_numba(np.transpose(v1)))
+        v1 = v1 - np.expand_dims(mean_numba(v1), axis=1)
+        # v1 = v1 - np.tile(np.expand_dims(mean_numba(v1), axis=1), (1, v1.shape[1]))
+        # v1 = v1 - np.reshape(np.repeat(mean_numba(v1), v1.shape[1]), (v1.shape[0], v1.shape[1]))
+    if center_v2 and not zscore_v2:
+        # v2 = v2 - np.mean(v2, axis=0, keepdims=True)
+        # v2 = v2 - np.transpose(mean_numba(np.transpose(v2)))
+        v2 = v2 - np.expand_dims(mean_numba(v2), axis=1)
+        # v2 = v2 - np.tile(np.expand_dims(mean_numba(v2), axis=1), (1, v2.shape[1]))
+        # v2 = v2 - np.reshape(np.repeat(mean_numba(v2), v2.shape[1]), (v2.shape[0], v2.shape[1]))
+
+    # print(v2.shape)
+    # print(np.expand_dims(mean_numba(v2), axis=1).shape)
+
+    v1_orth = np.empty_like(v1)
+    EVR = np.empty(v1.shape[0])
+    for ii in range(v1.shape[0]):
+        # v1_orth[:,ii] = v1[:,ii] - vectorProjection_numba(v1[:,ii], v2[:,ii])[0]
+        # v1_orth[ii,:] = v1[ii,:] - vectorProjection_numba(v1[ii,:], v2[ii,:])[0]
+        v1_orth[ii,:] = v1[ii,:] - ( np.dot(v1[ii,:], v2[ii,:]) / (np.linalg.norm(v2[ii,:])**2) )* v2[ii,:]
+        # EVR[ii] = 1 - (np.var(v1_orth[:,ii]) / np.var(v1[:,ii]))
+        EVR[ii] = 1 - (np.var(v1_orth[ii,:]) / np.var(v1[ii,:]))
+
+    # v1_var = np.var(v1, axis=0, keepdims=True)
+    # v1_var = var_numba(np.transpose(v1))
+    v1_var = var_numba(v1)
+    # print(np.sum(v1_var * EVR))
+    # print(np.sum(v1_var))
+    # EVR_total_weighted = np.sum(v1_var * EVR) / np.expand_dims(np.array([np.sum(v1_var)]), axis=1)
+    EVR_total_weighted = np.sum(v1_var * EVR) / np.sum(v1_var)
+    EVR_total_unweighted = np.mean(EVR)
+
+    # EVR_total_weighted = 0
+    # EVR_total_unweighted = 0
+    # v1_orth = 0
+    # EVR = 0
+
+    return v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted
 
 
 def OLS(X,y):
@@ -312,3 +408,36 @@ def self_similarity_pairwise(mat_set , method):
         corr_avg[i_combo] , corr_matched[:,i_combo] , ind1[:,i_combo] , ind2[:,i_combo]  =  best_permutation(mat_set[:,:,combo[0]]  ,  mat_set[:,:,combo[1]] , method)
     # print(corr_avg)
     return corr_avg, corr_matched, ind1, ind2, combos
+
+
+##############################################################
+######### NUMBA implementations of simple algorithms #########
+##############################################################
+
+@njit(parallel=True)
+def vectorProjection_numba(v1, v2):
+    proj_score = np.dot(v1, v2) / (np.linalg.norm(v2)**2)
+    proj_vec = v2 * proj_score
+    return proj_vec, proj_score
+
+@njit(parallel=True)
+def mean_numba(X):
+    Y = np.zeros(X.shape[0], dtype=X.dtype)
+    for ii in prange(X.shape[0]):
+        Y[ii] = np.mean(X[ii,:])
+    return Y
+
+@njit(parallel=True)
+def sum_numba(X):
+    Y = np.zeros(X.shape[0], dtype=X.dtype)
+    for ii in prange(X.shape[0]):
+        Y[ii] = np.sum(X[ii,:])
+    return Y
+
+@njit(parallel=True)
+def var_numba(X):
+    Y = np.zeros(X.shape[0], dtype=X.dtype)
+    for ii in prange(X.shape[0]):
+        Y[ii] = np.var(X[ii,:])
+    return Y
+

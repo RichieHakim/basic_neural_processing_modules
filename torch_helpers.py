@@ -48,7 +48,7 @@ def show_all_tensors(globals, data_unit='GB'):
     for var in globals:
         if (type(globals[var]) is torch.Tensor):
             size = convert_size(globals[var].element_size() * globals[var].nelement(), return_size=data_unit)
-            print(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size} {data_unit}')           
+            print(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size} {data_unit},   requires_grad: {globals[var].requires_grad}')           
 
 def delete_all_cuda_tensors(globals):
     '''
