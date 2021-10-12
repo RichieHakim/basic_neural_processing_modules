@@ -39,6 +39,7 @@ def Ridge(X, y, lam=1):
     '''
     Ridge regression.
     This method works great and is fast under most conditions.
+    Lambda often ~100000
     RH 2021
 
     Args:
