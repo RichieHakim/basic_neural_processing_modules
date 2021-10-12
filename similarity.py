@@ -60,8 +60,12 @@ def proj(v1, v2):
 
 def orthogonalize(v1, v2):
     '''
-    Orthogonalizes one or more vectors (columns of v1) relative to a single 
-    vector (v2). Subtracts the projection of v1 onto v2 off of v1.
+    Orthogonalizes one or more vectors (columns of v1) relative to another set 
+     of vectors (v2). Subtracts the projection of v1 onto v2 off of v1.
+    Update: I found a scenario under which numerical instability can cause and
+     overestimation in the EVR (and how much gets orthogonalized away). Be 
+     careful when v2 >> v1 in magnitude and/or rank. Use OLS + EV instead for 
+     those cases.
     RH 2021
 
     Args:
@@ -118,7 +122,9 @@ def OLS(X,y):
     '''
     Ordinary Least Squares regression.
     This method works great and is fast under most conditions.
-    It tends to do poorly when X.shape[1] is small.
+    It tends to do poorly when X.shape[1] is small or too big 
+     (overfitting can occur). Using OLS + EV is probably
+     better than the 'orthogonalize' function.
     RH 2021
 
     Args:

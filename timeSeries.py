@@ -698,10 +698,26 @@ def conv1d_numba(X, k):
     
 
 @njit(parallel=True)
+def mean_numba(X):
+    Y = np.zeros(X.shape[0], dtype=X.dtype)
+    for ii in prange(X.shape[0]):
+        Y[ii] = np.mean(X[ii,:])
+    return Y
+
+
+@njit(parallel=True)
 def var_numba(X):
     Y = np.zeros(X.shape[0], dtype=X.dtype)
     for ii in prange(X.shape[0]):
         Y[ii] = np.var(X[ii,:])
+    return Y
+
+
+@njit(parallel=True)
+def std_numba(X):
+    Y = np.zeros(X.shape[0], dtype=X.dtype)
+    for ii in prange(X.shape[0]):
+        Y[ii] = np.std(X[ii,:])
     return Y
 
 
