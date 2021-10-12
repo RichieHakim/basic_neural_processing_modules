@@ -22,6 +22,7 @@ import copy
 import sklearn.decomposition
 from opt_einsum import contract
 from numba import njit, prange, jit
+import torch
 
 from time import time
 
@@ -120,17 +121,34 @@ def orthogonalize(v1, v2):
 
 
 @njit
-def pairwise_orthogonalization(v1, v2, center_v1=True, center_v2=True, zscore_v1=False, zscore_v2=False):
+def pair_orth_helper(v1, v2):
     """
-    Orthogonalizes columns of v2 off of the columns of v1.
-    Each column of v1 and v2 is first mean-centered and then
-     each column of v2 is projected onto and subtracted from 
-     the corresponding column of v1.
+    Helper function for main pairwise_orthogonalization
+     function. Performs the pairwise orthogonalization
+     by subtracting off v2 from v1. Uses numba to speed
+     up the computation.
+     v1 = v1 - proj(v1 onto v2)
+    RH 2021
+
+    Args:
+        v1 (ndarray):
+            Vector set 1. Columns are vectors.
+        v2 (ndarray):
+            Vector set 2. Columns are vectors.
+    
+    Returns:
+        v1_orth (ndarray):
+            v1 - proj(v1 onto v2)
+    """
+    return  v1 - (np.diag(np.dot(v1.T, v2)) / np.diag(np.dot(v2.T, v2))) * v2
+def pairwise_orthogonalization(v1, v2, center:bool=False):
+    """
+    Orthogonalizes columns of v2 off of the columns of v1
+     and returns the orthogonalized v1 and the explained
+     variance ratio of v2 off of v1.
+    v1: y_true, v2: y_pred
     Since it's just pairwise, there should not be any 
      numerical instability issues.
-    Centering is nice when calculating EVR because it 
-     prevents negative EVR values.
-    For some reason @njit(parallel=True) sucks.
     RH 2021
 
     Args:
@@ -142,10 +160,9 @@ def pairwise_orthogonalization(v1, v2, center_v1=True, center_v2=True, zscore_v1
             y_pred
             Vector set 2. Either a single vector or a 2-D
              array where the columns are the vectors.
-        center_v1 (bool):
-            Whether to mean center v1.
-        center_v2 (bool):
-            Whether to mean center v2.
+        center (bool):
+            Whether to center the vectors.
+            Centering prevents negative EVR values.
     
     Returns:
         v1_orth (ndarray):
@@ -163,55 +180,89 @@ def pairwise_orthogonalization(v1, v2, center_v1=True, center_v2=True, zscore_v1
             Average amount of variance explained in v1 by v2
     """
     assert v1.ndim == v2.ndim
-    # if v1.ndim==1:
-    #     v1 = v1[:,None]
-    #     v2 = v2[:,None]
+    if v1.ndim==1:
+        v1 = v1[:,None]
+        v2 = v2[:,None]
+
     assert v1.shape[1] == v2.shape[1]
     assert v1.shape[0] == v2.shape[0]
+    
+    if center:
+        v1 = v1 - np.mean(v1, axis=0)
+        v2 = v2 - np.mean(v2, axis=0)
+    
+    v1_orth = pair_orth_helper(v1, v2)
 
-    v1 = np.ascontiguousarray(np.transpose(v1))
-    v2 = np.ascontiguousarray(np.transpose(v2))
+    v1_var = np.var(v1, axis=0)
+    EVR = 1 - (np.var(v1_orth, axis=0) / v1_var)
 
-    if center_v1 and not zscore_v1:
-        # v1 = v1 - np.mean(v1, axis=0, keepdims=True)
-        # v1 = v1 - np.transpose(mean_numba(np.transpose(v1)))
-        v1 = v1 - np.expand_dims(mean_numba(v1), axis=1)
-        # v1 = v1 - np.tile(np.expand_dims(mean_numba(v1), axis=1), (1, v1.shape[1]))
-        # v1 = v1 - np.reshape(np.repeat(mean_numba(v1), v1.shape[1]), (v1.shape[0], v1.shape[1]))
-    if center_v2 and not zscore_v2:
-        # v2 = v2 - np.mean(v2, axis=0, keepdims=True)
-        # v2 = v2 - np.transpose(mean_numba(np.transpose(v2)))
-        v2 = v2 - np.expand_dims(mean_numba(v2), axis=1)
-        # v2 = v2 - np.tile(np.expand_dims(mean_numba(v2), axis=1), (1, v2.shape[1]))
-        # v2 = v2 - np.reshape(np.repeat(mean_numba(v2), v2.shape[1]), (v2.shape[0], v2.shape[1]))
-
-    # print(v2.shape)
-    # print(np.expand_dims(mean_numba(v2), axis=1).shape)
-
-    v1_orth = np.empty_like(v1)
-    EVR = np.empty(v1.shape[0])
-    for ii in range(v1.shape[0]):
-        # v1_orth[:,ii] = v1[:,ii] - vectorProjection_numba(v1[:,ii], v2[:,ii])[0]
-        # v1_orth[ii,:] = v1[ii,:] - vectorProjection_numba(v1[ii,:], v2[ii,:])[0]
-        v1_orth[ii,:] = v1[ii,:] - ( np.dot(v1[ii,:], v2[ii,:]) / (np.linalg.norm(v2[ii,:])**2) )* v2[ii,:]
-        # EVR[ii] = 1 - (np.var(v1_orth[:,ii]) / np.var(v1[:,ii]))
-        EVR[ii] = 1 - (np.var(v1_orth[ii,:]) / np.var(v1[ii,:]))
-
-    # v1_var = np.var(v1, axis=0, keepdims=True)
-    # v1_var = var_numba(np.transpose(v1))
-    v1_var = var_numba(v1)
-    # print(np.sum(v1_var * EVR))
-    # print(np.sum(v1_var))
-    # EVR_total_weighted = np.sum(v1_var * EVR) / np.expand_dims(np.array([np.sum(v1_var)]), axis=1)
     EVR_total_weighted = np.sum(v1_var * EVR) / np.sum(v1_var)
     EVR_total_unweighted = np.mean(EVR)
-
-    # EVR_total_weighted = 0
-    # EVR_total_unweighted = 0
-    # v1_orth = 0
-    # EVR = 0
-
     return v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted
+
+
+@torch.jit.script
+def pairwise_orthogonalization_torch(v1, v2, center:bool=False):
+    """
+    Orthogonalizes columns of v2 off of the columns of v1
+     and returns the orthogonalized v1 and the explained
+     variance ratio of v2 off of v1.
+    v1: y_true, v2: y_pred
+    Since it's just pairwise, there should not be any 
+     numerical instability issues.
+    Same as pairwise_orthogonalization, but with 
+     torch.jit.script instead of njit.
+    RH 2021
+
+    Args:
+        v1 (ndarray):
+            y_true
+            Vector set 1. Either a single vector or a 2-D 
+             array where the columns are the vectors.
+        v2 (ndarray):  
+            y_pred
+            Vector set 2. Either a single vector or a 2-D
+             array where the columns are the vectors.
+        center (bool):
+            Whether to center the vectors.
+            Centering prevents negative EVR values.
+    
+    Returns:
+        v1_orth (ndarray):
+            Vector set 1 with the projections onto vector 
+             set 2 subtracted off.
+            Same size as v1.
+        EVR (ndarray):
+            Explained Variance Ratio for each column of v1.
+            Amount of variance that all the vectors in v2 
+             can explain for each vector in v1.
+        EVR_total_weighted (scalar):
+            Average amount of variance explained in v1 by v2
+             weighted by the variance of each column of v1.
+        EVR_total_unweighted (scalar):
+            Average amount of variance explained in v1 by v2
+    """
+
+    assert v1.ndim == v2.ndim
+    if v1.ndim==1:
+        v1 = v1[:,None]
+        v2 = v2[:,None]
+
+    assert v1.shape[1] == v2.shape[1]
+    assert v1.shape[0] == v2.shape[0]
+    
+    if center:
+        v1 = v1 - torch.mean(v1, dim=0)
+        v2 = v2 - torch.mean(v2, dim=0)
+
+    v1_orth = v1 - (torch.diag(torch.matmul(v1.T, v2)) / torch.diag(torch.matmul(v2.T, v2)))*v2
+
+    v1_var = torch.var(v1, dim=0)
+    EVR = 1 - (torch.var(v1_orth, dim=0) / v1_var)
+
+    EVR_total_weighted = np.sum(v1_var * EVR) / np.sum(v1_var)
+    EVR_total_unweighted = np.mean(EVR)
+    return v1_orth.squeeze(), EVR, EVR_total_weighted, EVR_total_unweighted
 
 
 def OLS(X,y):
