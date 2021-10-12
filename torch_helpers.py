@@ -34,7 +34,7 @@ def show_cuda_devices():
         print (ordinal, dev.name())
 
 
-def show_all_tensors(globals):
+def show_all_tensors(globals, data_unit='GB'):
     """
     Show all tensors in a dict.
     RH 2021
@@ -47,7 +47,8 @@ def show_all_tensors(globals):
     var = []
     for var in globals:
         if (type(globals[var]) is torch.Tensor):
-            print(f'var: {var}, device:{globals[var].device}, shape: {globals[var].shape}, size: {globals[var].element_size() * globals[var].nelement()/1000000} MB')           
+            size = convert_size(globals[var].element_size() * globals[var].nelement(), return_size=data_unit)
+            print(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size} {data_unit}')           
 
 def delete_all_cuda_tensors(globals):
     '''
@@ -75,17 +76,12 @@ def tensor_sizeOnDisk(tensor, print_pref=True, return_size='GB'):
     Return estimated size of tensor on disk.
     """
     # in MB
-    size = tensor.element_size() * tensor.nelement()
-
-    if return_size == 'GB':
-        size = size / 1000000000
-    elif return_size == 'MB':
-        size = size / 1000000
-    elif return_size == 'KB':
-        size = size / 1000
+    size = convert_size(
+        tensor.element_size() * tensor.nelement(),
+        return_size=return_size)
 
     if print_pref:
-        print(f'{tensor.device}, {tensor.shape}, {return_size}')
+        print(f'Device: {tensor.device}, Shape: {tensor.shape}, Size: {size} {return_size}')
     return size
 
 def set_device(use_GPU=True, verbose=True):
@@ -110,3 +106,35 @@ def set_device(use_GPU=True, verbose=True):
 
     return device
     
+
+############################################
+############ HELPER FUNCTIONS ##############
+############################################
+
+def convert_size(size, return_size='GB'):
+    """
+    Convert size to GB, MB, KB, from B.
+    RH 2021
+
+    Args:
+        size (int or float):
+            Size in bytes.
+        return_size (str):
+            Size unit to return.
+            Options: 'TB', 'GB', 'MB', or 'KB'
+        
+    Returns:
+        out_size (float):
+            Size in specified unit.      
+    """
+
+    if return_size == 'TB':
+        out_size = size / 1000000000000
+    if return_size == 'GB':
+        out_size = size / 1000000000
+    elif return_size == 'MB':
+        out_size = size / 1000000
+    elif return_size == 'KB':
+        out_size = size / 1000
+
+    return out_size
