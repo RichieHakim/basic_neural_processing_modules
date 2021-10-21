@@ -22,6 +22,7 @@ import copy
 from numba import njit, jit, prange
 import pandas as pd
 import rolling_quantiles as rq
+import torch
 
 from . import parallel_helpers
 from .parallel_helpers import multiprocessing_pool_along_axis
@@ -642,7 +643,7 @@ def zscore_numba(array):
 
 
 @njit(parallel=True)
-def conv2d(X, k_rev):
+def conv1d_alongAxis_helper(X, k_rev):
     y = np.empty_like(X)
     y.fill(np.nan)
     k_hs = k_rev.size//2
@@ -676,7 +677,7 @@ def convolve_numba(X, k, axis=1):
     if axis==0:
         X = X.T
     k_rev = np.ascontiguousarray(np.flip(k), dtype=X.dtype)
-    y = conv2d(X, k_rev)
+    y = conv1d_alongAxis_helper(X, k_rev)
 
     if axis==0:
         return y.T
@@ -743,3 +744,51 @@ def round_numba(x):
         for jj in prange(x.shape[1]):
             output[ii,jj] = np.round(x[ii,jj])
     return output
+
+
+####################################
+######## PYTORCH algorithms ########
+####################################
+
+def convolve_torch(X, kernels, **conv1d_kwargs):
+    """
+    Convolution of X with kernels
+    RH 2021
+
+    Args:
+        X (torch.Tensor):
+            N-D array. Convolution will be performed
+             along first dimension (columns).
+            Dims 1+ are convolved independently and 
+             increase the dimensionality of the output.
+        kernels (torch.Tensor):
+            N-D array. Convolution will be performed
+             along first dimension (columns).
+            Dims 1+ are convolved independently and 
+             increase the dimensionality of the output.
+        conv1d_kwargs (dict or keyword args):
+            Keyword arguments for 
+             torch.nn.functional.conv1d.
+            See torch.nn.functional.conv1d for details.
+            You can use padding='same'
+        
+    Returns:
+        output (torch.Tensor):
+            N-D array. Convolution of X with kernels
+    """
+    X_dims = list(X.shape)
+    t_dim = X_dims[0]
+
+    kernel_dims = list(kernels.shape)
+    w_dim = [kernel_dims[0]]
+
+    conv_out_shape = [-1] + X_dims[1:] + kernel_dims[1:] 
+    
+    X_rshp = X.reshape((t_dim, 1, -1)).permute(2,1,0) # flatten non-time dims and shape to (non-time dims, 1, time dims) (D X R, 1, t)
+    kernel_rshp = kernels.reshape(w_dim + [1, -1]).permute(2,1,0) # flatten rank + complex dims and shape to (rank X complex dims, 1, W) (R X C, 1, W)
+
+    convolved = torch.nn.functional.conv1d(X_rshp, kernel_rshp, **conv1d_kwargs)  
+   
+    convolved_rshp = convolved.permute(2, 0, 1).reshape((conv_out_shape)) # (T, D, R, C)
+
+    return convolved_rshp

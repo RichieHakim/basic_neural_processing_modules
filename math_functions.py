@@ -17,7 +17,7 @@ def gaussian(x, mu, sig , plot_pref=False):
         params_gaus (dict): dictionary containing the input params
     '''
 
-    gaus = 1/(np.sqrt(2*np.pi)*sig)*np.exp(-np.power((x-mu)/sig, 2)/2)
+    gaus = 1/(np.sqrt(2*np.pi)*sig)*np.exp((-((x-mu)/sig) **2)/2)
 
     if plot_pref:
         plt.figure()
