@@ -59,6 +59,27 @@ def proj(v1, v2):
 
     return proj_vec , proj_score
 
+def vector_angle(v1, v2, deg_or_rad='deg'):
+    '''
+    Calculates the angle between two vectors.
+    RH 2021
+
+    Args:
+        v1 (ndarray):
+            vector 1
+        v2 (ndarray):
+            vector 2
+        deg_or_rad (str):
+            'deg' for degrees, 'rad' for radians
+    
+    Returns:
+        angle (scalar):
+            angle between v1 and v2
+    '''
+    if deg_or_rad == 'rad':
+        return torch.arccos((v1@v2) / (torch.norm(v1) * torch.norm(v2)))
+    if deg_or_rad == 'deg':
+        return torch.rad2deg(torch.arccos((v1@v2) / (torch.norm(v1) * torch.norm(v2))))
 
 def orthogonalize(v1, v2):
     '''
