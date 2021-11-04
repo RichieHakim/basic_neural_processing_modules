@@ -206,4 +206,4 @@ def squeeze_integers(intVec):
     """
     uniques = np.unique(intVec)
     unique_positions = np.arange(len(uniques))
-    return unique_positions[np.array([np.where(intVec[ii]==uniques)[0] for ii in range(len(test))]).squeeze()]
+    return unique_positions[np.array([np.where(intVec[ii]==uniques)[0] for ii in range(len(intVec))]).squeeze()]
