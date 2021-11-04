@@ -186,3 +186,24 @@ def get_last_True_idx(input_array):
         output = np.max(nz)
 #     print(output)
     return output
+
+def squeeze_integers(intVec):
+    """
+    Make integers in an array consecutive numbers
+     starting from 0. ie. [7,2,7,4,1] -> [3,2,3,1,0].
+    Useful for removing unused class IDs from y_true
+     and outputting something appropriate for softmax.
+    This is v2. The old version is busted.
+    RH 2021
+    
+    Args:
+        intVec (np.ndarray):
+            1-D array of integers.
+    
+    Returns:
+        intVec_squeezed (np.ndarray):
+            1-D array of integers with consecutive numbers
+    """
+    uniques = np.unique(intVec)
+    unique_positions = np.arange(len(uniques))
+    return unique_positions[np.array([np.where(intVec[ii]==uniques)[0] for ii in range(len(test))]).squeeze()]

@@ -399,7 +399,7 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         output = (v1 / (np.expand_dims(norm(v1 , axis=0) , axis=0))).T  @ (v2  / np.expand_dims(norm(v2 , axis=0) , axis=0))
     return output
 
-def best_permutation(mat1 , mat2 , method):
+def best_permutation(mat1 , mat2 , method='pearson'):
     '''
     This function compares the representations of two sets of vectors (columns
      of mat1 and columns of mat2).
@@ -439,9 +439,9 @@ def best_permutation(mat1 , mat2 , method):
             sim_matched[ii] = pairwise_similarity( mat1[:,ind1[ii]] , mat2[:,ind2[ii]] , 'cosine_similarity')
 
     sim_avg = np.mean(sim_matched)
-    return sim_avg , sim_matched , ind1 , ind2
+    return sim_avg , sim_matched , ind1.astype('int64') , ind2.astype('int64')
 
-def self_similarity_pairwise(mat_set , method):
+def self_similarity_pairwise(mat_set , method='pearson'):
     '''
     This function compares sets of 2-D matrices within a 3-D array using the 
     'best_permutation' function.
@@ -454,9 +454,11 @@ def self_similarity_pairwise(mat_set , method):
     Args:
         mat_set (np.ndarray): 
             a 3D array where the columns within the first two dims are vectors
-             we wish to match with the columns from matrices from other slices in the third dimension
+             we wish to match with the columns from matrices from other slices
+             in the third dimension
         method (string): 
-            defines method of calculating pairwise similarity between vectors
+            defines method of calculating pairwise similarity between vectors:
+             'pearson' or 'cosine_similarity'
 
     Returns:
         same as 'best_permutation', but over each combo
@@ -473,8 +475,8 @@ def self_similarity_pairwise(mat_set , method):
 
     corr_avg = np.zeros((n_combos))
     corr_matched = np.zeros((n_components , n_combos))
-    ind1 = np.zeros((n_components , n_combos))
-    ind2 = np.zeros((n_components , n_combos))
+    ind1 = np.zeros((n_components , n_combos), dtype='int64')
+    ind2 = np.zeros((n_components , n_combos), dtype='int64')
     for i_combo , combo in enumerate(combos):
         corr_avg[i_combo] , corr_matched[:,i_combo] , ind1[:,i_combo] , ind2[:,i_combo]  =  best_permutation(mat_set[:,:,combo[0]]  ,  mat_set[:,:,combo[1]] , method)
     # print(corr_avg)
