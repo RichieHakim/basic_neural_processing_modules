@@ -6,6 +6,46 @@ import pycuda.driver as drv
 import sys
 import gc
 
+
+############################################
+############ VARIABLE HELPERS ##############
+############################################
+
+def show_all_tensors(globals, data_unit='GB'):
+    """
+    Show all tensors in a dict.
+    RH 2021
+
+    Args:
+        globals (dict):
+            Dict of global variables.
+            Call globals() to get this.
+    """
+    var = []
+    for var in globals:
+        if (type(globals[var]) is torch.Tensor):
+            size = convert_size(globals[var].element_size() * globals[var].nelement(), return_size=data_unit)
+            print(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size} {data_unit},   requires_grad: {globals[var].requires_grad}')           
+
+
+def tensor_sizeOnDisk(tensor, print_pref=True, return_size='GB'):
+    """
+    Return estimated size of tensor on disk.
+    """
+    # in MB
+    size = convert_size(
+        tensor.element_size() * tensor.nelement(),
+        return_size=return_size)
+
+    if print_pref:
+        print(f'Device: {tensor.device}, Shape: {tensor.shape}, Size: {size} {return_size}')
+    return size
+
+
+######################################
+############ CUDA STUFF ##############
+######################################
+
 def show_torch_cuda_info():
     """
     Show PyTorch and cuda info.
@@ -33,23 +73,6 @@ def show_cuda_devices():
         dev = drv.Device(ordinal)
         print (ordinal, dev.name())
 
-
-def show_all_tensors(globals, data_unit='GB'):
-    """
-    Show all tensors in a dict.
-    RH 2021
-
-    Args:
-        globals (dict):
-            Dict of global variables.
-            Call globals() to get this.
-    """
-    var = []
-    for var in globals:
-        if (type(globals[var]) is torch.Tensor):
-            size = convert_size(globals[var].element_size() * globals[var].nelement(), return_size=data_unit)
-            print(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size} {data_unit},   requires_grad: {globals[var].requires_grad}')           
-
 def delete_all_cuda_tensors(globals):
     '''
     Call with: delete_all_cuda_tensors(globals())
@@ -70,19 +93,6 @@ def delete_all_cuda_tensors(globals):
     gc.collect()
     torch.cuda.empty_cache()
 
-
-def tensor_sizeOnDisk(tensor, print_pref=True, return_size='GB'):
-    """
-    Return estimated size of tensor on disk.
-    """
-    # in MB
-    size = convert_size(
-        tensor.element_size() * tensor.nelement(),
-        return_size=return_size)
-
-    if print_pref:
-        print(f'Device: {tensor.device}, Shape: {tensor.shape}, Size: {size} {return_size}')
-    return size
 
 def set_device(use_GPU=True, verbose=True):
     """
@@ -107,9 +117,86 @@ def set_device(use_GPU=True, verbose=True):
     return device
     
 
-############################################
-############ HELPER FUNCTIONS ##############
-############################################
+##################################################################
+############# STUFF PYTORCH SHOULD ALREADY HAVE ##################
+##################################################################
+
+def nanmean(arr, dim=None, keepdim=False):
+    """
+    Compute the mean of an array ignoring any NaNs.
+    RH 2021
+    """
+    if dim is None:
+        kwargs = {}
+    else:
+        kwargs = {
+            'dim': dim,
+            'keepdim': keepdim,
+        }
+    
+    nan_mask = torch.isnan(arr)
+    arr_no_nan = arr.masked_fill(nan_mask, 0)
+    sum = torch.sum(arr_no_nan, **kwargs)
+    num = torch.sum(torch.logical_not(nan_mask), **kwargs)
+    return sum / num
+
+def nansum(arr, dim=None, keepdim=False):
+    """
+    Compute the sum of an array ignoring any NaNs.
+    RH 2021
+    """
+    if dim is None:
+        kwargs = {}
+    else:
+        kwargs = {
+            'dim': dim,
+            'keepdim': keepdim,
+        }
+    
+    nan_mask = torch.isnan(arr)
+    arr_no_nan = arr.masked_fill(nan_mask, 0)
+    return torch.sum(arr_no_nan, **kwargs)
+
+def nanmax(arr, dim=None, keepdim=False):
+    """
+    Compute the max of an array ignoring any NaNs.
+    RH 2021
+    """
+    if dim is None:
+        kwargs = {}
+    else:
+        kwargs = {
+            'dim': dim,
+            'keepdim': keepdim,
+        }
+    
+    nan_mask = torch.isnan(arr)
+    arr_no_nan = arr.masked_fill(nan_mask, float('-inf'))
+    return torch.max(arr_no_nan, **kwargs)
+
+def nanmin(arr, dim=None, keepdim=False):
+    """
+    Compute the min of an array ignoring any NaNs.
+    RH 2021
+    """
+    if dim is None:
+        kwargs = {}
+    else:
+        kwargs = {
+            'dim': dim,
+            'keepdim': keepdim,
+        }
+    
+    nan_mask = torch.isnan(arr)
+    arr_no_nan = arr.masked_fill(nan_mask, float('inf'))
+    return torch.min(arr_no_nan, **kwargs)
+
+
+      
+
+#########################################################
+############ INTRA-MODULE HELPER FUNCTIONS ##############
+#########################################################
 
 def convert_size(size, return_size='GB'):
     """

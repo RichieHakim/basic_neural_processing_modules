@@ -110,7 +110,6 @@ def make_h5_tree(dict_obj , h5_obj , group_string=''):
     This function is meant to be called by write_dict_to_h5. It probably shouldn't be called alone.
     This function creates an h5 group and dataset tree structure based on the hierarchy and values within a python dict.
     There is a recursion in this function.
-
     RH 2021
     '''
     for ii,(key,val) in enumerate(dict_obj.items()):
@@ -127,7 +126,6 @@ def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pr
     '''
     Writes an h5 file that matches the hierarchy and data within a pythin dict.
     This function calls the function 'make_h5_tree'
-
     RH 2021
    
     args:
@@ -149,6 +147,7 @@ def simple_load(path=None, directory=None, fileName=None, verbose=False):
     to hdfdict package) containing the groups
     as keys and the datasets as values from
     given hdf file.
+    RH 2021
     '''
 
     if path is None:
