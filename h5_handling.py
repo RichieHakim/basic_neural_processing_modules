@@ -124,7 +124,7 @@ def make_h5_tree(dict_obj , h5_obj , group_string=''):
             h5_obj[group_string].create_dataset(key , data=val)
 def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pref=True):
     '''
-    Writes an h5 file that matches the hierarchy and data within a pythin dict.
+    Writes an h5 file that matches the hierarchy and data within a python dict.
     This function calls the function 'make_h5_tree'
     RH 2021
    
