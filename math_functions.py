@@ -87,3 +87,45 @@ def bounded_exponential(x, bounds=[1/10,10], base=2):
     range_additive = bounds[1] - bounds[0]
 
     return (((base**x - 1)/(base-1)) * range_additive) + bounds[0]
+
+
+def polar2real(mag, angle):
+    """
+    Converts a polar coordinates to real coordinates
+    RH 2021
+
+    Args:
+        mag (float or np.ndarray or torch.Tensor):
+            Magnitude of the polar coordinates
+        angle (float or np.ndarray or torch.Tensor):
+            Angle of the polar coordinates
+    
+    Returns:
+        output (float or np.ndarray or torch.Tensor):
+    """
+    if type(mag) is torch.Tensor:
+        exp = torch.exp
+    else:
+        exp = np.exp
+    return mag * exp(1j*angle)
+
+def real2polar(x):
+    """
+    Converts a real coordinates to polar coordinates
+    RH 2021
+
+    Args:
+        x (float or np.ndarray or torch.Tensor):
+            Real coordinates
+        
+    Returns:
+        Magnitude (float or np.ndarray or torch.Tensor):
+            Magnitude of the polar coordinates
+        Angle (float or np.ndarray or torch.Tensor):
+            Angle of the polar coordinates
+    """
+    if type(x) is torch.Tensor:
+        abs, angle = torch.abs, torch.angle
+    else:
+        abs, angle = np.abs, np.angle
+    return abs(x), angle(x)

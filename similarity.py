@@ -76,10 +76,19 @@ def vector_angle(v1, v2, deg_or_rad='deg'):
         angle (scalar):
             angle between v1 and v2
     '''
+    if type(v1) is np.ndarray:
+        arccos = np.arccos
+        norm = np.linalg.norm
+        rad2deg = np.rad2deg
+    elif type(v1) is torch.Tensor:
+        arccos = torch.acos
+        norm = torch.linalg.norm
+        rad2deg = torch.rad2deg
+
     if deg_or_rad == 'rad':
-        return torch.arccos((v1@v2) / (torch.norm(v1) * torch.norm(v2)))
+        return arccos((v1@v2) / (norm(v1) * norm(v2)))
     if deg_or_rad == 'deg':
-        return torch.rad2deg(torch.arccos((v1@v2) / (torch.norm(v1) * torch.norm(v2))))
+        return rad2deg(arccos((v1@v2) / (norm(v1) * norm(v2))))
 
 def orthogonalize(v1, v2):
     '''

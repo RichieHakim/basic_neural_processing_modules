@@ -27,6 +27,7 @@ import torch
 from . import parallel_helpers
 from .parallel_helpers import multiprocessing_pool_along_axis
 from . import cross_validation
+from .math_functions import polar2real, real2polar
 
 
 
@@ -792,3 +793,103 @@ def convolve_torch(X, kernels, **conv1d_kwargs):
     convolved_rshp = convolved.permute(2, 0, 1).reshape((conv_out_shape)) # (T, D, R, C)
 
     return convolved_rshp
+
+
+def shift_signal_angle(signal, shift_angle, deg_or_rad='rad', axis=0):
+    """
+    Shifts the frequency angles of a signal by a given amount.
+    This is the functional version. It can be faster if needing
+     to initialize multiple times.
+    Numpy / Torch are both compatible
+    RH 2021
+
+    Args:
+        signal (np.ndarray or torch.Tensor):
+            The signal to be shifted
+        shift_angle (float):
+            The amount to shift the angle by
+        deg_or_rad (str):
+            Whether the shift_angle is in degrees or radians
+        axis (int):
+            The axis to shift along
+    
+    Returns:
+        output (np.ndarray or torch.Tensor):
+            The shifted signal
+    """
+    if type(signal) is torch.Tensor:
+        fft, ifft, ones, cat, ceil, floor = torch.fft.fft, torch.fft.ifft, torch.ones, torch.cat, np.ceil, np.floor
+    else:
+        fft, ifft, ones, cat, ceil, floor = np.fft.fft, np.fft.ifft, np.ones, np.concatenate, np.ceil, np.floor
+
+    if deg_or_rad == 'deg':
+        shift_angle = np.deg2rad(shift_angle)
+
+    half_len_minus = int(ceil(signal.shape[axis]/2))
+    half_len_plus = int(floor(signal.shape[axis]/2))
+    angle_mask = cat(([-ones(half_len_minus), ones(half_len_plus)])) * shift_angle
+
+    signal_fft = fft(signal, axis=axis)
+    mag, ang = real2polar(signal_fft)
+    ang_shifted = ang + angle_mask
+
+    signal_fft_shifted = polar2real(mag, ang_shifted)
+    signal_shifted = ifft(signal_fft_shifted, axis=axis)
+    return signal_shifted
+
+class shift_signal_angle_obj():
+    def __init__(self, signal_len, shift_angle=90, deg_or_rad='deg', discard_imaginary_component=True):
+        """
+        Initializes the shift_signal_angle_obj class.
+        This is the object version. It can be faster than
+         the functional version if needing to call it 
+         multiple times.
+        See __call__ for more details.
+        RH 2021
+
+        Args:
+            signal_len (int):
+                The length of the signal to be shifted
+            shift_angle (float):
+                The amount to shift the angle by
+            deg_or_rad (str):
+                Whether the shift_angle is in degrees or radians
+            discard_imaginary_component (bool):
+                Whether to discard the imaginary component of the signal
+        """
+        self.input_shift_angle = shift_angle
+        self.deg_or_rad = deg_or_rad
+        self.shift_angle = np.deg2rad(shift_angle) if deg_or_rad == 'deg' else shift_angle
+
+        if type(signal_len) is not torch.Tensor:
+            signal_len = torch.as_tensor(signal_len)
+        half_len_minus = int(torch.ceil(signal_len/2))
+        half_len_plus = int(torch.floor(signal_len/2))
+        self.angle_mask = torch.cat([-torch.ones(half_len_minus), torch.ones(half_len_plus)]) * self.shift_angle
+        self.discard_imaginary_component = discard_imaginary_component
+
+    def __call__(self, signal, dim=0):
+        """
+        Shifts the frequency angles of a signal by a given amount.
+        A signal containing multiple frequecies will see each 
+         frequency shifted independently by the shift_angle.
+        RH 2021
+
+        Args:
+            signal (torch.Tensor):
+                The signal to be shifted
+            dim (int):
+                The axis to shift along
+            
+        Returns:
+            output (torch.Tensor):
+                The shifted signal
+        """
+        signal_fft = torch.fft.fft(signal, dim=dim) # convert to spectral domain
+        mag, ang = torch.abs(signal_fft), torch.angle(signal_fft) # extract magnitude and angle
+        ang_shifted = ang + self.angle_mask # shift the angle
+        signal_fft_shifted = mag * torch.exp(1j*ang_shifted) # remix magnitude and angle
+        signal_shifted = torch.fft.ifft(signal_fft_shifted, dim=dim) # convert back to signal domain
+        if self.discard_imaginary_component:
+            signal_shifted = torch.real(signal_shifted) # discard imaginary component
+        return signal_shifted
