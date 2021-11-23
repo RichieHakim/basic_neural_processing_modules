@@ -150,6 +150,9 @@ def torch_pca(  X,
 
 
 def torch_pca_batched(  X, 
+                        n_batches=3,
+                        batching_mode='random',
+                        batch_idx=None,
                         device='cpu', 
                         mean_sub=True, 
                         zscore=False, 
@@ -166,6 +169,14 @@ def torch_pca_batched(  X,
             Data to be decomposed.
             2-D array. Columns are features, rows are samples.
             PCA will be performed column-wise.
+        n_batches (int):
+            Number of batches to use.
+        batching_mode (str):
+            How to batch the data.
+            'random' - Indices are randomly selected.
+            'sequential' - Indices are sequentially selected.
+        batch_idx (list of list of ints):
+            Indices to use for each batch.
         device (str):
             Device to use. ie 'cuda' or 'cpu'. Use a function 
              torch_helpers.set_device() to get.
