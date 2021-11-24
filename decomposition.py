@@ -177,6 +177,7 @@ def torch_pca_batched(  X,
             'sequential' - Indices are sequentially selected.
         batch_idx (list of list of ints):
             Indices to use for each batch.
+            If None, then batch_idx will be generated.
         device (str):
             Device to use. ie 'cuda' or 'cpu'. Use a function 
              torch_helpers.set_device() to get.
@@ -233,6 +234,15 @@ def torch_pca_batched(  X,
         
     if rank is None:
         rank = X.shape[1]
+
+    if batch_idx is None:
+        X_idx = np.arange(X.shape[0])
+        l = X.shape[0]
+        r = n_batches-l%n_batches # remainder
+        test_rp = np.random.permutation(X_idx)
+        test_pad = np.concatenate((test_rp,[np.nan]*r))
+        batches = test_pad.reshape(n_batches,-1)
+        batches_list = [[batch[~np.isnan(batch)]] for batch in batches]
     
     (U,S,V) = torch.pca_lowrank(X, q=rank, center=False, niter=2)
     components = V
