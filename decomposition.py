@@ -261,8 +261,37 @@ def incremental_pca(dataloader,
     num_batches = 10
     batch_size = int(np.ceil(X.shape[0]/num_batches))
 
-    ds = torch_helpers.basic_dataset(X, device='cuda:0', dtype=torch.float32)
-    dl = torch_helpers.basic_dataloader(ds, batch_size=batch_size, shuffle=False)
+    dataset = decomposition.ipca_dataset(X, 
+                                 mean_sub=True,
+                                 zscore=False,
+                                 preprocess_sample_method='random',
+                                 preprocess_sample_num=10000,
+                                 device='cpu',
+                                 dtype=torch.float32)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)
+
+    cuml_kwargs = {
+                "handle": cuml.Handle(),
+                "n_components": 20,
+                "whiten": False,
+                "copy": False,
+                "batch_size": None,
+                "verbose": True,
+                "output_type": None
+    }
+
+    sk_kwargs = {
+                    "n_components": 20,
+                    "whiten": False,
+                    "copy": False,
+                    "batch_size": None,
+    }
+
+    components, EVR, ipca = decomposition.incremental_pca(dataloader,
+                                    method='cuml',
+                                    method_kwargs=cuml_kwargs,
+                                    return_cpu=True)
+    scores = decomposition.ipca_transform(dataloader, components)
 
 
     Args:
