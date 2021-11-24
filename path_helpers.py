@@ -1,5 +1,5 @@
 """Functions for path manipulation and retrieval of files."""
-'Currently all functions are stolen from https://github.com/MartinThoma/mpu/blob/master/mpu/path.py'
+'Currently most functions are stolen from https://github.com/MartinThoma/mpu/blob/master/mpu/path.py'
 
 # Core Library
 import os

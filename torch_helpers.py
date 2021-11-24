@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data import Dataset, DataLoader
 
 import pycuda
 import pycuda.driver as drv
@@ -116,6 +117,51 @@ def set_device(use_GPU=True, verbose=True):
 
     return device
     
+
+######################################
+############ DATA HELPERS ############
+######################################
+
+
+class basic_dataset(Dataset):
+    """
+    demo:
+    ds = basic_dataset(X, device='cuda:0')
+    dl = DataLoader(ds, batch_size=32, shuffle=True)
+    """
+    def __init__(self, 
+                 X, 
+                 device='cpu',
+                 dtype=torch.float32):
+        """
+        Make a basic dataset.
+        RH 2021
+
+        Args:
+            X (torch.Tensor or np.array):
+                Data to make dataset from.
+            device (str):
+                Device to use.
+            dtype (torch.dtype):
+                Data type to use.
+        """
+        
+        self.X = torch.as_tensor(X, dtype=dtype, device=device) # first (0th) dim will be subsampled from
+        self.n_samples = self.X.shape[0]
+        
+    def __len__(self):
+        return self.n_samples
+    
+    def __getitem__(self, idx):
+        """
+        Returns a single sample.
+
+        Args:
+            idx (int):
+                Index of sample to return.
+        """
+        return self.X[idx], idx
+
 
 ##################################################################
 ############# STUFF PYTORCH SHOULD ALREADY HAVE ##################

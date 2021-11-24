@@ -187,23 +187,35 @@ def get_last_True_idx(input_array):
 #     print(output)
     return output
 
-def squeeze_integers(intVec):
+
+def make_batches(iterable, batch_size=None, num_batches=5, min_batch_size=0):
     """
-    Make integers in an array consecutive numbers
-     starting from 0. ie. [7,2,7,4,1] -> [3,2,3,1,0].
-    Useful for removing unused class IDs from y_true
-     and outputting something appropriate for softmax.
-    This is v2. The old version is busted.
+    Make batches of data or any other iterable.
     RH 2021
-    
+
     Args:
-        intVec (np.ndarray):
-            1-D array of integers.
+        iterable (iterable):
+            iterable to be batched
+        batch_size (int):
+            size of each batch
+            if None, then batch_size based on num_batches
+        num_batches (int):
+            number of batches to make
+        min_batch_size (int):
+            minimum size of each batch
     
     Returns:
-        intVec_squeezed (np.ndarray):
-            1-D array of integers with consecutive numbers
+        output (iterable):
+            batches of iterable
     """
-    uniques = np.unique(intVec)
-    unique_positions = np.arange(len(uniques))
-    return unique_positions[np.array([np.where(intVec[ii]==uniques)[0] for ii in range(len(intVec))]).squeeze()]
+    l = len(iterable)
+    
+    if batch_size is None:
+        batch_size = np.int64(np.ceil(l / num_batches))
+    
+    for start in range(0, l, batch_size):
+        end = min(start + batch_size, l)
+        if (end-start) < min_batch_size:
+            break
+        else:
+            yield iterable[start:end]

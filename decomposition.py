@@ -4,7 +4,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import torch
+from torch.utils.data import Dataset, DataLoader
+
+import cuml
+import cuml.decomposition
+import cupy
+
 import gc
+
+
+###########################
+########## PCA ############
+###########################
 
 def simple_pca(X , n_components=None , mean_sub=True, zscore=False, plot_pref=False , n_PCs_toPlot=2):
 
@@ -148,48 +159,125 @@ def torch_pca(  X,
     gc.collect()
     return components, scores, singVals, EVR
 
+#######################################
+########## Incremental PCA ############
+#######################################
 
-def torch_pca_batched(  X, 
-                        n_batches=3,
-                        batching_mode='random',
-                        batch_idx=None,
-                        device='cpu', 
-                        mean_sub=True, 
-                        zscore=False, 
-                        rank=None, 
-                        return_cpu=True, 
-                        return_numpy=False):
+class ipca_dataset(Dataset):
     """
-    Principal Components Analysis for PyTorch.
-    If using GPU, then call torch.cuda.empty_cache() after.
+    demo:
+    ds = basic_dataset(X, device='cuda:0')
+    dl = DataLoader(ds, batch_size=32, shuffle=True)
+    """
+    def __init__(self, 
+                 X, 
+                 mean_sub=True,
+                 zscore=False,
+                 preprocess_sample_method='random',
+                 preprocess_sample_num=100,
+                 device='cpu',
+                 dtype=torch.float32):
+        """
+        Make a basic dataset.
+        RH 2021
+
+        Args:
+            X (torch.Tensor or np.array):
+                Data to make dataset from.
+                2-D array. Columns are features, rows are samples.
+            mean_sub (bool):
+                Whether or not to mean subtract ('center') the
+                 columns.
+            zscore (bool):
+                Whether or not to z-score the columns. This is
+                 equivalent to doing PCA on the correlation-matrix.
+            preprocess_sample_method (str):
+                Method to use for sampling for mean_sub and zscore.
+                'random' - uses random samples (rows) from X.
+                'first' - uses the first rows of X.
+            preprocess_sample_num (int):
+                Number of samples to use for mean_sub and zscore.
+            device (str):
+                Device to use.
+            dtype (torch.dtype):
+                Data type to use.
+        """
+        # Upgrade here for using an on the fly dataset.
+        self.X = torch.as_tensor(X, dtype=dtype, device=device) # first (0th) dim will be subsampled from
+        
+        self.n_samples = self.X.shape[0]
+
+        self.mean_sub = mean_sub
+        self.zscore = zscore
+
+        if mean_sub or zscore:
+            if preprocess_sample_method == 'random':
+                self.preprocess_inds = torch.randperm(preprocess_sample_num)[:preprocess_sample_num]
+            elif preprocess_sample_method == 'first':
+                self.preprocess_inds = torch.arange(preprocess_sample_num)
+            else:
+                raise ValueError('preprocess_sample_method must be "random" or "first"')
+            self.preprocess_inds = self.preprocess_inds.to(device)
+
+        # Upgrade here for using an on the fly dataset.
+        if mean_sub:
+            self.mean_vals = torch.mean(self.X[self.preprocess_inds,:], dim=0)
+        if zscore:
+            self.std_vals = torch.std(self.X[self.preprocess_inds,:], dim=0)
+        
+    def __len__(self):
+        return self.n_samples
+    
+    def __getitem__(self, idx):
+        """
+        Returns a single sample.
+
+        Args:
+            idx (int):
+                Index of sample to return.
+        """
+        if self.mean_sub or self.zscore:
+            out = self.X[idx,:] - self.mean_vals
+        else:
+            out = self.X[idx,:]
+
+        if self.zscore:
+            out = out / self.std_vals
+            
+        return out, idx
+
+def incremental_pca(dataloader,
+                    method='sklearn',
+                    method_kwargs=None,
+                    return_cpu=True,
+                    ):
+    """
+    Incremental PCA using either sklearn or cuml.
     RH 2021
 
+    demo:
+    import torch_helpers
+
+    num_batches = 10
+    batch_size = int(np.ceil(X.shape[0]/num_batches))
+
+    ds = torch_helpers.basic_dataset(X, device='cuda:0', dtype=torch.float32)
+    dl = torch_helpers.basic_dataloader(ds, batch_size=batch_size, shuffle=False)
+
+
     Args:
-        X (torch.Tensor or np.ndarray):
+        dataloader (torch.utils.data.DataLoader):
             Data to be decomposed.
-            2-D array. Columns are features, rows are samples.
-            PCA will be performed column-wise.
-        n_batches (int):
-            Number of batches to use.
-        batching_mode (str):
-            How to batch the data.
-            'random' - Indices are randomly selected.
-            'sequential' - Indices are sequentially selected.
-        batch_idx (list of list of ints):
-            Indices to use for each batch.
-            If None, then batch_idx will be generated.
+        method (str):
+            Method to use.
+            'sklearn' : sklearn.decomposition.PCA
+            'cuml' : cuml.decomposition.IncrementalPCA
+        method_kwargs (dict):
+            Keyword arguments to pass to method.
+            See method documentation for details.
         device (str):
-            Device to use. ie 'cuda' or 'cpu'. Use a function 
-             torch_helpers.set_device() to get.
-        mean_sub (bool):
-            Whether or not to mean subtract ('center') the 
-             columns.
-        zscore (bool):
-            Whether or not to z-score the columns. This is 
-             equivalent to doing PCA on the correlation-matrix.
-        rank (int):
-            Maximum estimated rank of decomposition. If None,
-             then rank is X.shape[1]
+            Device to use.
+            Only used if method is 'cuml'
         return_cpu (bool):  
             Whether or not to force returns/outputs to be on 
              the 'cpu' device. If False, and device!='cpu',
@@ -204,67 +292,55 @@ def torch_pca_batched(  X,
             2-D array.
             Each column is a component vector. Each row is a 
              feature weight.
-        scores (torch.Tensor or np.ndarray):
-            The scores of the decomposition.
-            2-D array.
-            Each column is a score vector. Each row is a 
-             sample weight.
-        singVals (torch.Tensor or np.ndarray):
-            The singular values of the decomposition.
-            1-D array.
-            Each element is a singular value.
         EVR (torch.Tensor or np.ndarray):
             The explained variance ratio of each component.
             1-D array.
             Each element is the explained variance ratio of
              the corresponding component.
+        object_params (dict):
+            Dictionary of parameters used to create the
+             decomposition.
     """
     
-    if isinstance(X, torch.Tensor) == False:
-        X = torch.from_numpy(X).to(device)
-    elif X.device != device:
-            X = X.to(device)
-            
-    if mean_sub and not zscore:
-        X = X - torch.mean(X, dim=0)
-    if zscore:
-        X = X - torch.mean(X, dim=0)
-        stds = torch.std(X, dim=0)
-        X = X / stds[None,:]        
-        
-    if rank is None:
-        rank = X.shape[1]
+    if method_kwargs is None:
+        method_kwargs = {}
 
-    if batch_idx is None:
-        X_idx = np.arange(X.shape[0])
-        l = X.shape[0]
-        r = n_batches-l%n_batches # remainder
-        test_rp = np.random.permutation(X_idx)
-        test_pad = np.concatenate((test_rp,[np.nan]*r))
-        batches = test_pad.reshape(n_batches,-1)
-        batches_list = [[batch[~np.isnan(batch)]] for batch in batches]
+    if method == 'sklearn':
+        ipca = sklearn.decomposition.IncrementalPCA(**method_kwargs)
+    elif method == 'cuml':
+        ipca = cuml.decomposition.IncrementalPCA(**method_kwargs)
     
-    (U,S,V) = torch.pca_lowrank(X, q=rank, center=False, niter=2)
-    components = V
-    scores = torch.matmul(X, V[:, :rank])
+    for iter_batch, batch in enumerate(dataloader):
+        if method == 'sklearn':
+            batch = batch[0].cpu().numpy()
+        if method == 'cuml':
+            batch = cupy.asarray(batch[0])
+        ipca.partial_fit(batch)
+    
+    if (return_cpu) and (method=='cuml'):
+        components = ipca.components_.get()
+    else:
+        components = ipca.components_
 
-    singVals = (S**2)/(len(S)-1)
-    EVR = (singVals) / torch.sum(singVals)
-    
-    if return_cpu:
-        components = components.cpu()
-        scores = scores.cpu()
-        singVals = singVals.cpu()
-        EVR = EVR.cpu()
-    if return_numpy:
-        components = components.cpu().numpy()
-        scores = scores.cpu().numpy()
-        singVals = singVals.cpu().numpy()
-        EVR = EVR.cpu().numpy()
-        
-    gc.collect()
-    torch.cuda.empty_cache()
-    gc.collect()
-    torch.cuda.empty_cache()
-    gc.collect()
-    return components, scores, singVals, EVR
+    EVR = ipca.explained_variance_ratio_
+
+    return components, EVR, ipca
+
+def ipca_transform(dataloader, components):
+    """
+    Transform data using incremental PCA.
+    RH 2020
+
+    Args:
+        dataloader (torch.utils.data.DataLoader):
+            Data to be decomposed.
+        components (torch.Tensor or np.ndarray):
+            The components of the decomposition. 
+            2-D array.
+            Each column is a component vector. Each row is a 
+             feature weight.
+    """
+    out = []
+    for iter_batch, batch in enumerate(dataloader):
+        out.append(batch[0] @ components.T)
+    return torch.cat(out, dim=0)
