@@ -12,6 +12,7 @@ import cupy
 
 import gc
 
+from tqdm.notebook import tqdm
 
 ###########################
 ########## PCA ############
@@ -165,9 +166,7 @@ def torch_pca(  X,
 
 class ipca_dataset(Dataset):
     """
-    demo:
-    ds = basic_dataset(X, device='cuda:0')
-    dl = DataLoader(ds, batch_size=32, shuffle=True)
+    see incremental_pca for demo
     """
     def __init__(self, 
                  X, 
@@ -253,22 +252,25 @@ def incremental_pca(dataloader,
                     ):
     """
     Incremental PCA using either sklearn or cuml.
+    Keep batches small-ish to remain performat (~64 samples).
     RH 2021
 
     demo:
     import torch_helpers
 
-    num_batches = 10
-    batch_size = int(np.ceil(X.shape[0]/num_batches))
-
-    dataset = decomposition.ipca_dataset(X, 
-                                 mean_sub=True,
-                                 zscore=False,
-                                 preprocess_sample_method='random',
-                                 preprocess_sample_num=10000,
-                                 device='cpu',
-                                 dtype=torch.float32)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)
+    dataset = decomposition.ipca_dataset(   X, 
+                                            mean_sub=True,
+                                            zscore=False,
+                                            preprocess_sample_method='random',
+                                            preprocess_sample_num=10000,
+                                            device='cpu',
+                                            dtype=torch.float32)
+    dataloader = torch.utils.data.DataLoader(   dataset, 
+                                                batch_size=64, 
+                                                drop_last=True,
+                                                shuffle=False, 
+                                                num_workers=0, 
+                                                pin_memory=False)
 
     cuml_kwargs = {
                 "handle": cuml.Handle(),
@@ -339,7 +341,7 @@ def incremental_pca(dataloader,
     elif method == 'cuml':
         ipca = cuml.decomposition.IncrementalPCA(**method_kwargs)
     
-    for iter_batch, batch in enumerate(dataloader):
+    for iter_batch, batch in enumerate(tqdm(dataloader)):
         if method == 'sklearn':
             batch = batch[0].cpu().numpy()
         if method == 'cuml':
