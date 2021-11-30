@@ -34,7 +34,7 @@ My favorite and most used functions:
         - Estimates the size of a float array in bytes
     - `h5_handling.simple_save` and `h5_handling.simple_load`
         - simple loading and saving of dictionaries as nested h5 files
-    -`parallel_helpers.multiprocessing_pool_along_axis`
+    - `parallel_helpers.multiprocessing_pool_along_axis`
         - easy parallelization of a function along an axis
     - `plotting_helpers.get_subplot_indices`
         - returns the subscript indices of the subplots in a figure
