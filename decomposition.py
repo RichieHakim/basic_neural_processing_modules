@@ -255,8 +255,46 @@ def incremental_pca(dataloader,
     Keep batches small-ish to remain performat (~64 samples).
     RH 2021
 
+    Args:
+        dataloader (torch.utils.data.DataLoader):
+            Data to be decomposed.
+        method (str):
+            Method to use.
+            'sklearn' : sklearn.decomposition.PCA
+            'cuml' : cuml.decomposition.IncrementalPCA
+        method_kwargs (dict):
+            Keyword arguments to pass to method.
+            See method documentation for details.
+        device (str):
+            Device to use.
+            Only used if method is 'cuml'
+        return_cpu (bool):  
+            Whether or not to force returns/outputs to be on 
+             the 'cpu' device. If False, and device!='cpu',
+             then returns will be on device.
+        return_numpy (bool):
+            Whether or not to force returns/outputs to be
+             numpy.ndarray type.
+
+    Returns:
+        components (torch.Tensor or np.ndarray):
+            The components of the decomposition. 
+            2-D array.
+            Each column is a component vector. Each row is a 
+             feature weight.
+        EVR (torch.Tensor or np.ndarray):
+            The explained variance ratio of each component.
+            1-D array.
+            Each element is the explained variance ratio of
+             the corresponding component.
+        object_params (dict):
+            Dictionary of parameters used to create the
+             decomposition.
+
     demo:
-    import torch_helpers
+    import torch_helpers, cupy_helpers
+
+    cupy_helpers.set_device() # calls: cupy.cuda.Device(DEVICE_NUM).use()
 
     dataset = decomposition.ipca_dataset(   X, 
                                             mean_sub=True,
@@ -294,43 +332,6 @@ def incremental_pca(dataloader,
                                     method_kwargs=cuml_kwargs,
                                     return_cpu=True)
     scores = decomposition.ipca_transform(dataloader, components)
-
-
-    Args:
-        dataloader (torch.utils.data.DataLoader):
-            Data to be decomposed.
-        method (str):
-            Method to use.
-            'sklearn' : sklearn.decomposition.PCA
-            'cuml' : cuml.decomposition.IncrementalPCA
-        method_kwargs (dict):
-            Keyword arguments to pass to method.
-            See method documentation for details.
-        device (str):
-            Device to use.
-            Only used if method is 'cuml'
-        return_cpu (bool):  
-            Whether or not to force returns/outputs to be on 
-             the 'cpu' device. If False, and device!='cpu',
-             then returns will be on device.
-        return_numpy (bool):
-            Whether or not to force returns/outputs to be
-             numpy.ndarray type.
-
-    Returns:
-        components (torch.Tensor or np.ndarray):
-            The components of the decomposition. 
-            2-D array.
-            Each column is a component vector. Each row is a 
-             feature weight.
-        EVR (torch.Tensor or np.ndarray):
-            The explained variance ratio of each component.
-            1-D array.
-            Each element is the explained variance ratio of
-             the corresponding component.
-        object_params (dict):
-            Dictionary of parameters used to create the
-             decomposition.
     """
     
     if method_kwargs is None:
@@ -339,7 +340,7 @@ def incremental_pca(dataloader,
     if method == 'sklearn':
         ipca = sklearn.decomposition.IncrementalPCA(**method_kwargs)
     elif method == 'cuml':
-        ipca = cuml.decomposition.IncrementalPCA(**method_kwargs)
+        ipca =    cuml.decomposition.IncrementalPCA(**method_kwargs)
     
     for iter_batch, batch in enumerate(tqdm(dataloader)):
         if method == 'sklearn':

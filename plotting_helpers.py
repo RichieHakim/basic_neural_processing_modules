@@ -1,4 +1,22 @@
 from matplotlib import pyplot as plt
+import numpy as np
+
+def get_subplot_indices(axs):
+    """
+    Returns the subscript indices of the axes of a subplots figure.
+    Basically perfoms an ind2sub operation on the axis number.
+    RH 2021
+
+    Args:
+        axs:
+            list of axes
+    
+    Returns:
+        list of indices
+    
+    """
+    out_array = np.stack(np.unravel_index(np.arange(np.prod(axs.shape)), axs.shape, order='F'), axis=-1)
+    return [tuple(ii) for ii in out_array]
 
 def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=False, verbose=True):
     """

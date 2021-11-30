@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 import sys
 
-def estimate_size_of_float_array(numel=None, input_shape=None, bitsize=64):
+def estimate_size_of_float_array(array=None, numel=None, input_shape=None, bitsize=64):
     '''
     Estimates the size of a hypothetical array based on shape or number of 
     elements and the bitsize
@@ -26,8 +26,11 @@ def estimate_size_of_float_array(numel=None, input_shape=None, bitsize=64):
             but for numpy arrays, this is usually very small (~128 bytes)
 
     '''
-
-    if numel is None:
+    if array is not None:
+        input_shape = array.shape
+        numel = np.product(input_shape)
+        bitsize = array.dtype.itemsize*8
+    elif numel is None:
         numel = np.product(input_shape)
     
     bytes_per_element = bitsize/8
