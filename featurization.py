@@ -197,14 +197,19 @@ def make_distance_image(center_idx, vid_height, vid_width):
 def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
     """
     Generate a 2D or 1D gaussian kernel
+    RH 2021
     
     Args:
-        center (tuple):  the mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D gaussian
-        image_size (tuple): The total image size (width, height). Make second value 0 to make 1D gaussian
-        sig (scalar): The sigma value of the gaussian
+        center (tuple):  
+            The mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D gaussian
+        image_size (tuple): 
+            The total image size (width, height). Make second value 0 to make 1D gaussian
+        sig (scalar): 
+            The sigma value of the gaussian
     
     Return:
-        kernel (np.ndarray): 2D or 1D array of the gaussian kernel
+        kernel (np.ndarray): 
+            2D or 1D array of the gaussian kernel
     """
     x_axis = np.linspace(0, image_size[0]-1, image_size[0]) - center[0]
     y_axis = np.linspace(0, image_size[1]-1, image_size[1]) - center[1]
@@ -212,6 +217,30 @@ def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
     kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sig))
 
     return kernel
+
+def cosine_kernel_2D(center=(5,5), image_size=(11,11), width=5):
+    """
+    Generate a 2D cosine kernel
+    RH 2021
+    
+    Args:
+        center (tuple):  
+            The mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D
+        image_size (tuple): 
+            The total image size (width, height). Make second value 0 to make 1D
+        width (scalar): 
+            The full width of one cycle of the cosine
+    
+    Return:
+        k_cos (np.ndarray): 
+            2D or 1D array of the cosine kernel
+    """
+    x, y = np.meshgrid(range(image_size[1]), range(image_size[0]))  # note dim 1:X and dim 2:Y
+    dist = np.sqrt((y - int(center[1])) ** 2 + (x - int(center[0])) ** 2)
+    dist_scaled = (dist/(width/2))*np.pi
+    dist_scaled[np.abs(dist_scaled > np.pi)] = np.pi
+    k_cos = (np.cos(dist_scaled) + 1)/2
+    return k_cos
 
 
 def make_cosine_taurus(offset, width):

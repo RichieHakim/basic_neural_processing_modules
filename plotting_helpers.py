@@ -18,6 +18,31 @@ def get_subplot_indices(axs):
     out_array = np.stack(np.unravel_index(np.arange(np.prod(axs.shape)), axs.shape, order='F'), axis=-1)
     return [tuple(ii) for ii in out_array]
 
+def plot_image_grid(images, grid_shape=(10,10)):
+    """
+    Plot a grid of images
+    RH 2021
+
+    Args:
+        images (list of 2D arrays or a 3D array):
+            List of images or a 3D array of images
+             where the first dimension is the number of images
+        grid_shape (tuple):
+            Shape of the grid
+    
+    Returns:
+        fig:
+            Figure
+        axs:
+            Axes
+    """
+    fig, axs = plt.subplots(nrows=grid_shape[0], ncols=grid_shape[1])
+    idx_axs = get_subplot_indices(axs)
+    for ii,idx_ax in enumerate(idx_axs):
+        axs[idx_ax].imshow(images[ii])
+        axs[idx_ax].axis('off')
+    return fig, axs
+
 def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=False, verbose=True):
     """
     Creates a random colormap to be used together with matplotlib. Useful for segmentation tasks
