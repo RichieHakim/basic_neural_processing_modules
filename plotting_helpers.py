@@ -18,7 +18,7 @@ def get_subplot_indices(axs):
     out_array = np.stack(np.unravel_index(np.arange(np.prod(axs.shape)), axs.shape, order='F'), axis=-1)
     return [tuple(ii) for ii in out_array]
 
-def plot_image_grid(images, grid_shape=(10,10)):
+def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cmap=None, kwargs_subplots={}, kwargs_imshow={}):
     """
     Plot a grid of images
     RH 2021
@@ -29,6 +29,14 @@ def plot_image_grid(images, grid_shape=(10,10)):
              where the first dimension is the number of images
         grid_shape (tuple):
             Shape of the grid
+        show_axis (str):
+            Whether to show axes or not
+        cmap (str):
+            Colormap to use
+        kwargs_subplots (dict):
+            Keyword arguments for subplots
+        kwargs_imshow (dict):
+            Keyword arguments for imshow
     
     Returns:
         fig:
@@ -36,11 +44,16 @@ def plot_image_grid(images, grid_shape=(10,10)):
         axs:
             Axes
     """
-    fig, axs = plt.subplots(nrows=grid_shape[0], ncols=grid_shape[1])
+    if cmap is None:
+        cmap = 'viridis'
+
+    fig, axs = plt.subplots(nrows=grid_shape[0], ncols=grid_shape[1], **kwargs_subplots)
     idx_axs = get_subplot_indices(axs)
     for ii,idx_ax in enumerate(idx_axs):
-        axs[idx_ax].imshow(images[ii])
-        axs[idx_ax].axis('off')
+        axs[idx_ax].imshow(images[ii], cmap=cmap, **kwargs_imshow);
+        if labels is not None:
+            axs[idx_ax].set_title(labels[ii]);
+        axs[idx_ax].axis(show_axis);
     return fig, axs
 
 def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=False, verbose=True):
