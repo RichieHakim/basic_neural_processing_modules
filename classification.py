@@ -36,7 +36,8 @@ def confusion_matrix(y_hat, y_true):
             Or PROBABILITIES: 2-D array floats ('one hot
              like')
         y_true (np.ndarray):
-            1-D array of true class indices.
+            Either 1-D array of true class indices OR a
+             precomputed onehot matrix.
     """
     n_classes = np.max(y_true)+1
     if y_hat.ndim == 1:
