@@ -1,6 +1,9 @@
 from matplotlib import pyplot as plt
 import numpy as np
 
+import cv2
+
+
 def get_subplot_indices(axs):
     """
     Returns the subscript indices of the axes of a subplots figure.
@@ -127,3 +130,24 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
 
     return random_colormap
 
+
+#############################################
+################ Video ######################
+#############################################
+
+def play_video_cv2(array, frameRate):
+    """
+    Play a video using OpenCV
+    RH 2021
+
+    Args:
+        array:
+            3D array of images
+        frameRate:  
+            Frame rate of the video (in Hz)
+    """
+    wait_frames = max(int((1/frameRate)*1000), 1)
+    for frame in array:
+        cv2.imshow('handle', frame)
+        cv2.waitKey(wait_frames)
+    cv2.destroyWindow('handle')
