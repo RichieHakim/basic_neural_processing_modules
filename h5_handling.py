@@ -26,15 +26,14 @@ def close_all_h5():
 
 def show_group_items(hObj):
     '''
-    simple function that displays all the items and groups in the
+    Simple function that displays all the items and groups in the
      highest hierarchical level of an h5 object or python dict.
     See 'show_item_tree' to view the whole tree
     RH 2021
 
-    args:
+    Args:
         hObj: 'hierarchical Object' hdf5 object or subgroup object OR python dictionary
-    returns: NONE
-
+    
     ##############
 
     example usage:
@@ -56,10 +55,11 @@ def show_group_items(hObj):
 
 def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=False, indent_level=0):
     '''
-    recursive function that displays all the items and groups in an h5 object or python dict
+    Recursive function that displays all the items 
+     and groups in an h5 object or python dict
     RH 2021
 
-    args:
+    Args:
         hObj:
             'hierarchical Object'. hdf5 object OR python dictionary
         path (Path or string):
@@ -70,7 +70,6 @@ def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=Fa
             whether or not to show values of metadata items
         indent_level: 
             used internally to function. User should leave blank
-    returns: NONE
 
     ##############
     
@@ -128,11 +127,15 @@ def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pr
     This function calls the function 'make_h5_tree'
     RH 2021
    
-    args:
-        path_save (string or Path): full path name of file to write
-        input_dict (dict): dict containing only variables that can be written as a 'dataset' in an h5 file (generally np.ndarrays and strings)
-        write_mode ('w' or 'w-'): the priveleges of the h5 file object. 'w' will overwrite. 'w-' will not overwrite
-        show_item_tree_pref (bool): whether you'd like to print the item tree or not
+    Args:
+        path_save (string or Path): 
+            Full path name of file to write
+        input_dict (dict): 
+            Dict containing only variables that can be written as a 'dataset' in an h5 file (generally np.ndarrays and strings)
+        write_mode ('w' or 'w-'): 
+            The priveleges of the h5 file object. 'w' will overwrite. 'w-' will not overwrite
+        show_item_tree_pref (bool): 
+            Whether you'd like to print the item tree or not
     '''
     with h5py.File(path_save , write_mode) as hf:
         make_h5_tree(input_dict , hf , '')
@@ -142,13 +145,30 @@ def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pr
 
 
 def simple_load(path=None, directory=None, fileName=None, verbose=False):
-    '''
+    """
     Returns a lazy dictionary object (specific
     to hdfdict package) containing the groups
     as keys and the datasets as values from
     given hdf file.
     RH 2021
-    '''
+
+    Args:
+        path (string or Path): 
+            Full path name of file to read.
+            If None, then directory and fileName must be specified.
+        directory (string): 
+            Directory of file to read.
+            Used if path is None.
+        fileName (string):
+            Name of file to read.
+            Used if path is None.
+        verbose (bool):
+            Whether or not to print out the h5 file hierarchy.
+    
+    Returns:
+        h5_dict (LazyHdfDict):
+            LazyHdfDict object containing the groups
+    """
 
     if path is None:
         directory = Path(directory).resolve()
@@ -164,6 +184,29 @@ def simple_load(path=None, directory=None, fileName=None, verbose=False):
 
 
 def simple_save(dict_to_save, path=None, directory=None, fileName=None, write_mode='w-', verbose=False):
+    """
+    Saves a python dict to an hdf file.
+    RH 2021
+
+    Args:
+        dict_to_save (dict):
+            Python dict to save to hdf file.
+        path (string or Path):
+            Full path name of file to write.
+            If None, then directory and fileName must be specified.
+        directory (string):
+            Directory of file to write.
+            Used if path is None.
+        fileName (string):
+            Name of file to write.
+            Used if path is None.
+        write_mode ('w' or 'w-'):
+            The priveleges of the h5 file object.
+            'w' will overwrite.
+            'w-' will not overwrite.
+        verbose (bool):
+            Whether or not to print out the h5 file hierarchy.
+    """
 
     if path is None:
         directory = Path(directory).resolve()
