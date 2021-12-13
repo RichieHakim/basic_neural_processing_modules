@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit, njit, prange
+import copy
 
 
 @njit
@@ -160,3 +161,10 @@ def find_nearest_array(array, values):
     for ii in prange(len(values)):
         vals_nearest[ii] , idx_nearest[ii] = find_nearest(array , values[ii])
     return vals_nearest, idx_nearest
+
+
+def pad_with_singleton_dims(array, n_dims):
+    arr_out = copy.copy(array)
+    while arr_out.ndim < n_dims:
+        arr_out = np.expand_dims(arr_out, -1)
+    return arr_out
