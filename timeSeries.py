@@ -28,6 +28,7 @@ from . import parallel_helpers
 from .parallel_helpers import multiprocessing_pool_along_axis
 from . import cross_validation
 from .math_functions import polar2real, real2polar
+from . import indexing
 
 
 
@@ -164,19 +165,19 @@ def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_perc
     '''
 
     if lower_percentile is not None:
-        lowest_val = np.percentile(x, lower_percentile, axis=axes)
+        lowest_val = np.percentile(x, lower_percentile, axis=axes, keepdims=True)
     else:
-        lowest_val = np.min(x, axis=axes)
+        lowest_val = np.min(x, axis=axes, keepdims=True)
     if upper_percentile is not None:
-        highest_val = np.percentile(x, upper_percentile, axis=axes)
+        highest_val = np.percentile(x, upper_percentile, axis=axes, keepdims=True)
     else:
-        highest_val = np.max(x, axis=axes)
+        highest_val = np.max(x, axis=axes, keepdims=True)
 
     x_out = ((x - lowest_val) * (upper - lower) / (highest_val - lowest_val) ) + lower
 
     if crop_pref:
-        x_out[x_out < lower] = lower
-        x_out[x_out > upper] = upper
+        np.putmask(x_out, x_out < np.squeeze(lower), lower)
+        np.putmask(x_out, x_out > np.squeeze(upper), upper)
 
     return x_out
 
@@ -538,55 +539,6 @@ def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=No
         plt.plot(trace_times)
     
     return trace_times
-
-
-@njit
-def find_nearest(array, value):
-    '''
-    Finds the value and index of the nearest
-     value in an array.
-    RH 2021
-    
-    Args:
-        array (np.ndarray):
-            Array of values to search through.
-        value (scalar):
-            Value to search for.
-
-    Returns:
-        array_idx (int):
-            Index of the nearest value in array.
-        array_val (scalar):
-            Value of the nearest value in array.
-    '''
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    return array[idx] , idx
-@njit(parallel=True)
-def find_nearest_array(array, values):
-    '''
-    Finds the values and indices of the nearest
-     values in an array.
-    RH 2021
-
-    Args:
-        array (np.ndarray):
-            Array of values to search through.
-        values (np.ndarray):
-            Values to search for.
-
-    Returns:
-        array_idx (np.ndarray):
-            Indices of the nearest values in array.
-        array_val (np.ndarray):
-            Values of the nearest values in array.
-    '''
-    vals_nearest = np.zeros_like(values)
-    idx_nearest = np.zeros_like(values)
-    for ii in prange(len(values)):
-        vals_nearest[ii] , idx_nearest[ii] = find_nearest(array , values[ii])
-    return vals_nearest, idx_nearest
-
 
 
 ####################################
