@@ -3,6 +3,10 @@ import numpy as np
 
 import cv2
 
+from ipywidgets import widgets
+import IPython.display as Disp
+import skimage.draw
+import matplotlib
 
 def get_subplot_indices(axs):
     """
@@ -166,3 +170,63 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
         print('Video saved')
     if show:
         cv2.destroyWindow('handle')
+
+
+#############################################
+########### Interactive plots ###############
+#############################################
+
+
+class select_ROI:
+    """
+    Select a region of interest in an image using matplotlib.
+    Use %matplotlib notebook or qt backend to use this.
+    It currently uses cv2.polylines to draw the ROI.
+    Output is self.mask_frame
+    RH 2021
+    """
+
+    def __init__(self, im):
+        """
+        Initialize the class
+
+        Args:
+            im:
+                Image to select the ROI from
+        """
+        self.im = im
+        self.selected_points = []
+        self.fig, self.ax = plt.subplots()
+        self.img = self.ax.imshow(self.im.copy())
+        self.completed_status = False
+        self.ka = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+        disconnect_button = widgets.Button(description="Confirm ROI")
+        Disp.display(disconnect_button)
+        disconnect_button.on_click(self.disconnect_mpl)
+
+    def poly_img(self, img, pts):
+        pts = np.array(pts, np.int32)
+        pts = pts.reshape((-1, 1, 2))
+        cv2.polylines(img, 
+                      [pts],
+                      True,
+                      (255,255,255),
+                      2)
+        return img
+
+    def onclick(self, event):
+        self.selected_points.append([event.xdata, event.ydata])
+        if len(self.selected_points) > 1:
+            self.fig
+            self.img.set_data(self.poly_img(self.im.copy(), self.selected_points))
+
+    def disconnect_mpl(self, _):
+        self.fig.canvas.mpl_disconnect(self.ka)
+        self.completed_status = True
+        
+        pts = np.array(self.selected_points)
+        self.mask_frame = np.zeros((self.im.shape[0], self.im.shape[1]))
+        pts_y, pts_x = skimage.draw.polygon(pts[:, 1], pts[:, 0])
+        self.mask_frame[pts_y, pts_x] = 1
+        print(f'mask_frame computed')
+        
