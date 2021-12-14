@@ -135,19 +135,34 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
 ################ Video ######################
 #############################################
 
-def play_video_cv2(array, frameRate):
+def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJPG'):
     """
     Play a video using OpenCV
     RH 2021
 
     Args:
         array:
-            3D array of images
+            3D array of images.
+            Scaling assumed to be between 0 and 255
         frameRate:  
             Frame rate of the video (in Hz)
     """
     wait_frames = max(int((1/frameRate)*1000), 1)
+    if save_path is not None:
+        size = tuple((np.flip(array.shape[1:])))
+        fourcc = cv2.VideoWriter_fourcc(*fourcc_code)
+        print(f'saving to file {save_path}')
+        writer = cv2.VideoWriter(save_path, fourcc, frameRate, size)
+        
     for frame in array:
-        cv2.imshow('handle', frame)
-        cv2.waitKey(wait_frames)
-    cv2.destroyWindow('handle')
+        frame = cv2.merge([frame, frame, frame])
+        if show:
+            cv2.imshow('handle', np.uint8(frame))
+            cv2.waitKey(wait_frames)
+        if save_path is not None:
+            writer.write(np.uint8(frame))
+    if save_path is not None:
+        writer.release()
+        print('Video saved')
+    if show:
+        cv2.destroyWindow('handle')
