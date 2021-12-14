@@ -228,5 +228,6 @@ class select_ROI:
         self.mask_frame = np.zeros((self.im.shape[0], self.im.shape[1]))
         pts_y, pts_x = skimage.draw.polygon(pts[:, 1], pts[:, 0])
         self.mask_frame[pts_y, pts_x] = 1
+        self.mask_frame = self.mask_frame.astype(np.bool)
         print(f'mask_frame computed')
         
