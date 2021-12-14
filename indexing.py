@@ -45,7 +45,7 @@ def widen_boolean(arr, n_before, n_after, axis=None):
 
 
 # @njit
-def idx2bool(idx, length):
+def idx2bool(idx, length=None):
     '''
     Converts a vector of indices to a boolean vector.
     RH 2021
@@ -55,11 +55,15 @@ def idx2bool(idx, length):
             1-D array of indices.
         length (int):
             Length of boolean vector.
+            If None then length will be set to
+             the maximum index in idx + 1.
     
     Returns:
         bool_vec (np.ndarray):
             1-D boolean array.
     '''
+    if length is None:
+        length = np.uint64(np.max(idx) + 1)
     out = np.zeros(length, dtype=np.bool8)
     out[idx] = True
     return out
