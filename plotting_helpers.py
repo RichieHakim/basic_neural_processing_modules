@@ -34,6 +34,8 @@ def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cm
         images (list of 2D arrays or a 3D array):
             List of images or a 3D array of images
              where the first dimension is the number of images
+        labels (list of strings):
+            List of labels to be displayed in the grid
         grid_shape (tuple):
             Shape of the grid
         show_axis (str):
@@ -170,7 +172,7 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
         writer = cv2.VideoWriter(save_path, fourcc, frameRate, size)
 
     if kwargs_text is None:
-        kwargs_text = {'org': (5, 15), 
+        kwargs_text = { 'org': (5, 15), 
                         'fontFace': 1, 
                         'fontScale': 1,
                         'color': (255, 255, 255), 
