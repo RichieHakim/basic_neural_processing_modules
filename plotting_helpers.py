@@ -139,7 +139,7 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
 ################ Video ######################
 #############################################
 
-def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJPG'):
+def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJPG', text=None, kwargs_text={}):
     """
     Play a video using OpenCV
     RH 2021
@@ -150,6 +150,17 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
             Scaling assumed to be between 0 and 255
         frameRate:  
             Frame rate of the video (in Hz)
+        save_path:
+            Path to save the video
+        show:   
+            Whether to show the video or not
+        fourcc_code:
+            FourCC code for the codec
+        text:
+            Text to write on the video.
+            If list, each element is on a different frame
+        kwargs_text:
+            Keyword arguments for text
     """
     wait_frames = max(int((1/frameRate)*1000), 1)
     if save_path is not None:
@@ -157,9 +168,26 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
         fourcc = cv2.VideoWriter_fourcc(*fourcc_code)
         print(f'saving to file {save_path}')
         writer = cv2.VideoWriter(save_path, fourcc, frameRate, size)
+
+    if kwargs_text is None:
+        kwargs_text = {'org': (5, 15), 
+                        'fontFace': 1, 
+                        'fontScale': 1,
+                        'color': (255, 255, 255), 
+                        'thickness': 1}
         
-    for frame in array:
+    for i_frame, frame in enumerate(array):
         frame = cv2.merge([frame, frame, frame])
+
+        if text is not None:
+            if isinstance(text, list):
+                text_frame = text[i_frame]
+            else:
+                text_frame = text
+
+            # frame = cv2.putText(frame, text, (5,15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2, cv2.LINE_AA)
+            frame = cv2.putText(frame, text_frame, **kwargs_text)
+            
         if show:
             cv2.imshow('handle', np.uint8(frame))
             cv2.waitKey(wait_frames)

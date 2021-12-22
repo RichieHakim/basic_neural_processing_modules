@@ -186,6 +186,8 @@ def simple_load(path=None, directory=None, fileName=None, verbose=False):
 def simple_save(dict_to_save, path=None, directory=None, fileName=None, write_mode='w-', verbose=False):
     """
     Saves a python dict to an hdf file.
+    Also allows for adding new data to
+     an existing hdf file.
     RH 2021
 
     Args:
@@ -200,10 +202,11 @@ def simple_save(dict_to_save, path=None, directory=None, fileName=None, write_mo
         fileName (string):
             Name of file to write.
             Used if path is None.
-        write_mode ('w' or 'w-'):
+        write_mode ('w', 'w-', 'a'):
             The priveleges of the h5 file object.
             'w' will overwrite.
             'w-' will not overwrite.
+            'a' will append/add a new dataset to the h5 file.
         verbose (bool):
             Whether or not to print out the h5 file hierarchy.
     """

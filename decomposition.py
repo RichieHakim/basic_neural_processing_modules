@@ -160,6 +160,23 @@ def torch_pca(  X,
     gc.collect()
     return components, scores, singVals, EVR
 
+def unmix_pcs(pca_components, weight_vecs):
+    """
+    Transforms weight_vecs into pca_components space
+    RH 2021
+    """
+    if weight_vecs.ndim == 1:
+        weight_vecs = weight_vecs[:,None]
+    if type(pca_components) == np.ndarray:
+        zeros = np.zeros
+    elif type(pca_components) == torch.Tensor:
+        zeros = torch.zeros
+    
+    mixing_vecs = zeros((pca_components.shape[1], weight_vecs.shape[1]))
+    mixing_vecs[:weight_vecs.shape[0],:] = weight_vecs
+
+    return pca_components @ mixing_vecs
+
 #######################################
 ########## Incremental PCA ############
 #######################################

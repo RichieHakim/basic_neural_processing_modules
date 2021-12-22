@@ -4,6 +4,7 @@ import sklearn
 import sklearn.linear_model
 import time
 from numba import njit, jit, prange
+import torch
 
 
 # @njit
@@ -29,7 +30,12 @@ def OLS(X,y):
     '''
     if X.ndim==1:
         X = X[:,None]
-    theta = np.linalg.inv(X.T @ X) @ X.T @ y
+    if type(X) == np.ndarray:
+        inv = np.linalg.inv
+    elif type(X) == torch.Tensor:
+        inv = torch.inverse
+
+    theta = inv(X.T @ X) @ X.T @ y
     y_rec = X @ theta
     return theta, y_rec
 
@@ -57,7 +63,14 @@ def Ridge(X, y, lam=1):
     '''
     if X.ndim==1:
         X = X[:,None]
-    theta = np.linalg.inv(X.T @ X + lam*np.eye(X.shape[1])) @ X.T @ y
+    if type(X) == np.ndarray:
+        inv = np.linalg.inv
+        eye = np.eye(X.shape[1])
+    elif type(X) == torch.Tensor:
+        inv = torch.inverse
+        eye = torch.eye(X.shape[1]).to(X.device)
+
+    theta = inv(X.T @ X + lam*eye) @ X.T @ y
     y_rec = X @ theta
     return theta, y_rec
 
