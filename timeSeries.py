@@ -21,7 +21,6 @@ from matplotlib import pyplot as plt
 import copy
 from numba import njit, jit, prange
 import pandas as pd
-import rolling_quantiles as rq
 import torch
 
 from . import parallel_helpers
@@ -243,6 +242,7 @@ def rolling_percentile_pd(X, ptile=50, window=21, interpolation='linear', output
 
 
 def rolling_percentile_rq(x_in, window, ptile=10, stride=1, center=True):
+    import rolling_quantiles as rq
     pipe = rq.Pipeline( rq.LowPass(window=window, quantile=(ptile/100), subsample_rate=stride) )
     lag = int(np.floor(pipe.lag))
     if center:
@@ -250,6 +250,7 @@ def rolling_percentile_rq(x_in, window, ptile=10, stride=1, center=True):
     else:
         return pipe.feed(x_in)
 def rolling_percentile_rq_multicore(x_in, window, ptile, stride=1, center=True, n_workers=None):
+    import rolling_quantiles as rq
     return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=None, axis=0, **{'window': window , 'ptile': ptile, 'stride': stride, 'center': False} )
 
 

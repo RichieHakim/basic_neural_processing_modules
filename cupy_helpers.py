@@ -1,4 +1,7 @@
-import cupy
+def import_cupy_pkgs():
+    import cuml
+    import cuml.decomposition
+    import cupy
 
 def set_device(device_num=0, verbose=True):
     """

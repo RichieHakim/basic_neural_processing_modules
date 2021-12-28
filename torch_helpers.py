@@ -1,9 +1,6 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-import pycuda
-import pycuda.driver as drv
-
 import sys
 import gc
 
@@ -67,6 +64,9 @@ def show_cuda_devices():
     Show available cuda devices. Uses pycuda.
     RH 2021
     """
+    import pycuda
+    import pycuda.driver as drv
+
     drv.init()
     print("%d device(s) found." % drv.Device.count())
             
