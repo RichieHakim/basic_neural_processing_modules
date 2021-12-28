@@ -39,7 +39,7 @@ My favorite and most used functions:
     - `plotting_helpers.get_subplot_indices`
         - returns the subscript indices of the subplots in a figure
 
-Dependencies: \n
+Dependencies: \
 ```pip install matplotlib numpy scipy scikit-learn scikit-image tqdm scanimage-tiff-reader numba pandas scikit-learn scikit-image h5py hdfdict opencv-contrib-python ipywidgets opt_einsum```
 
 ```conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch```
