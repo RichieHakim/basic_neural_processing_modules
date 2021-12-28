@@ -1,9 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-
-from sklearn.model_selection import (TimeSeriesSplit, KFold, ShuffleSplit,
-                                     StratifiedKFold, GroupShuffleSplit,
-                                     GroupKFold, StratifiedShuffleSplit)
                                      
 def make_cv_indices(
     cv, 
