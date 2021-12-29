@@ -5,9 +5,50 @@
 import os
 from typing import List
 import numpy as np
+from pathlib import Path
 
 # Third party
 import pkg_resources
+
+def mkdir(dir, parents=True, exist_ok=True):
+    '''
+    Create a directory if it doesn't exist.
+    RH 2021
+
+    Args:
+        dir (str):
+            path to directory
+        parents (bool):
+            whether to create parent directories
+        exist_ok (bool):
+            whether to raise an exception if the 
+             directory already exists
+    '''
+    Path(dir).mkdir(parents=parents, exist_ok=exist_ok)
+
+
+def get_dir_contents(dir):
+    '''
+    Get the contents of a directory (does not
+     include subdirectories).
+    RH 2021
+
+    Args:
+        dir (str):
+            path to directory
+    
+    Returns:
+        folders (List):
+            list of folder names
+        files (List):
+            list of file names
+    '''
+    walk = os.walk(dir, followlinks=False)
+    for ii,level in enumerate(walk):
+        folders, files = level[1:]
+        if ii==0:
+            break
+    return folders, files
 
 
 def get_all_files(root: str, followlinks: bool = False) -> List:
