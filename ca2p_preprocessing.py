@@ -114,7 +114,7 @@ def calculate_noise_levels(dFoF, frame_rate):
 
 def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
                         percentile_baseline=30, Fs=30,
-                        plot_pref=True,):
+                        plot_pref=True, thresh=None):
     '''
     Some simple quality metrics for calcium imaging traces. Designed to
     work with Suite2p's outputs (F, Fneu) and the make_dFoF function
@@ -198,15 +198,16 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
     }
 
     # ############# HARD-CODED exclusion criteria ###############
-    thresh = {
-    'var_ratio': 1,
-    'EV_F_by_Fneu': 0.6,
-    'base_FneuSub': 0,
-    'base_F': 50,
-    'noise_levels': 12,
-    'max_dFoF': 50,
-    'baseline_var': 1,
-    }
+    if thresh is None:
+        thresh = {
+                    'var_ratio': 1,
+                    'EV_F_by_Fneu': 0.6,
+                    'base_FneuSub': 0,
+                    'base_F': 50,
+                    'noise_levels': 12,
+                    'max_dFoF': 50,
+                    'baseline_var': 1,
+                }
     # thresh = {
     # 'var_ratio': 3,
     # 'EV_F_by_Fneu': 1,
