@@ -1,6 +1,7 @@
 __all__ = [
             'ca2p_preprocessing',
             'classification',
+            'cluster'
             'cross_validation',
             'cupy_helpers',
             'decomposition',
