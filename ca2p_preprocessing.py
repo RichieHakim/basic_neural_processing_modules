@@ -181,9 +181,9 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
 
     max_dFoF = np.max(dFoF, axis=1)
 
-    # currently hardcoding the rolling baseline window to be 2 minutes
+    # currently hardcoding the rolling baseline window to be 10 minutes
     # rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
-    rolling_baseline = rolling_percentile_rq_multicore(dFoF, ptile=percentile_baseline, window=int(Fs*60*20 + 1))
+    rolling_baseline = rolling_percentile_rq_multicore(dFoF, ptile=percentile_baseline, window=int(Fs*60*10 + 1))
     baseline_var = var_numba(rolling_baseline)
     # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
 

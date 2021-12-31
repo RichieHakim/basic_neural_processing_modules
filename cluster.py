@@ -41,7 +41,7 @@ verbose=True,
                using a relative path (see 'save_dir' below)
             - Each script should contain the following to handle
                input arguments specified by the user and this
-               function:
+               function, DEMO:
                 ```
                 import sys
                     path_script, path_params, save_dir = sys.argv
@@ -81,6 +81,8 @@ verbose=True,
             - Outer directory to save results to.
             - Will be created if it does not exist.
             - Will be populated by folders for each job
+            - Will be sent to the script for each job as the
+               third argument. See script_paths demo for details.
         save_name (str or List):
             - Name of each job (used as inner directory name)
             - If str, then will be used for all jobs 
@@ -96,14 +98,16 @@ verbose=True,
         if n_jobs > max_n_jobs:
             raise ValueError(f'Too many jobs requested: max_n_jobs={n_jobs} > n_jobs={max_n_jobs}')
 
-    def rep_inputs(input, n_jobs):
-        if len(input==1) and (n_jobs>1):
-            return indexing.lazy_repeat_item(input, pseudo_length=n_jobs)
+    def rep_inputs(item, n_jobs):
+        if len(item)==1 and (n_jobs>1):
+            return indexing.lazy_repeat_item(item[0], pseudo_length=n_jobs)
+        else:
+            return item
 
     script_paths       = rep_inputs(script_paths,   n_jobs)
     params_list        = rep_inputs(params_list,  n_jobs)
     sbatch_config_list = rep_inputs(sbatch_config_list, n_jobs)
-    save_name          = rep_inputs(save_name, n_jobs)
+    save_name          = rep_inputs([save_name], n_jobs)
 
     # setup the save path
     Path(save_dir).mkdir(parents=True, exist_ok=True)
@@ -111,7 +115,7 @@ verbose=True,
 
     # run the jobs
     for ii in range(n_jobs):
-        save_dir_job = save_dir / f'{save_name}_{ii}'
+        save_dir_job = save_dir / f'{save_name[ii]}{ii}'
         save_dir_job.mkdir(parents=True, exist_ok=True)
         # save the shell scripts
         save_path_sbatchConfig = save_dir_job / 'sbatch_config.sh'
