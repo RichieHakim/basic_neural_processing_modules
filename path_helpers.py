@@ -131,5 +131,7 @@ def get_nums_from_string(string_with_nums):
     for jj, val in enumerate(idx_nums):
         if val:
             nums.append(string_with_nums[jj])
+    if nums is None:
+        return None
     nums = int(''.join(nums))
     return nums
