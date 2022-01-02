@@ -10,13 +10,13 @@ from pathlib import Path
 # Third party
 import pkg_resources
 
-def mkdir(dir, parents=True, exist_ok=True):
+def mkdir(directory, parents=True, exist_ok=True):
     '''
     Create a directory if it doesn't exist.
     RH 2021
 
     Args:
-        dir (str):
+        directory (str):
             path to directory
         parents (bool):
             whether to create parent directories
@@ -24,17 +24,17 @@ def mkdir(dir, parents=True, exist_ok=True):
             whether to raise an exception if the 
              directory already exists
     '''
-    Path(dir).mkdir(parents=parents, exist_ok=exist_ok)
+    Path(directory).mkdir(parents=parents, exist_ok=exist_ok)
 
 
-def get_dir_contents(dir):
+def get_dir_contents(directory):
     '''
     Get the contents of a directory (does not
      include subdirectories).
     RH 2021
 
     Args:
-        dir (str):
+        directory (str):
             path to directory
     
     Returns:
@@ -43,12 +43,35 @@ def get_dir_contents(dir):
         files (List):
             list of file names
     '''
-    walk = os.walk(dir, followlinks=False)
+    walk = os.walk(directory, followlinks=False)
     for ii,level in enumerate(walk):
         folders, files = level[1:]
         if ii==0:
             break
     return folders, files
+
+
+def get_numeric_contents(directory, sort=True):
+    """
+    Get the contents of a directory that have
+     numeric names (files and/or folders).
+    RH 2022
+
+    Args:
+        directory (str):
+            path to directory
+        sort (bool):
+            whether to sort the contents
+
+    Returns:
+        contents (np.int64):
+            numeric contents of directory
+    """
+    numeric_contents= [ int(ii) if ii.isnumeric() else [] for ii in  get_dir_contents(directory)[0] ]
+    numeric_contents = np.array(numeric_contents)[[type(ii) is int for ii in numeric_contents]].astype('int64')
+    if sort:
+        numeric_contents = np.sort(numeric_contents)
+    return numeric_contents
 
 
 def get_all_files(root: str, followlinks: bool = False) -> List:

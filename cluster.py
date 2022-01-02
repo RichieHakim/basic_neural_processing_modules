@@ -4,13 +4,13 @@ import json
 from . import indexing
 
 def batch_run(script_paths, 
-params_list, 
-sbatch_config_list, 
-max_n_jobs=2,
-save_dir='/n/data1/hms/neurobio/sabatini/rich/analysis/', 
-save_name='jobNum_', 
-verbose=True,
-):
+                params_list, 
+                sbatch_config_list, 
+                max_n_jobs=2,
+                save_dir='/n/data1/hms/neurobio/sabatini/rich/analysis/', 
+                save_name='jobNum_', 
+                verbose=True,
+                ):
     r"""
     Run a batch of jobs.
     Workflow 1: run a single script over a sweep of parameters
