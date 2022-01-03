@@ -1,5 +1,7 @@
-"""Functions for path manipulation and retrieval of files."""
-'Currently most functions are stolen from https://github.com/MartinThoma/mpu/blob/master/mpu/path.py'
+"""
+Functions for path manipulation and retrieval of files.
+Some functions are stolen from https://github.com/MartinThoma/mpu/blob/master/mpu/path.py
+"""
 
 # Core Library
 import os
@@ -64,14 +66,23 @@ def get_numeric_contents(directory, sort=True):
             whether to sort the contents
 
     Returns:
-        contents (np.int64):
-            numeric contents of directory
+        paths_output (List of str):
+            Paths with numeric contents
+        paths_numerics (np.float64):
+            Numeric contents of the paths.
+            If there are no numeric contents, 
+             return np.nan.
     """
-    numeric_contents= [ int(ii) if ii.isnumeric() else [] for ii in  get_dir_contents(directory)[0] ]
-    numeric_contents = np.array(numeric_contents)[[type(ii) is int for ii in numeric_contents]].astype('int64')
+    paths = get_all_files(directory)
+    paths_numerics = [ get_nums_from_string(Path(path).name) for path in paths ]
+    paths_numerics = np.array(paths_numerics)
+    paths_numerics[[ii is None for ii in paths_numerics]] = np.nan
+    paths_numerics = paths_numerics.astype('float64')
     if sort:
-        numeric_contents = np.sort(numeric_contents)
-    return numeric_contents
+        paths_output = list(np.array(paths)[np.argsort(paths_numerics)])
+    else:
+        paths_output = paths
+    return paths_output, paths_numerics
 
 
 def get_all_files(root: str, followlinks: bool = False) -> List:
@@ -115,15 +126,16 @@ def get_from_package(package_name: str, path: str) -> str:
 def get_nums_from_string(string_with_nums):
     """
     Return the numbers from a string as an int
-    RH 2021
+    RH 2021-2022
 
     Args:
         string_with_nums (str):
-            string with numbers in it
+            String with numbers in it
     
     Returns:
         nums (int):
-            the numbers from the string            
+            The numbers from the string    
+            If there are no numbers, return None.        
     """
     idx_nums = [ii in str(np.arange(10)) for ii in string_with_nums]
     
