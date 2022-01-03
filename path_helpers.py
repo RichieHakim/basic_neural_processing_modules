@@ -68,7 +68,9 @@ def get_numeric_contents(directory, sort=True):
     Returns:
         paths_output (List of str):
             Paths with numeric contents
-        paths_numerics (np.float64):
+        contents_output (List of str):
+            Contents of the paths
+        numerics_output (np.float64):
             Numeric contents of the paths.
             If there are no numeric contents, 
              return np.nan.

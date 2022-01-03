@@ -460,17 +460,29 @@ def convert_multiple_stat_files(
     return sf_all_list
 
 
-def import_and_convert_to_CellReg_spatialFootprints(paths_statFiles, frame_height, frame_width):
+def import_and_convert_to_CellReg_spatialFootprints(
+    paths_statFiles, 
+    frame_height=512, 
+    frame_width=1024,
+    dtype=np.uint8,
+    ):
     """
     Imports and converts multiple stat files to spatial footprints
      suitable for CellReg.
     Output will be a list of arrays of shape (n_roi, height, width).
     RH 2022
     """
+
+    isInt = np.issubdtype(dtype, np.integer)
+
     stats = [np.load(path, allow_pickle=True) for path in paths_statFiles]
     num_rois = [stat.size for stat in stats]
     sf_all_list = [np.zeros((n_roi, frame_height, frame_width)) for n_roi in num_rois]
     for ii, stat in enumerate(stats):
         for jj, roi in enumerate(stat):
-            sf_all_list[ii][jj, roi['ypix'], roi['xpix']] = roi['lam']
+            if isInt:
+                lam = dtype(roi['lam'] * np.iinfo(dtype).max)
+            else:
+                lam = roi['lam']
+            sf_all_list[ii][jj, roi['ypix'], roi['xpix']] = lam
     return sf_all_list
