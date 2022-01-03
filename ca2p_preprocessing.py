@@ -318,7 +318,13 @@ from torch.utils.data import DataLoader
 ############################## IMPORT STAT FILES ##############################
 ###############################################################################
 
-def statFile_to_spatialFootprints(path_statFile=None, statFile=None, out_height_width=[36,36], max_footprint_width=241, plot_pref=True):
+def statFile_to_spatialFootprints(
+    path_statFile=None, 
+    statFile=None, 
+    out_height_width=[36,36], 
+    max_footprint_width=241, 
+    plot_pref=True
+    ):
     """
     Converts a stat file to a list of spatial footprint images.
     RH 2021
@@ -369,7 +375,14 @@ def statFile_to_spatialFootprints(path_statFile=None, statFile=None, out_height_
     
     return sf
 
-def import_multiple_stat_files(paths_statFiles=None, dir_statFiles=None, fileNames_statFiles=None, out_height_width=[36,36], max_footprint_width=241, plot_pref=True):
+def import_multiple_stat_files(
+    paths_statFiles=None, 
+    dir_statFiles=None, 
+    fileNames_statFiles=None, 
+    out_height_width=[36,36], 
+    max_footprint_width=241, 
+    plot_pref=True
+    ):
     """
     Imports multiple stat files.
     RH 2021 
@@ -407,7 +420,14 @@ def import_multiple_stat_files(paths_statFiles=None, dir_statFiles=None, fileNam
                   for path_statFile in paths_statFiles]
     return sf_all_list
 
-def convert_multiple_stat_files(statFiles_list=None, statFiles_dict=None, out_height_width=[36,36], max_footprint_width=241, print_pref=False, plot_pref=False):
+def convert_multiple_stat_files(
+    statFiles_list=None, 
+    statFiles_dict=None, 
+    out_height_width=[36,36], 
+    max_footprint_width=241, 
+    print_pref=False, 
+    plot_pref=False
+    ):
     """
     Converts multiple stat files to spatial footprints.
     RH 2021
@@ -437,4 +457,20 @@ def convert_multiple_stat_files(statFiles_list=None, statFiles_dict=None, out_he
                                                     out_height_width=out_height_width,
                                                     max_footprint_width=max_footprint_width,
                                                     plot_pref=plot_pref))
+    return sf_all_list
+
+
+def import_and_convert_to_CellReg_spatialFootprints(paths_statFiles, frame_height, frame_width):
+    """
+    Imports and converts multiple stat files to spatial footprints
+     suitable for CellReg.
+    Output will be a list of arrays of shape (n_roi, height, width).
+    RH 2022
+    """
+    stats = [np.load(path, allow_pickle=True) for path in paths_statFiles]
+    num_rois = [stat.size for stat in stats]
+    sf_all_list = [np.zeros((n_roi, frame_height, frame_width)) for n_roi in num_rois]
+    for ii, stat in enumerate(stats):
+        for jj, roi in enumerate(stat):
+            sf_all_list[ii][jj, roi['ypix'], roi['xpix']] = roi['lam']
     return sf_all_list
