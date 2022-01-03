@@ -80,11 +80,6 @@ def get_numeric_contents(directory, sort=True):
             paths_numerics = np.nan
     if sort:
         paths_output = list(np.array(paths)[np.argsort(np.array(paths_numerics))])
-    # paths_numerics = np.array(paths_numerics)
-    # paths_numerics[[ii is None for ii in paths_numerics]] = np.nan
-    # paths_numerics = paths_numerics.astype('float64')
-    # if sort:
-    #     paths_output = list(np.array(paths)[np.argsort(paths_numerics)])
     else:
         paths_output = paths
     return paths_output, paths_numerics
