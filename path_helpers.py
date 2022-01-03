@@ -73,7 +73,7 @@ def get_numeric_contents(directory, sort=True):
             If there are no numeric contents, 
              return np.nan.
     """
-    paths = get_all_files(directory)
+    paths = get_dir_contents(directory)
     paths_numerics = [ get_nums_from_string(Path(path).name) for path in paths ]
     paths_numerics = np.array(paths_numerics)
     paths_numerics[[ii is None for ii in paths_numerics]] = np.nan
