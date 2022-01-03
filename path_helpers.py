@@ -73,16 +73,23 @@ def get_numeric_contents(directory, sort=True):
             If there are no numeric contents, 
              return np.nan.
     """
-    paths = np.concatenate(get_dir_contents(directory))
-    paths_numerics = [ get_nums_from_string(Path(path).name) for path in paths ]
-    for num in paths_numerics:
+    contents = np.concatenate(get_dir_contents(directory))
+    numerics = [ get_nums_from_string(Path(path).name) for path in contents ]
+    for ii, num in enumerate(numerics):
         if num is None:
-            paths_numerics = np.nan
+            numerics[ii] = np.nan
+    numerics = np.array(numerics, dtype=np.float64)
     if sort:
-        paths_output = list(np.array(paths)[np.argsort(np.array(paths_numerics))])
+        numerics_argsort = np.argsort(numerics)
+        numerics_output = numerics[numerics_argsort]
+        contents_output = contents[numerics_argsort[np.isnan(numerics_output)==False]]
     else:
-        paths_output = paths
-    return paths_output, paths_numerics
+        numerics_output = numerics
+        contents_output = contents[np.isnan(numerics_output)==False]
+
+    paths_output = [Path(directory).resolve() / str(ii) for ii in contents_output]
+
+    return paths_output, contents_output, numerics_output
 
 
 def get_all_files(root: str, followlinks: bool = False) -> List:
