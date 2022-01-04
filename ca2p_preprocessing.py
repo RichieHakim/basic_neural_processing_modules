@@ -477,7 +477,7 @@ def import_and_convert_to_CellReg_spatialFootprints(
 
     stats = [np.load(path, allow_pickle=True) for path in paths_statFiles]
     num_rois = [stat.size for stat in stats]
-    sf_all_list = [np.zeros((n_roi, frame_height, frame_width)) for n_roi in num_rois]
+    sf_all_list = [np.zeros((n_roi, frame_height, frame_width), dtype) for n_roi in num_rois]
     for ii, stat in enumerate(stats):
         for jj, roi in enumerate(stat):
             if isInt:

@@ -345,3 +345,27 @@ class lazy_repeat_item():
 
     def __repr__(self):
         return repr(self.item)
+
+
+def index_with_nans(values, indices):
+    """
+    Creates an array of values with the same shape
+     as indices, but with nans where indices are NaN.
+    RH 2022
+
+    Args:
+        values (np.ndarray):
+            values to index from
+        indices (np.ndarray, dtype=float):
+            indices to index into values
+
+    Returns:
+        output (np.ndarray):
+            array of values indexed by indices
+    """
+    values = np.concatenate((np.array([np.nan]), values))
+    indices += 1
+    indices[np.isnan(indices)] = 0
+    
+    return values[indices.astype(np.int64)]
+    
