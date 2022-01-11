@@ -68,6 +68,7 @@ def idx2bool(idx, length=None):
     out[idx] = True
     return out
 
+
 def bool2idx(bool_vec):
     '''
     Converts a boolean vector to indices.
@@ -82,6 +83,7 @@ def bool2idx(bool_vec):
             1-D array of indices.
     '''
     return np.where(bool_vec)[0]
+
 
 def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=None, plot_pref=False):
     '''
@@ -220,7 +222,7 @@ def get_last_True_idx(input_array):
     return output
 
 
-def make_batches(iterable, batch_size=None, num_batches=5, min_batch_size=0):
+def make_batches(iterable, batch_size=None, num_batches=5, min_batch_size=0, return_idx=False):
     """
     Make batches of data or any other iterable.
     RH 2021
@@ -235,6 +237,9 @@ def make_batches(iterable, batch_size=None, num_batches=5, min_batch_size=0):
             number of batches to make
         min_batch_size (int):
             minimum size of each batch
+        return_idx (bool):
+            whether to return the indices of the batches.
+            output will be [start, end] idx
     
     Returns:
         output (iterable):
@@ -250,8 +255,10 @@ def make_batches(iterable, batch_size=None, num_batches=5, min_batch_size=0):
         if (end-start) < min_batch_size:
             break
         else:
-            yield iterable[start:end]
-
+            if return_idx:
+                yield iterable[start:end], [start, end]
+            else:
+                yield iterable[start:end]
 
 
 @njit
@@ -369,3 +376,30 @@ def index_with_nans(values, indices):
     
     return values[indices.astype(np.int64)]
     
+
+def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
+    """
+    Converts a dense distance matrix to a sparse kNN distance matrix.
+    Useful for converting custom distance matrices into a format that
+     can be used by things like sklearn's nearest neighbors algorithms.
+    RH 2022
+
+    Args:
+        denseDistanceMatrix (np.ndarray):
+            Dense distance matrix
+        k (int):
+            Number of nearest neighbors to find
+        epsilon (float):
+            Small number to add to distances because entries with
+             distance 0 are ignored by scipy's sparse csr_matrix.
+            It can be subtracted out later.
+
+    Returns:
+        output (scipy.sparse.csr_matrix):
+            Sparse kNN distance matrix
+    """
+    X = denseDistanceMatrix + epsilon
+    k_lowest = np.argsort(X, axis=1)[:,:k]
+    kl_bool = np.stack([idx2bool(k_l, length=X.shape[1]) for k_l in k_lowest])
+    X[~kl_bool] = 0
+    return scipy.sparse.csr_matrix(X)

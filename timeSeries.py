@@ -293,8 +293,6 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
             x-axis of the traces. Aligns with dimension
              et_traces.shape[-2]
         windows (np.ndarray):
-            
-            
     '''
     def bounds_to_win(x_pos, win_bounds):
         return x_pos + np.arange(win_bounds[0], win_bounds[1])

@@ -24,6 +24,12 @@ from opt_einsum import contract
 from numba import njit, prange, jit
 import torch
 
+from tqdm.notebook import tqdm
+
+from . import indexing
+
+import numpy as np
+
 from time import time
 
 def proj(v1, v2):
@@ -490,6 +496,87 @@ def self_similarity_pairwise(mat_set , method='pearson'):
         corr_avg[i_combo] , corr_matched[:,i_combo] , ind1[:,i_combo] , ind2[:,i_combo]  =  best_permutation(mat_set[:,:,combo[0]]  ,  mat_set[:,:,combo[1]] , method)
     # print(corr_avg)
     return corr_avg, corr_matched, ind1, ind2, combos
+
+
+def batched_covariance(X, batch_size=1000, device='cpu'):
+    """
+    Batched covariance matrix calculation.
+    Allows for large datasets to be processed in batches on GPU.
+    RH 2022
+
+    Args:
+        X (np.ndarray or torch.Tensor):
+            2D array of shape (n_samples, n_features)
+        batch_size (int):
+            Number of samples to process at a time.
+        device (str):
+            Device to use for computation.
+            
+    Returns:
+        cov (np.ndarray):
+    """
+    X_dl1 = list(indexing.make_batches(np.arange(X.shape[1]), batch_size=batch_size, return_idx=True))
+    X_dl2 = list(indexing.make_batches(np.arange(X.shape[1]), batch_size=batch_size, return_idx=True))
+
+    if torch.is_tensor(X):
+        X_cov = torch.zeros(X.shape[1], X.shape[1], device=device)
+    else:
+        X_cov = np.zeros((X.shape[1], X.shape[1]))
+    
+    n_batches = X.shape[1] // batch_size
+    for ii, (X_batch_i, idx_batch_i) in enumerate(tqdm(X_dl1, total=n_batches, leave=False, desc='outer loop')):
+        for jj, (X_batch_j, idx_batch_j) in enumerate(tqdm(X_dl2, total=n_batches, leave=False, desc='inner loop')):
+            x_t = X[:,idx_batch_i[0]:idx_batch_i[-1]].T
+            x   = X[:,idx_batch_j[0]:idx_batch_j[-1]]
+            if device != 'cpu':
+                x_t = x_t.to(device)
+                x = x.to(device)
+
+            X_cov[idx_batch_i[0]:idx_batch_i[-1], idx_batch_j[0]:idx_batch_j[-1]] = x_t @ x
+    return X_cov
+
+
+def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='cpu'):
+    """
+    Batched matrix multiplication of two matrices.
+    Allows for multiplying huge matrices together on a GPU.
+    RH 2022
+
+    Args:
+        X1 (np.ndarray or torch.Tensor):
+            first matrix. shape (n_samples1, n_features1).
+        X2 (np.ndarray or torch.Tensor):
+            second matrix. shape (n_samples2, n_features2).
+        batch_size1 (int):
+            batch size for first matrix.
+        batch_size2 (int):
+            batch size for second matrix
+        device (str):
+            device to use for computation and output
+
+    Returns:
+        X1_X2 (np.ndarray or torch.Tensor):
+    """
+    X1_dl = list(indexing.make_batches(np.arange(X1.shape[1]), batch_size=batch_size1, return_idx=True))
+    X2_dl = list(indexing.make_batches(np.arange(X2.shape[1]), batch_size=batch_size2, return_idx=True))
+
+    if torch.is_tensor(X1):
+        Y = torch.zeros(X1.shape[1], X2.shape[1], device=device)
+    else:
+        Y = np.zeros((X1.shape[1], X2.shape[1]))
+    
+    n_batches1 = X1.shape[1] // batch_size1
+    n_batches2 = X2.shape[1] // batch_size2
+    for ii, (X_batch_i, idx_batch_i) in enumerate(tqdm(X1_dl, total=n_batches1, leave=False, desc='outer loop')):
+        for jj, (X_batch_j, idx_batch_j) in enumerate(tqdm(X2_dl, total=n_batches2, leave=False, desc='inner loop')):
+            x1_t = X1[:,idx_batch_i[0]:idx_batch_i[-1]].T
+            x2   = X2[:,idx_batch_j[0]:idx_batch_j[-1]]
+            if device != 'cpu':
+                x1_t = x1_t.to(device)
+                x2 = x2.to(device)
+
+            Y[idx_batch_i[0]:idx_batch_i[-1], idx_batch_j[0]:idx_batch_j[-1]] = x1_t @ x2
+    return Y
 
 
 ##############################################################
