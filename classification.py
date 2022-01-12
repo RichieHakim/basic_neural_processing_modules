@@ -18,7 +18,8 @@ def squeeze_integers(intVec):
             1-D array of integers with consecutive numbers
     """
     uniques = np.unique(intVec)
-    unique_positions = np.arange(len(uniques))
+    # unique_positions = np.arange(len(uniques))
+    unique_positions = np.arange(uniques.min(), uniques.max()+1)
     return unique_positions[np.array([np.where(intVec[ii]==uniques)[0] for ii in range(len(intVec))]).squeeze()]
 
 def confusion_matrix(y_hat, y_true):

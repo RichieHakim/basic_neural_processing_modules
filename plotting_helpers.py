@@ -190,7 +190,8 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
 
     Args:
         array:
-            3D array of images.
+            Either 3D array of images (frames x height x width)
+             or a 4D array of images (frames x height x width x channels)
             Scaling assumed to be between 0 and 255
         frameRate:  
             Frame rate of the video (in Hz)
@@ -219,9 +220,15 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
                         'fontScale': 1,
                         'color': (255, 255, 255), 
                         'thickness': 1}
-        
+    
+    if array.dtype != 'uint8':
+        array = array.astype('uint8')
+         
     for i_frame, frame in enumerate(array):
-        frame = cv2.merge([frame, frame, frame])
+        if array.shape[3] == 3:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        else:  
+            frame = cv2.merge([frame, frame, frame])
 
         if text is not None:
             if isinstance(text, list):
