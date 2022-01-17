@@ -381,6 +381,7 @@ def index_with_nans(values, indices):
 def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
     """
     Converts a dense distance matrix to a sparse kNN distance matrix.
+    Largest values are sparsened away. Zeros are set to epsilon.
     Useful for converting custom distance matrices into a format that
      can be used by things like sklearn's nearest neighbors algorithms.
     RH 2022
