@@ -129,7 +129,16 @@ def threshold(
     return output_array
 
 
-def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_percentile=None, crop_pref=True):
+def scale_between(
+    x, 
+    lower=0, 
+    upper=1, 
+    axes=0, 
+    lower_percentile=None, 
+    upper_percentile=None, 
+    crop_pref=True,
+    verbose=False
+    ):
     '''
     Scales the first (or more) dimension of an array to be between 
     lower and upper bounds.
@@ -157,6 +166,8 @@ def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_perc
             If true then data is cropped to be between lower
             and upper. Only meaningful if lower_percentile or
             upper_percentile is not None.
+        verbose (bool):
+            Whether or not to print the highest and lowest values.
 
     Returns:
         x_out (ndarray):
@@ -166,11 +177,15 @@ def scale_between(x, lower=0, upper=1, axes=0, lower_percentile=None, upper_perc
     if lower_percentile is not None:
         lowest_val = np.percentile(x, lower_percentile, axis=axes, keepdims=True)
     else:
-        lowest_val = np.min(x, axis=axes, keepdims=True)
+        lowest_val = np.nanmin(x, axis=axes, keepdims=True)
     if upper_percentile is not None:
         highest_val = np.percentile(x, upper_percentile, axis=axes, keepdims=True)
     else:
-        highest_val = np.max(x, axis=axes, keepdims=True)
+        highest_val = np.nanmax(x, axis=axes, keepdims=True)
+
+    if verbose:
+        print(f'Highest value: {highest_val}')
+        print(f'Lowest value: {lowest_val}')
 
     x_out = ((x - lowest_val) * (upper - lower) / (highest_val - lowest_val) ) + lower
 

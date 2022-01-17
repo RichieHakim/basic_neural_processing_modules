@@ -83,32 +83,36 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
     import numpy as np
 
 
-    if type not in ('bright', 'soft'):
+    if type not in ('bright', 'soft', 'random'):
         print ('Please choose "bright" or "soft" for type')
         return
 
     if verbose:
         print('Number of labels: ' + str(nlabels))
 
-    # Generate color map for bright colors, based on hsv
+#     # Generate color map for bright colors, based on hsv
+#     if type == 'bright':
+#         randHSVcolors = [(np.random.uniform(low=0.0, high=1),
+#                           np.random.uniform(low=0.2, high=1),
+# #                           np.random.uniform(low=0.9, high=1)) for i in xrange(nlabels)]
+#                           np.random.uniform(low=0.9, high=1)) for i in range(nlabels)]
+
+#         # Convert HSV list to RGB
+#         randRGBcolors = []
+#         for HSVcolor in randHSVcolors:
+#             randRGBcolors.append(colorsys.hsv_to_rgb(HSVcolor[0], HSVcolor[1], HSVcolor[2]))
+
+    randRGBcolors = np.random.rand(nlabels, 3)
     if type == 'bright':
-        randHSVcolors = [(np.random.uniform(low=0.0, high=1),
-                          np.random.uniform(low=0.2, high=1),
-#                           np.random.uniform(low=0.9, high=1)) for i in xrange(nlabels)]
-                          np.random.uniform(low=0.9, high=1)) for i in range(nlabels)]
+        randRGBcolors = randRGBcolors / np.max(randRGBcolors, axis=1, keepdims=True)
 
-        # Convert HSV list to RGB
-        randRGBcolors = []
-        for HSVcolor in randHSVcolors:
-            randRGBcolors.append(colorsys.hsv_to_rgb(HSVcolor[0], HSVcolor[1], HSVcolor[2]))
+    if first_color_black:
+        randRGBcolors[0] = [0, 0, 0]
 
-        if first_color_black:
-            randRGBcolors[0] = [0, 0, 0]
+    if last_color_black:
+        randRGBcolors[-1] = [0, 0, 0]
 
-        if last_color_black:
-            randRGBcolors[-1] = [0, 0, 0]
-
-        random_colormap = LinearSegmentedColormap.from_list('new_map', randRGBcolors, N=nlabels)
+    random_colormap = LinearSegmentedColormap.from_list('new_map', randRGBcolors, N=nlabels)
 
     # Generate soft pastel colors, by limiting the RGB spectrum
     if type == 'soft':
@@ -209,7 +213,7 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
     """
     wait_frames = max(int((1/frameRate)*1000), 1)
     if save_path is not None:
-        size = tuple((np.flip(array.shape[1:])))
+        size = tuple((np.flip(array.shape[1:3])))
         fourcc = cv2.VideoWriter_fourcc(*fourcc_code)
         print(f'saving to file {save_path}')
         writer = cv2.VideoWriter(save_path, fourcc, frameRate, size)

@@ -5,6 +5,7 @@ import scipy.signal
 import matplotlib.pyplot as plt
 
 
+
 def widen_boolean(arr, n_before, n_after, axis=None):
     '''
     Widens boolean events by n_before and n_after.    
@@ -403,3 +404,67 @@ def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
     kl_bool = np.stack([idx2bool(k_l, length=X.shape[1]) for k_l in k_lowest])
     X[~kl_bool] = 0
     return scipy.sparse.csr_matrix(X)
+
+
+#######################################
+############ SPARSE STUFF #############
+#######################################
+
+def scipy_sparse_to_torch_coo(sp_array):
+    import torch
+
+    coo = scipy.sparse.coo_matrix(sp_array)
+    
+    values = coo.data
+    indices = np.vstack((coo.row, coo.col))
+
+    i = torch.LongTensor(indices)
+    v = torch.FloatTensor(values)
+    shape = coo.shape
+
+    return torch.sparse_coo_tensor(i, v, torch.Size(shape))
+
+def pydata_sparse_to_torch_coo(sp_array):
+    import sparse
+    import torch
+
+    coo = sparse.COO(sp_array)
+    
+    values = coo.data
+#     indices = np.vstack((coo.row, coo.col))
+    indices = coo.coords
+
+    i = torch.LongTensor(indices)
+    v = torch.FloatTensor(values)
+    shape = coo.shape
+
+    return torch.sparse_coo_tensor(i, v, torch.Size(shape))
+    
+def pydata_sparse_to_spconv(sp_array):
+    import sparse
+    import torch
+    import spconv
+
+    coo = sparse.COO(sp_array)
+    idx_raw = torch.as_tensor(coo.coords.T, dtype=torch.int32)
+    idx = torch.hstack((torch.zeros((idx_raw.shape[0],1)) , idx_raw)).type(torch.int32)
+    spconv_array = rois_sp_spconv = spconv.SparseConvTensor(
+        features=coo.reshape((coo.shape[0], -1)).T,
+        indices=idx,
+        spatial_shape=coo.shape, 
+        batch_size=1
+    )
+    return spconv_array
+
+def sparse_convert_spconv_to_scipy(sp_arr):
+    import sparse
+    import torch
+    import spconv
+    import scipy.sparse
+
+    coo = sparse.COO(
+        coords=sp_arr.indices.T.to('cpu'),
+        data=sp_arr.features.squeeze().to('cpu'),
+        shape=[sp_arr.batch_size] + sp_arr.spatial_shape
+    )
+    return coo.reshape((coo.shape[0], -1)).to_scipy_sparse().tocsr()
