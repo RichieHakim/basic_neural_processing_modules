@@ -598,7 +598,7 @@ def simlarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
 
     """
     if fn_toUse == 1:
-        d = a / (b+x) # fn 1
+        d = (a / (b+x)) -1 # fn 1
     if fn_toUse == 2:
         d = np.exp(((-x+b)**a)) # fn 2
     if fn_toUse == 3:
@@ -608,9 +608,7 @@ def simlarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
     if fn_toUse == 5:
         d = np.sqrt(1-(x+b))**a # fn 5
     if fn_toUse == 6:
-        d = (a/x)-1 # fn 6
-    if fn_toUse == 7:
-        d = -np.log((x*a)+b) # fn 7
+        d = -np.log((x*a)+b) # fn 6
     
     return d + eps
     
