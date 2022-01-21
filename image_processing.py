@@ -111,3 +111,27 @@ def apply_warp_transform(
         borderValue=borderValue
     )
     return im_out
+
+def stack_to_RGB(images):
+    """
+    Convert a stack of images to RGB.
+    RH 2022
+
+    Args:
+        images (list of np.ndarray):
+            List of images.
+            Can be between 1 and 3 images.
+            Can also be a single image.
+
+    Returns:
+        im_out (np.ndarray):
+            RGB image.
+    """
+    if isinstance(images, np.ndarray):
+        images = [images]
+    
+    im_out = np.stack(images, axis=2)
+    appended_images = np.stack([images[0]*0] * (3 - len(images)), axis=2)
+    im_out = np.concatenate([im_out, appended_images], axis=2)
+
+    return im_out

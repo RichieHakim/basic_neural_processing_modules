@@ -579,6 +579,42 @@ def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='
     return Y
 
 
+def simlarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
+    """
+    Convert similarity metric to distance metric.
+    RH 2022
+
+    Args:
+        x (value or array):
+            similarity metric.
+        fn_toUse (int from 1 to 7):
+            Sets the function to use.
+        a (float):
+            Scaling parameter.
+        b (float):
+            Shifting parameter.
+        eps (float):
+            Small value to add to output.
+
+    """
+    if fn_toUse == 1:
+        d = a / (b+x) # fn 1
+    if fn_toUse == 2:
+        d = np.exp(((x+b)**a)) # fn 2
+    if fn_toUse == 3:
+        d = np.arctan(a*(x+b)) # fn 3
+    if fn_toUse == 4:
+        d = b - x**a # fn 4
+    if fn_toUse == 5:
+        d = np.sqrt(1-(x+b))**a # fn 5
+    if fn_toUse == 6:
+        d = (a/x)-1 # fn 6
+    if fn_toUse == 7:
+        d = -np.log((x*a)+b) # fn 7
+    
+    return d + eps
+    
+
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########
 ##############################################################
