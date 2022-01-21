@@ -600,9 +600,9 @@ def simlarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
     if fn_toUse == 1:
         d = a / (b+x) # fn 1
     if fn_toUse == 2:
-        d = np.exp(((x+b)**a)) # fn 2
+        d = np.exp(((-x+b)**a)) # fn 2
     if fn_toUse == 3:
-        d = np.arctan(a*(x+b)) # fn 3
+        d = np.arctan(a*(-x+b)) # fn 3
     if fn_toUse == 4:
         d = b - x**a # fn 4
     if fn_toUse == 5:
