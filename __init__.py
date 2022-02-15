@@ -20,4 +20,5 @@ __all__ = [
             'spectral',
             'timeSeries',
             'torch_helpers',
+            'image_processing',
         ]

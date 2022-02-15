@@ -40,7 +40,7 @@ def confusion_matrix(y_hat, y_true):
             Either 1-D array of true class indices OR a
              precomputed onehot matrix.
     """
-    n_classes = np.max(y_true)+1
+    n_classes = max(np.max(y_true)+1, np.max(y_hat)+1)
     if y_hat.ndim == 1:
         y_hat = idx_to_oneHot(y_hat, n_classes)
     cmat = y_hat.T @ idx_to_oneHot(y_true, n_classes)
