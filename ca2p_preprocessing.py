@@ -13,9 +13,6 @@ Functions and Interdependencies:
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
-from ScanImageTiffReader import ScanImageTiffReader
-
-from varname import nameof
 
 import time
 
@@ -285,6 +282,8 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
 
 
 def get_chan1_offset(path_to_tif):
+    from ScanImageTiffReader import ScanImageTiffReader
+
     vol=ScanImageTiffReader(path_to_tif)
     md = vol.metadata().split("\n")
     for ii, val in enumerate(md):
@@ -294,6 +293,8 @@ def get_chan1_offset(path_to_tif):
     print(f'{chan1_offset=}')
     return chan1_offset
 def get_metadata(path_to_tif):
+    from ScanImageTiffReader import ScanImageTiffReader
+    
     vol=ScanImageTiffReader(path_to_tif)
     md = vol.metadata().split("\n")
     print(md)

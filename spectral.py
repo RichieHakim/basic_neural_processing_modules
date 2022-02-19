@@ -12,7 +12,6 @@ Functions and Interdependencies:
 import scipy.signal
 import numpy as np
 import matplotlib.pyplot as plt
-import pywt
 
 
 def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
@@ -211,6 +210,8 @@ def simple_cwt(
                 Another nice normalization is
                 np.abs(coeff / (1/freqs_toUse)[:,None]**1)**1.5
     '''
+    import pywt
+
     if wavelet_type=='cmor' and bwf is None:
         bwf = 2
     if wavelet_type=='cmor' and cf is None:

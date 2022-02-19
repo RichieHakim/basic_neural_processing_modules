@@ -1,6 +1,5 @@
 import gc
 import h5py
-import hdfdict
 from pathlib import Path
 
 
@@ -40,6 +39,8 @@ def show_group_items(hObj):
         with h5py.File(path , 'r') as f:
             h5_handling.show_group_items(f)
     '''
+    import hdfdict
+
     for ii,val in enumerate(list(iter(hObj))):
         if isinstance(hObj[val] , h5py.Group) or isinstance(hObj[val], hdfdict.hdfdict.LazyHdfDict):
             print(f'{ii+1}. {val}:----------------')
@@ -77,6 +78,7 @@ def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=Fa
         with h5py.File(path , 'r') as f:
             h5_handling.show_item_tree(f)
     '''
+    import hdfdict
 
     if path is not None:
         with h5py.File(path , 'r') as f:
@@ -169,7 +171,8 @@ def simple_load(path=None, directory=None, fileName=None, verbose=False):
         h5_dict (LazyHdfDict):
             LazyHdfDict object containing the groups
     """
-
+    import hdfdict
+    
     if path is None:
         directory = Path(directory).resolve()
         fileName_load = fileName

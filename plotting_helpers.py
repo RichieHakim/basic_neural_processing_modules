@@ -5,7 +5,6 @@ import cv2
 
 from ipywidgets import widgets
 import IPython.display as Disp
-import skimage.draw
 import matplotlib
 
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
@@ -304,6 +303,8 @@ class select_ROI:
             self.img.set_data(self.poly_img(self.im.copy(), self.selected_points))
 
     def disconnect_mpl(self, _):
+        import skimage.draw
+
         self.fig.canvas.mpl_disconnect(self.ka)
         self.completed_status = True
         
