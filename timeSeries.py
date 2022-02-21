@@ -282,11 +282,12 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
         trigger_signal (boolean np.ndarray):
             1-D boolean array. True values are trigger
              events
-        win_bounds (size 2 integer np.ndarray):
-            2 value integer array. win_bounds[0] is the
-             number of samples prior to the event that
-             the window starts. win_bounds[1] is the 
-             number of samples following the event.
+        win_bounds (size 2 integer list or np.ndarray):
+            2 value integer array. win_bounds[0] should
+             be negative and is the number of samples prior
+             to the event that the window starts. 
+             win_bounds[1] is the number of samples 
+             following the event.
             Events that would have a window extending
              before or after the bounds of the length
              of the trace are discarded.
@@ -298,7 +299,7 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
              collapsed when this is 'True'.
      
      Returns:
-         et_traces (np.ndarray):
+        et_traces (np.ndarray):
              Event Triggered Traces. et_traces.ndim = 
               arr.ndim+1. Last dimension is new and is
               the event number axis. Note that events 
@@ -344,7 +345,15 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
     return et_traces, xAxis, windows
 
 
-def make_sorted_event_triggered_average(arr, trigger_signal, win_bounds, cv_group_size=2, test_frac=0.5, trigger_signal_is_idx=False, show_plot=False):
+def make_sorted_event_triggered_average(
+    arr, 
+    trigger_signal, 
+    win_bounds, 
+    cv_group_size=2, 
+    test_frac=0.5, 
+    trigger_signal_is_idx=False, 
+    show_plot=False
+):
     '''
     Makes a sorted event triggered average plot
     RH 2021
