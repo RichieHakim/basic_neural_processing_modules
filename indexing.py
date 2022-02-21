@@ -376,36 +376,66 @@ def index_with_nans(values, indices):
     indices[np.isnan(indices)] = 0
     
     return values[indices.astype(np.int64)]
-    
 
-def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
+
+def shift_pad(array, shift=1, axis=-1, pad_val=0, in_place=False):
     """
-    Converts a dense distance matrix to a sparse kNN distance matrix.
-    Largest values are sparsened away. Zeros are set to epsilon.
-    Useful for converting custom distance matrices into a format that
-     can be used by things like sklearn's nearest neighbors algorithms.
+    Pads an array with a constant value.
+    Allows for shifting along any axis.
     RH 2022
 
     Args:
-        denseDistanceMatrix (np.ndarray):
-            Dense distance matrix
-        k (int):
-            Number of nearest neighbors to find
-        epsilon (float):
-            Small number to add to distances because entries with
-             distance 0 are ignored by scipy's sparse csr_matrix.
-            It can be subtracted out later.
+        array (np.ndarray):
+            array to shift and pad
+        shift (int):
+            number of elements to shift
+        axis (int):
+            axis to shift along
+        pad_val (any):
+            value to pad with
+        in_place (bool):
+            whether to shift and pad in place
 
     Returns:
-        output (scipy.sparse.csr_matrix):
-            Sparse kNN distance matrix
+        output (np.ndarray):
+            shifted and padded array
     """
-    X = denseDistanceMatrix + epsilon
-    k_lowest = np.argsort(X, axis=1)[:,:k]
-    kl_bool = np.stack([idx2bool(k_l, length=X.shape[1]) for k_l in k_lowest])
-    X[~kl_bool] = 0
-    return scipy.sparse.csr_matrix(X)
 
+    if shift > 0:
+        idx = np.arange(array.shape[axis])[shift:]
+    if shift < 0:
+        idx = np.arange(array.shape[axis])[:shift]
+    
+    if axis==-1:
+        axis_to_nix = array.shape[-1]
+    else:
+        axis_to_nix = axis
+                
+    dims_to_append = list(array.shape)
+    dims_to_append[axis_to_nix] = np.abs(shift)
+    
+    padding = np.ones(dims_to_append) * pad_val
+    
+    if in_place:
+        out = array
+    else:
+        out = None
+    
+    if shift > 0:
+        arr_shifted = np.concatenate(
+            ( padding, np.take(array, idx, axis=axis)),
+            axis=axis,
+            out=out
+        )
+    if shift < 0:
+        arr_shifted = np.concatenate(
+            ( np.take(array, idx, axis=axis),   padding ),
+            axis=axis,
+            out=out
+        )
+        
+    return arr_shifted
+    
 
 #######################################
 ############ SPARSE STUFF #############
@@ -469,3 +499,32 @@ def sparse_convert_spconv_to_scipy(sp_arr):
         shape=[sp_arr.batch_size] + sp_arr.spatial_shape
     )
     return coo.reshape((coo.shape[0], -1)).to_scipy_sparse().tocsr()
+
+
+def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
+    """
+    Converts a dense distance matrix to a sparse kNN distance matrix.
+    Largest values are sparsened away. Zeros are set to epsilon.
+    Useful for converting custom distance matrices into a format that
+     can be used by things like sklearn's nearest neighbors algorithms.
+    RH 2022
+
+    Args:
+        denseDistanceMatrix (np.ndarray):
+            Dense distance matrix
+        k (int):
+            Number of nearest neighbors to find
+        epsilon (float):
+            Small number to add to distances because entries with
+             distance 0 are ignored by scipy's sparse csr_matrix.
+            It can be subtracted out later.
+
+    Returns:
+        output (scipy.sparse.csr_matrix):
+            Sparse kNN distance matrix
+    """
+    X = denseDistanceMatrix + epsilon
+    k_lowest = np.argsort(X, axis=1)[:,:k]
+    kl_bool = np.stack([idx2bool(k_l, length=X.shape[1]) for k_l in k_lowest])
+    X[~kl_bool] = 0
+    return scipy.sparse.csr_matrix(X)
