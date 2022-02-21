@@ -400,11 +400,13 @@ def shift_pad(array, shift=1, axis=-1, pad_val=0, in_place=False):
         output (np.ndarray):
             shifted and padded array
     """
-
+    if shift==0:
+        return array
+        
     if shift > 0:
-        idx = np.arange(array.shape[axis])[shift:]
+        idx = np.arange(array.shape[axis])[:-shift]
     if shift < 0:
-        idx = np.arange(array.shape[axis])[:shift]
+        idx = np.arange(array.shape[axis])[-shift:]
     
     if axis==-1:
         axis_to_nix = array.shape[-1]
