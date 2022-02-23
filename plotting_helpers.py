@@ -10,22 +10,9 @@ import matplotlib
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
 
 
-def get_subplot_indices(axs):
-    """
-    Returns the subscript indices of the axes of a subplots figure.
-    Basically perfoms an ind2sub operation on the axis number.
-    RH 2021
-
-    Args:
-        axs:
-            list of axes
-    
-    Returns:
-        list of indices
-    
-    """
-    out_array = np.stack(np.unravel_index(np.arange(np.prod(axs.shape)), axs.shape, order='F'), axis=-1)
-    return [tuple(ii) for ii in out_array]
+###############
+#### PLOTS ####
+###############
 
 def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cmap=None, kwargs_subplots={}, kwargs_imshow={}):
     """
@@ -66,6 +53,29 @@ def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cm
             axs[idx_ax].set_title(labels[ii]);
         axs[idx_ax].axis(show_axis);
     return fig, axs
+
+
+###############
+### Helpers ###
+###############
+
+def get_subplot_indices(axs):
+    """
+    Returns the subscript indices of the axes of a subplots figure.
+    Basically perfoms an ind2sub operation on the axis number.
+    RH 2021
+
+    Args:
+        axs:
+            list of axes
+    
+    Returns:
+        list of indices
+    
+    """
+    out_array = np.stack(np.unravel_index(np.arange(np.prod(axs.shape)), axs.shape, order='F'), axis=-1)
+    return [tuple(ii) for ii in out_array]
+
 
 def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=False, verbose=True):
     """
