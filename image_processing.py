@@ -135,3 +135,50 @@ def stack_to_RGB(images):
     im_out = np.concatenate([im_out, appended_images], axis=2)
 
     return im_out
+
+def bin_array(array, bin_widths=[2,3,4], verbose=True):
+    """
+    Bins an array of arbitrary shape along the
+     first N dimensions. Works great for images.
+    Works by iteratively reshaping and averaging.
+    Use NaN to ignore values in averaging. Be 
+     careful because this can cause different 
+     pixels to be averaged from different numbers
+     of non-NaN values.
+    RH 2022
+
+    Args:
+        array (np.ndarray):
+            Input array.
+        bin_widths (list of int):
+            List of bin widths for first N dimensions.
+        
+    Returns:
+        array_out (np.ndarray):
+            Output array.
+    """
+    
+    # A cute function for flattening a list of lists.
+    flatten_list = lambda irregular_list:[element for item in irregular_list for element in flatten_list(item)] if type(irregular_list) is list else [irregular_list]
+
+    s = list(array.shape)
+
+    arr_out = copy.deepcopy(array)
+    for n, w in enumerate(bin_widths):
+        if arr_out.shape[n] % w != 0:
+            s_pad = copy.copy(s)
+            s_pad[n] = w - (arr_out.shape[n] % w)
+            arr_out = np.concatenate(
+                [arr_out, np.zeros(s_pad)],
+                axis=n
+            )
+            if verbose:
+                print(f'Padded dimensions {n} to {s_pad[n]}')
+        
+        s_n = list(arr_out.shape)
+        s_n[n] = [w, arr_out.shape[n] // w]
+        s_n = flatten_list(s_n)
+        arr_out = np.reshape(arr_out, s_n, order='F')
+        arr_out = np.nanmean(arr_out, axis=n)
+        
+    return arr_out

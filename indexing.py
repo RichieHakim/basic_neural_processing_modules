@@ -310,9 +310,12 @@ def find_nearest_array(array, values):
     return vals_nearest, idx_nearest
 
 
-def pad_with_singleton_dims(array, n_dims):
-    arr_out = copy.copy(array)
-    while arr_out.ndim < n_dims:
+def pad_with_singleton_dims(array, n_dims_pre=0, n_dims_post=0):
+    arr_out = copy.copy(np.array(array))
+    
+    for n in range(n_dims_pre):
+        arr_out = np.expand_dims(arr_out, 0)
+    for n in range(n_dims_post):
         arr_out = np.expand_dims(arr_out, -1)
     return arr_out
 
