@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 import sys
 
-def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64):
+def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64, units='GB'):
     '''
     Estimates the size of a hypothetical array based on shape or number of 
     elements and the bitsize
@@ -19,6 +19,12 @@ def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64):
                 'float64'=64
                 'float32'=32
                 'uint8'=8
+        units (str):
+            units of the output. eg:
+                'GB'=gigabytes
+                'MB'=megabytes
+                'KB'=kilobytes
+                'B'=bytes
     
     Returns:
         size_estimate_in_bytes (int):
@@ -36,7 +42,8 @@ def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64):
     bytes_per_element = bitsize/8
     
     size_estimate_in_bytes = numel * bytes_per_element
-    return size_estimate_in_bytes
+    size_out = convert_size(size_estimate_in_bytes, units)
+    return size_out
 
 
 def get_vars(globals, size_thresh=0, var_type=None, return_vars_pref=False):
@@ -110,3 +117,38 @@ def recursive_for_loop(final_ndim, func, data, loop_depth=0):
     else:
         return func(data)
     return output
+
+
+#########################################################
+############ INTRA-MODULE HELPER FUNCTIONS ##############
+#########################################################
+
+def convert_size(size, return_size='GB'):
+    """
+    Convert size to GB, MB, KB, from B.
+    RH 2021
+
+    Args:
+        size (int or float):
+            Size in bytes.
+        return_size (str):
+            Size unit to return.
+            Options: 'TB', 'GB', 'MB', or 'KB'
+        
+    Returns:
+        out_size (float):
+            Size in specified unit.      
+    """
+
+    if return_size == 'TB':
+        out_size = size / 1000000000000
+    elif return_size == 'GB':
+        out_size = size / 1000000000
+    elif return_size == 'MB':
+        out_size = size / 1000000
+    elif return_size == 'KB':
+        out_size = size / 1000
+    elif return_size == 'B':
+        out_size = size / 1
+
+    return out_size

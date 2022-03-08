@@ -263,11 +263,14 @@ def convert_size(size, return_size='GB'):
 
     if return_size == 'TB':
         out_size = size / 1000000000000
-    if return_size == 'GB':
+    elif return_size == 'GB':
         out_size = size / 1000000000
     elif return_size == 'MB':
         out_size = size / 1000000
     elif return_size == 'KB':
         out_size = size / 1000
+    elif return_size == 'B':
+        out_size = size / 1
 
     return out_size
+
