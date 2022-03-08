@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 import copy
 
+from . import indexing
+
 
 def find_registration_transformation(
     im_template, 
@@ -136,7 +138,7 @@ def stack_to_RGB(images):
 
     return im_out
 
-def bin_array(array, bin_widths=[2,3,4], verbose=True):
+def bin_array(array, bin_widths=[2,3,4], method='append', verbose=True):
     """
     Bins an array of arbitrary shape along the
      first N dimensions. Works great for images.
@@ -145,6 +147,7 @@ def bin_array(array, bin_widths=[2,3,4], verbose=True):
      careful because this can cause different 
      pixels to be averaged from different numbers
      of non-NaN values.
+    Function requires pad_with_singleton_dims function.
     RH 2022
 
     Args:
@@ -152,6 +155,19 @@ def bin_array(array, bin_widths=[2,3,4], verbose=True):
             Input array.
         bin_widths (list of int):
             List of bin widths for first N dimensions.
+        method (str):
+            Method for binning.
+            'append' appends NaNs to the end of
+             each dimension that is not divisible
+             by the bin width.
+            'prepend' prepends NaNs to the beginning
+             of each dimension that is not divisible
+             by the bin width.
+            'post_crop' crops the array to be divisible
+             by the bin width by cropping off the end.
+            'post_crop' crops the array to be divisible
+             by the bin width by cropping off the 
+             beginning.
         
     Returns:
         array_out (np.ndarray):
@@ -166,14 +182,33 @@ def bin_array(array, bin_widths=[2,3,4], verbose=True):
     arr_out = copy.deepcopy(array)
     for n, w in enumerate(bin_widths):
         if arr_out.shape[n] % w != 0:
-            s_pad = copy.copy(s)
-            s_pad[n] = w - (arr_out.shape[n] % w)
-            arr_out = np.concatenate(
-                [arr_out, np.zeros(s_pad)],
-                axis=n
-            )
-            if verbose:
-                print(f'Padded dimensions {n} to {s_pad[n]}')
+            if method=='append':
+                s_pad = copy.copy(s)
+                s_pad[n] = w - (arr_out.shape[n] % w)
+                arr_out = np.concatenate(
+                    [arr_out, np.zeros(s_pad)*np.nan],
+                    axis=n
+                )
+                if verbose:
+                    print(f'Appended padded dimensions {n} to {s_pad[n]}')
+            
+            if method=='prepend':
+                s_pad = copy.copy(s)
+                s_pad[n] = w - (arr_out.shape[n] % w)
+                arr_out = np.concatenate(
+                    [np.zeros(s_pad)*np.nan, arr_out],
+                    axis=n
+                )
+                if verbose:
+                    print(f'Preended padded dimensions {n} to {s_pad[n]}')
+                
+            if method=='post_crop':
+                s_crop = indexing.pad_with_singleton_dims(np.arange((arr_out.shape[n]//w)*w), n_dims_pre=n, n_dims_post=array.ndim-(n+1))
+                arr_out = np.take_along_axis(arr_out, s_crop, axis=n)
+
+            if method=='pre_crop':
+                s_crop = indexing.pad_with_singleton_dims(np.arange((arr_out.shape[n]//w)*w) + arr_out.shape[n]%w, n_dims_pre=n, n_dims_post=array.ndim-(n+1))
+                arr_out = np.take_along_axis(arr_out, s_crop, axis=n)
         
         s_n = list(arr_out.shape)
         s_n[n] = [w, arr_out.shape[n] // w]
