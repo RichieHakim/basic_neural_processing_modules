@@ -138,7 +138,7 @@ def stack_to_RGB(images):
 
     return im_out
 
-def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, function_kwargs=None):
+def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, function_kwargs={}):
     """
     Bins an array of arbitrary shape along the
      first N dimensions. Works great for images.
@@ -192,7 +192,7 @@ def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, f
 
     s = list(array.shape)
 
-    arr_out = copy.deepcopy(array)
+    arr_out = copy.copy(array)
     for n, w in enumerate(bin_widths):
         if arr_out.shape[n] % w != 0:
             if method=='append':
