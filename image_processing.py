@@ -138,7 +138,7 @@ def stack_to_RGB(images):
 
     return im_out
 
-def bin_array(array, bin_widths=[2,3,4], method='append', verbose=True):
+def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, function_kwargs=None):
     """
     Bins an array of arbitrary shape along the
      first N dimensions. Works great for images.
@@ -168,7 +168,21 @@ def bin_array(array, bin_widths=[2,3,4], method='append', verbose=True):
             'post_crop' crops the array to be divisible
              by the bin width by cropping off the 
              beginning.
-        
+        function (function):
+            Function to apply to each bin.
+            Must at least take array and axis as arguments.
+            Typically: 
+                np.nanmean
+                np.nanmedian
+                np.nanstd
+                np.nanvar
+                np.nanmax
+                np.nanmin
+                np.nanpercentile (requires percentile kwarg)
+                np.nanquantile (requires percentile kwarg)
+        function_kwargs (dict):
+            Keyword arguments for function.
+
     Returns:
         array_out (np.ndarray):
             Output array.
@@ -189,8 +203,6 @@ def bin_array(array, bin_widths=[2,3,4], method='append', verbose=True):
                     [arr_out, np.zeros(s_pad)*np.nan],
                     axis=n
                 )
-                if verbose:
-                    print(f'Appended padded dimensions {n} to {s_pad[n]}')
             
             if method=='prepend':
                 s_pad = copy.copy(s)
@@ -199,8 +211,6 @@ def bin_array(array, bin_widths=[2,3,4], method='append', verbose=True):
                     [np.zeros(s_pad)*np.nan, arr_out],
                     axis=n
                 )
-                if verbose:
-                    print(f'Preended padded dimensions {n} to {s_pad[n]}')
                 
             if method=='post_crop':
                 s_crop = indexing.pad_with_singleton_dims(np.arange((arr_out.shape[n]//w)*w), n_dims_pre=n, n_dims_post=array.ndim-(n+1))
@@ -214,6 +224,6 @@ def bin_array(array, bin_widths=[2,3,4], method='append', verbose=True):
         s_n[n] = [w, arr_out.shape[n] // w]
         s_n = flatten_list(s_n)
         arr_out = np.reshape(arr_out, s_n, order='F')
-        arr_out = np.nanmean(arr_out, axis=n)
+        arr_out = function(arr_out, axis=n, **function_kwargs)
         
     return arr_out
