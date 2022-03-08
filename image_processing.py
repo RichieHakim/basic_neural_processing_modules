@@ -144,10 +144,6 @@ def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, f
      first N dimensions. Works great for images.
     Works by iteratively reshaping and applying
      the defined function (ie averaging).
-    Use NaN to ignore values. Be 
-     careful because this can cause different 
-     pixels to be binned from different numbers
-     of non-NaN values.
     Function requires pad_with_singleton_dims function.
     RH 2022
 
@@ -172,6 +168,8 @@ def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, f
         function (function):
             Function to apply to each bin.
             Must at least take array and axis as arguments.
+            Doesn't need to handle NaNs if 
+             method==pre or post_crop.
             Typically: 
                 np.nanmean
                 np.nanmedian
