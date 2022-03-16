@@ -296,8 +296,13 @@ class select_ROI:
         self.completed_status = False
         self.ka = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         disconnect_button = widgets.Button(description="Confirm ROI")
+        new_ROI_button = widgets.Button(description="New ROI")
         Disp.display(disconnect_button)
+        Disp.display(new_ROI_button)
         disconnect_button.on_click(self.disconnect_mpl)
+        new_ROI_button.on_click(self.new_ROI)
+
+        self.selected_points_last_ROI = []
 
     def poly_img(self, img, pts):
         pts = np.array(pts, np.int32)
@@ -310,21 +315,36 @@ class select_ROI:
         return img
 
     def onclick(self, event):
-        self.selected_points.append([event.xdata, event.ydata])
-        if len(self.selected_points) > 1:
+        self.selected_points_last_ROI.append([event.xdata, event.ydata])
+        if len(self.selected_points_last_ROI) > 1:
             self.fig
-            self.img.set_data(self.poly_img(self.im.copy(), self.selected_points))
+            im = self.im.copy()
+            for ii in range(len(self.selected_points)):
+                im = self.poly_img(im, self.selected_points[ii])
+            im = self.poly_img(im, self.selected_points_last_ROI)
+            self.img.set_data(im)
+
 
     def disconnect_mpl(self, _):
         import skimage.draw
 
+        self.selected_points.append(self.selected_points_last_ROI)
+
         self.fig.canvas.mpl_disconnect(self.ka)
         self.completed_status = True
         
-        pts = np.array(self.selected_points)
-        self.mask_frame = np.zeros((self.im.shape[0], self.im.shape[1]))
-        pts_y, pts_x = skimage.draw.polygon(pts[:, 1], pts[:, 0])
-        self.mask_frame[pts_y, pts_x] = 1
-        self.mask_frame = self.mask_frame.astype(np.bool)
-        print(f'mask_frame computed')
+        self.mask_frames = []
+        for ii, pts in enumerate(self.selected_points):
+            pts = np.array(pts)
+            mask_frame = np.zeros((self.im.shape[0], self.im.shape[1]))
+            pts_y, pts_x = skimage.draw.polygon(pts[:, 1], pts[:, 0])
+            mask_frame[pts_y, pts_x] = 1
+            mask_frame = mask_frame.astype(np.bool)
+            self.mask_frames.append(mask_frame)
+        print(f'mask_frames computed')
+
+    def new_ROI(self, _):
+        self.selected_points.append(self.selected_points_last_ROI)
+        self.selected_points_last_ROI = []
+        
         
