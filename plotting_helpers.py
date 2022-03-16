@@ -274,10 +274,10 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
 
 class select_ROI:
     """
-    Select a region of interest in an image using matplotlib.
+    Select regions of interest in an image using matplotlib.
     Use %matplotlib notebook or qt backend to use this.
-    It currently uses cv2.polylines to draw the ROI.
-    Output is self.mask_frame
+    It currently uses cv2.polylines to draw the ROIs.
+    Output is self.mask_frames
     RH 2021
     """
 
