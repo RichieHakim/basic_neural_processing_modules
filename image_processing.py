@@ -162,7 +162,7 @@ def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, f
              by the bin width.
             'post_crop' crops the array to be divisible
              by the bin width by cropping off the end.
-            'post_crop' crops the array to be divisible
+            'pre_crop' crops the array to be divisible
              by the bin width by cropping off the 
              beginning.
         function (function):
