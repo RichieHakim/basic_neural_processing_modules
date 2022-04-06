@@ -414,89 +414,6 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         output = (v1 / (np.expand_dims(norm(v1 , axis=0) , axis=0))).T  @ (v2  / np.expand_dims(norm(v2 , axis=0) , axis=0))
     return output
 
-def best_permutation(mat1 , mat2 , method='pearson'):
-    '''
-    This function compares the representations of two sets of vectors (columns
-     of mat1 and columns of mat2).
-    We assume that the vectors in mat1 and mat2 are similar up to a permutation.
-    We therefore find the 'best' permutation that maximizes the similarity
-     between the sets of vectors
-    RH 2021
-    
-    Args:
-        mat1 (np.ndarray): 
-            a 2D array where the columns are vectors we wish to match with mat2
-        mat2 (np.ndarray): 
-            a 2D array where the columns are vectors we wish to match with mat1
-        method (string)  : 
-            defines method of calculating pairwise similarity between vectors:
-                'pearson' or 'cosine_similarity'
-        
-    Returns:
-        sim_avg (double): 
-            the average similarity between matched vectors. Units depend on 
-            method
-        sim_matched (double): 
-            the similarity between each pair of matched vectors.
-        ind1 (int): 
-            indices of vectors in mat1 matched to ind2 in mat2 (usually just 
-            sequential for ind1)
-        ind2 (int): 
-            indices of vectors in mat2 matched to ind1 in mat1
-    '''
-    corr = mat1.T @ mat2
-    ind1 , ind2 = scipy.optimize.linear_sum_assignment(corr, maximize=True)
-    sim_matched = np.zeros(len(ind1))
-    for ii in range(len(ind1)):
-        if method=='pearson':
-            sim_matched[ii] = np.corrcoef(mat1[:,ind1[ii]] , mat2[:,ind2[ii]])[0][1]
-        if method=='cosine_similarity':
-            sim_matched[ii] = pairwise_similarity( mat1[:,ind1[ii]] , mat2[:,ind2[ii]] , 'cosine_similarity')
-
-    sim_avg = np.mean(sim_matched)
-    return sim_avg , sim_matched , ind1.astype('int64') , ind2.astype('int64')
-
-def self_similarity_pairwise(mat_set , method='pearson'):
-    '''
-    This function compares sets of 2-D matrices within a 3-D array using the 
-    'best_permutation' function.
-    We assume that the vectors within the matrices are similar up to a 
-    permutation.
-    We therefore find the 'best' permutation that maximizes the similarity 
-    between the sets of vectors within each matrix.
-    RH 2021
-    
-    Args:
-        mat_set (np.ndarray): 
-            a 3D array where the columns within the first two dims are vectors
-             we wish to match with the columns from matrices from other slices
-             in the third dimension
-        method (string): 
-            defines method of calculating pairwise similarity between vectors:
-             'pearson' or 'cosine_similarity'
-
-    Returns:
-        same as 'best_permutation', but over each combo
-        combos: combinations of pairwise comparisons
-    '''
-    
-    import itertools
-
-    n_repeats = mat_set.shape[2]
-    n_components = mat_set.shape[1]
-
-    combos = np.array(list(itertools.combinations(np.arange(n_repeats),2)))
-    n_combos = len(combos)
-
-    corr_avg = np.zeros((n_combos))
-    corr_matched = np.zeros((n_components , n_combos))
-    ind1 = np.zeros((n_components , n_combos), dtype='int64')
-    ind2 = np.zeros((n_components , n_combos), dtype='int64')
-    for i_combo , combo in enumerate(combos):
-        corr_avg[i_combo] , corr_matched[:,i_combo] , ind1[:,i_combo] , ind2[:,i_combo]  =  best_permutation(mat_set[:,:,combo[0]]  ,  mat_set[:,:,combo[1]] , method)
-    # print(corr_avg)
-    return corr_avg, corr_matched, ind1, ind2, combos
-
 
 def batched_covariance(X, batch_size=1000, device='cpu'):
     """
@@ -612,6 +529,190 @@ def simlarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
     
     return d + eps
     
+##########################################    
+########### Linear Assignment ############
+##########################################
+
+
+def best_permutation(mat1 , mat2 , method='pearson'):
+    '''
+    This function compares the representations of two sets of vectors (columns
+     of mat1 and columns of mat2).
+    We assume that the vectors in mat1 and mat2 are similar up to a permutation.
+    We therefore find the 'best' permutation that maximizes the similarity
+     between the sets of vectors
+    RH 2021
+    
+    Args:
+        mat1 (np.ndarray): 
+            a 2D array where the columns are vectors we wish to match with mat2
+        mat2 (np.ndarray): 
+            a 2D array where the columns are vectors we wish to match with mat1
+        method (string)  : 
+            defines method of calculating pairwise similarity between vectors:
+                'pearson' or 'cosine_similarity'
+        
+    Returns:
+        sim_avg (double): 
+            the average similarity between matched vectors. Units depend on 
+            method
+        sim_matched (double): 
+            the similarity between each pair of matched vectors.
+        ind1 (int): 
+            indices of vectors in mat1 matched to ind2 in mat2 (usually just 
+            sequential for ind1)
+        ind2 (int): 
+            indices of vectors in mat2 matched to ind1 in mat1
+    '''
+    corr = mat1.T @ mat2
+    ind1 , ind2 = scipy.optimize.linear_sum_assignment(corr, maximize=True)
+    sim_matched = np.zeros(len(ind1))
+    for ii in range(len(ind1)):
+        if method=='pearson':
+            sim_matched[ii] = np.corrcoef(mat1[:,ind1[ii]] , mat2[:,ind2[ii]])[0][1]
+        if method=='cosine_similarity':
+            sim_matched[ii] = pairwise_similarity( mat1[:,ind1[ii]] , mat2[:,ind2[ii]] , 'cosine_similarity')
+
+    sim_avg = np.mean(sim_matched)
+    return sim_avg , sim_matched , ind1.astype('int64') , ind2.astype('int64')
+
+def self_similarity_pairwise(mat_set , method='pearson'):
+    '''
+    This function compares sets of 2-D matrices within a 3-D array using the 
+    'best_permutation' function.
+    We assume that the vectors within the matrices are similar up to a 
+    permutation.
+    We therefore find the 'best' permutation that maximizes the similarity 
+    between the sets of vectors within each matrix.
+    RH 2021
+    
+    Args:
+        mat_set (np.ndarray): 
+            a 3D array where the columns within the first two dims are vectors
+             we wish to match with the columns from matrices from other slices
+             in the third dimension
+        method (string): 
+            defines method of calculating pairwise similarity between vectors:
+             'pearson' or 'cosine_similarity'
+
+    Returns:
+        same as 'best_permutation', but over each combo
+        combos: combinations of pairwise comparisons
+    '''
+    
+    import itertools
+
+    n_repeats = mat_set.shape[2]
+    n_components = mat_set.shape[1]
+
+    combos = np.array(list(itertools.combinations(np.arange(n_repeats),2)))
+    n_combos = len(combos)
+
+    corr_avg = np.zeros((n_combos))
+    corr_matched = np.zeros((n_components , n_combos))
+    ind1 = np.zeros((n_components , n_combos), dtype='int64')
+    ind2 = np.zeros((n_components , n_combos), dtype='int64')
+    for i_combo , combo in enumerate(combos):
+        corr_avg[i_combo] , corr_matched[:,i_combo] , ind1[:,i_combo] , ind2[:,i_combo]  =  best_permutation(mat_set[:,:,combo[0]]  ,  mat_set[:,:,combo[1]] , method)
+    # print(corr_avg)
+    return corr_avg, corr_matched, ind1, ind2, combos
+
+
+def enumerate_paths(edges):
+    """
+    From Caleb Weinreb 2022
+
+    Create a list of all paths in a directed graph
+    
+    Parameters
+    ----------
+    edges: list of tuples
+        Edges in the graph as tuples (i,j) for each edge i->j. The
+        edges are assumed to be in topopological order, meaning
+        edge (i,j) is listed prior to edge (k,l) whenever j==k.
+        
+    Returns
+    -------
+    paths: list of tuples
+        All directed paths as tuples of node indexes
+    """
+    child_map = {parent:[] for parent,child in edges}
+    for parent,child in edges: child_map[parent].append(child)
+    leaf_nodes = [child for _,child in edges if not child in child_map]
+    sub_paths = {leaf:[[leaf]] for leaf in leaf_nodes}
+    for parent,_ in edges[::-1]:
+        if not parent in sub_paths:
+            sub_paths[parent] = [[parent]]
+            for child in child_map[parent]:
+                for path in sub_paths[child]:
+                    sub_paths[parent].append([parent]+path)
+    return [tuple(p) for p in sum(sub_paths.values(),[])]
+
+def maximum_directed_matching(weights, partition):
+    """
+    From Caleb Weinreb 2022
+
+    Find the "maximum directed matching" in a weighted n-partite graph. 
+    
+    Let $G$ be a directed graph with nodes $\{1,...,N\}$ and weighted 
+    edges $E_{ij}$. Assume that the nodes of $G$ are partitioned into 
+    groups, where $P_i$ denotes the group-label for node $i$, and that 
+    all the edges $E_{ij}$ satisfy $P_i < P_j$. In other words, all 
+    edges go from lower to higher partition index. 
+    
+    We define a collection of node-sets as a "directed matching" if 
+    each set forms a connected component in $G$ and no node belongs to
+    more than one set. The maximum directed matching is defined as the 
+    directed matching that maximizes the sum edge weights across all 
+    edges that originate and terminate in the same node-set. 
+
+    Parameters
+    ----------
+    weights : sparse matrix, shape=(N,N)
+        The set of edge weights in the graph where N is the total 
+        number of nodes. ``weights[i,j]`` is the weight of the edge 
+        (i->j). A weight of 0 implies no edge. 
+
+    partition : ndarray, shape=(N,)
+        The partition label for each node in the graph. We require
+        ``partition[i] < partition[j]`` whenever ``weights[i,j] != 0``
+            
+    Returns
+    -------
+    matching: list of tuples
+        Maximum directed matching as a list of node-index tuples. 
+    """
+    import pulp
+    
+    # check that the edges are compatible with the partition
+    sources,targets = weights.nonzero()
+    assert np.all(partition[sources] < partition[targets]), 'Invalid weights/partition combination'
+    
+    # enumerate all possible node groupings and their score
+    edge_order = np.argsort(partition[sources])
+    sorted_edges = list(zip(sources[edge_order], targets[edge_order]))
+    paths = enumerate_paths(sorted_edges)
+    path_weights = [sum([weights[i,j] for i in p for j in p]) for p in paths]
+    
+    # configure an ILP solver with pulp
+    problem = pulp.LpProblem('matching', pulp.LpMaximize)
+    
+    # initialize variables
+    path_vars = pulp.LpVariable.dicts('paths', paths, cat=pulp.LpBinary)
+    problem += pulp.lpSum([w*path_vars[p] for p,w in zip(paths, path_weights)])
+
+    # set constraints
+    path_membership = {n:[] for n in range(weights.shape[0])}
+    for path in paths:
+        for n in path: path_membership[n].append(path)
+    for n in path_membership: 
+        problem += pulp.lpSum(path_vars[path] for path in path_membership[n]) <= 1
+        
+    # solve and extract results
+    problem.solve()
+    matching = [p for p,v in path_vars.items() if v.value()==1]
+    return matching
+
 
 ##############################################################
 ######### NUMBA implementations of simple algorithms #########

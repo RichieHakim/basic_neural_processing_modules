@@ -532,4 +532,4 @@ def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
     k_lowest = np.argsort(X, axis=1)[:,:k]
     kl_bool = np.stack([idx2bool(k_l, length=X.shape[1]) for k_l in k_lowest])
     X[~kl_bool] = 0
-    return scipy.sparse.csr_matrix(X)
+    return scipy.sparse.csr_matrix(X), kl_bool
