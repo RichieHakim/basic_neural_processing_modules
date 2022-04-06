@@ -647,7 +647,6 @@ def enumerate_paths(edges):
                 for path in sub_paths[child]:
                     sub_paths[parent].append([parent]+path)
     return [tuple(p) for p in sum(sub_paths.values(),[])]
-
 def maximum_directed_matching(weights, partition):
     """
     From Caleb Weinreb 2022
