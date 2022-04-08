@@ -1,6 +1,10 @@
 import numpy as np
 import cv2
 import copy
+import torch
+import torchvision
+import decord
+from tqdm.notebook import tqdm
 
 from . import indexing
 
@@ -323,13 +327,117 @@ def center_pad_images(images, height_width=None):
         height = maximum_shape
         width = maximum_shape
     else:
-        height = height_width[1]
-        width = height_width[2]
+        height = height_width[0]
+        width = height_width[1]
         
     pad_height = (height - images.shape[1]) // 2
-    pad_width  = (height - images.shape[2]) // 2
+    pad_width  = (width - images.shape[2]) // 2
     images_out = np.zeros((images.shape[0], height, width, images.shape[3]))
-    
+
     images_out[:, pad_height : pad_height + images.shape[1], pad_width : pad_width + images.shape[2], :] = images
     
     return images_out
+
+
+def make_tiled_video_array(
+    paths_videos, 
+    frame_idx_list, 
+    block_height_width=[300,300],
+    n_channels=3, 
+    tiling_shape=None, 
+    dtype=np.uint8,
+    interpolation=torchvision.transforms.InterpolationMode.BICUBIC,
+    ):
+    """
+    Creates a tiled video array from a list of paths to videos.
+    RH 2022
+
+    Args:
+        paths_videos:
+            List of paths to videos.
+        frame_idx_list:
+            List of matrices.
+            Each matrix corresponds to a temporal chunk of the video.
+            Each matrix has shape(2, n_videos)
+            The first row is the start frame index and the second row
+             is the end frame index.
+        block_height_width:
+            2-tuple or list of height and width of each block.
+        n_channels:
+            Number of channels.
+        tiling_shape:
+            2-tuple or list of height and width of the tiled video.
+            If None, then set to be square and large enough to 
+             contain all the blocks.
+        dtype:
+            Data type of the output array. Should match the data
+             type of the input videos.
+        
+    Returns:
+        output video array:
+            Tiled video array.
+            shape(frames, tiling_shape[0]*block_height_width[0], tiling_shape[1]*block_height_width[1], channels)
+    """
+
+    def resize_torch(images, new_shape=[100,100], interpolation=interpolation):
+        resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
+        return resize(torch.as_tensor(images)).numpy()
+
+    ## ASSERTIONS
+    ## check to make sure that shapes are correct
+    for i_mat, mat in enumerate(frame_idx_list):
+        assert mat.shape[0] == 2, f'RH ERROR: size of first dimension of each frame_idx matrix should be 2'
+        assert mat.shape[1] == len(paths_videos), f'RH ERROR: size of second dimension of each frame_idx matrix should match len(paths_videos)'
+        assert np.all(np.array([[(col[1]-col[0]) == (mat[1,0]-mat[0,0]) for col in mat.T] for mat in frame_idx_list])), f'RH ERROR: range of frames for each video in a given idx matrix column must be the same'
+
+    n_vids = len(paths_videos)
+    n_frames_per_chunk = np.array([mat[1,0]-mat[0,0] for mat in frame_idx_list])  ## number of frames in each temporal chunk
+    n_frames_total = n_frames_per_chunk.sum()  ## total number of frames in the final video
+    block_aspect_ratio = block_height_width[0] / block_height_width[1]
+
+    cum_start_idx = np.cumsum(np.concatenate(([0], n_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
+
+    if tiling_shape is None:
+        el = int(np.ceil(np.sqrt(n_vids)))  ## 'edge length' in number of videos
+        tiling_shape = [el, el]  ## n_vids high , n_vids wide
+    tile_grid_tmp = np.meshgrid(np.arange(tiling_shape[0]), np.arange(tiling_shape[1]))
+    tile_position_vids = [np.reshape(val, -1, 'F') for val in tile_grid_tmp]  ## indices of tile/block positions for each video
+
+    vid_height_width = list(np.array(block_height_width) * tiling_shape)  ## total height and width of final video
+
+
+    tile_topLeft_idx = [[tile_position_vids[0][i_vid]*block_height_width[0], tile_position_vids[1][i_vid]*block_height_width[1]] for i_vid in range(len(paths_videos))]  ## indices of the top left pixels for each tile/block. List of lists: outer list is tile/block, inner list is [y,x] starting idx
+
+    video_out = np.zeros((n_frames_total, vid_height_width[0], vid_height_width[1], n_channels), dtype)  ## pre-allocation of final video array
+
+    print(video_out.shape)
+    
+    for i_vid, path_vid in enumerate(tqdm(paths_videos)):
+        vid = decord.VideoReader(path_vid, ctx=decord.cpu())
+
+        for i_mat, idx_mat in enumerate(frame_idx_list):
+            chunk = vid[idx_mat[:, i_vid][0] : idx_mat[:, i_vid][1]].asnumpy()  ## raw video chunk
+
+            ## first we get the aspect ratio right by padding to correct aspect ratio
+            aspect_ratio = chunk.shape[1] / chunk.shape[2]
+            if aspect_ratio > block_aspect_ratio:
+                tmp_height = chunk.shape[1]
+                tmp_width = int(np.ceil(chunk.shape[1] / block_aspect_ratio))
+            if aspect_ratio < block_aspect_ratio:
+                tmp_height = int(np.ceil(chunk.shape[2] * block_aspect_ratio))
+                tmp_width = chunk.shape[2]
+            chunk_ar = center_pad_images(chunk, height_width=[tmp_height, tmp_width])
+
+            ## then we resize the movie to the final correct size
+            chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=torchvision.transforms.InterpolationMode.BICUBIC).transpose(0,2,3,1)
+            chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
+
+            ## drop into final video array
+            video_out[
+                cum_start_idx[i_mat] : n_frames_per_chunk[i_mat] + cum_start_idx[i_mat],
+                tile_topLeft_idx[i_vid][0] : tile_topLeft_idx[i_vid][0]+block_height_width[0], 
+                tile_topLeft_idx[i_vid][1] : tile_topLeft_idx[i_vid][1]+block_height_width[1], 
+                :
+            ] = chunk_rs
+    
+    return video_out
