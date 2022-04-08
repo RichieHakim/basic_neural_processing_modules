@@ -214,7 +214,7 @@ def get_last_True_idx(input_array):
     RH 2021
     '''
     nz = np.nonzero(input_array)[0]
-    print(nz.size)
+    # print(nz.size)
     if nz.size==0:
         output = len(input_array)-1
     else:
