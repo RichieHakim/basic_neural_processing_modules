@@ -4,6 +4,7 @@ import copy
 import torch
 import torchvision
 import decord
+import av
 from tqdm.notebook import tqdm
 
 from . import indexing
@@ -372,12 +373,21 @@ def make_tiled_video_array(
         dtype:
             Data type of the output array. Should match the data
              type of the input videos.
-        
+
     Returns:
         output video array:
             Tiled video array.
             shape(frames, tiling_shape[0]*block_height_width[0], tiling_shape[1]*block_height_width[1], channels)
     """
+
+#     block_height_width = [300, 300]
+#     # frame_idx_list = [np.array([[703,843], [743,883], [799, 939], [744, 884]]*2).T, np.array([[39,89], [43,93], [99, 149], [44, 94]]*2).T]
+#     frame_idx_list = [np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T, np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T]
+#     paths_videos = [data_file] * 8
+#     n_channels = 3
+#     tiling_shape=None
+#     dtype = np.uint8
+#     interpolation=torchvision.transforms.InterpolationMode.BICUBIC
 
     def resize_torch(images, new_shape=[100,100], interpolation=interpolation):
         resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
@@ -395,7 +405,7 @@ def make_tiled_video_array(
     n_frames_total = n_frames_per_chunk.sum()  ## total number of frames in the final video
     block_aspect_ratio = block_height_width[0] / block_height_width[1]
 
-    cum_start_idx = np.cumsum(np.concatenate(([0], n_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
+    cum_start_idx_chunk = np.cumsum(np.concatenate(([0], n_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
 
     if tiling_shape is None:
         el = int(np.ceil(np.sqrt(n_vids)))  ## 'edge length' in number of videos
@@ -410,13 +420,49 @@ def make_tiled_video_array(
 
     video_out = np.zeros((n_frames_total, vid_height_width[0], vid_height_width[1], n_channels), dtype)  ## pre-allocation of final video array
 
-    print(video_out.shape)
-    
     for i_vid, path_vid in enumerate(tqdm(paths_videos)):
-        vid = decord.VideoReader(path_vid, ctx=decord.cpu())
+        if isinstance(path_vid, list):
+            flag_multivid = True
+            multivid_lens = [av.open(str(path)).streams.video[0].frames for path in path_vid]
+    #             multivid_lens = [len(decord.VideoReader(path)) for path in path_vid]  ## decord method of same thing
+            cum_start_idx_multiVid = np.cumsum(np.concatenate(([0], multivid_lens)))[:-1]
+        else:
+            flag_multivid = False
+
+    #         vid = decord.VideoReader(path_vid, ctx=decord.cpu())
 
         for i_mat, idx_mat in enumerate(frame_idx_list):
-            chunk = vid[idx_mat[:, i_vid][0] : idx_mat[:, i_vid][1]].asnumpy()  ## raw video chunk
+            if flag_multivid:
+                frames_remainder = idx_mat[1,i_vid] - idx_mat[0,i_vid]  ## initialization of remaining frames
+                frame_toStartGlobal = idx_mat[0,i_vid]  ## frame to start at (in concatenated frame indices)
+
+                chunks_list = []
+                while frames_remainder > 0:
+    #                 print(frames_remainder)
+                    multivid_toStart = indexing.get_last_True_idx((frame_toStartGlobal - cum_start_idx_multiVid) >= 0)  ## which of the multivids to start at
+    #                 print(multivid_toStart)
+
+                    frame_toStartInVid = frame_toStartGlobal - cum_start_idx_multiVid[multivid_toStart]  ## where to start in the vid
+    #                 print(frame_toStartInVid)
+
+                    frames_toEndOfVid = multivid_lens[multivid_toStart] - frame_toStartInVid  ## number of frames left in the vid
+    #                 print(frames_toEndOfVid)
+                    frames_toGrab = min(frames_remainder  ,  frames_toEndOfVid)  ## number of frames to get from current vid
+    #                 print(frames_toGrab)
+                    frames_remainder -= frames_toGrab
+    #                 print(frames_remainder)
+
+                    vid = decord.VideoReader(str(path_vid[multivid_toStart]), ctx=decord.cpu())  ## open the vid
+                    chunks_list.append(vid[frame_toStartInVid : frame_toStartInVid+frames_toGrab].asnumpy())  ## raw video chunk
+    #                 print(chunks_list[-1].shape)
+                    frame_toStartGlobal += frames_toGrab
+
+                chunk = np.concatenate(chunks_list, axis=0)
+    #             print(chunk.shape)
+
+            else:
+                vid = decord.VideoReader(path_vid, ctx=decord.cpu())
+                chunk = vid[idx_mat[0, i_vid] : idx_mat[1, i_vid]].asnumpy()  ## raw video chunk
 
             ## first we get the aspect ratio right by padding to correct aspect ratio
             aspect_ratio = chunk.shape[1] / chunk.shape[2]
@@ -431,13 +477,14 @@ def make_tiled_video_array(
             ## then we resize the movie to the final correct size
             chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=torchvision.transforms.InterpolationMode.BICUBIC).transpose(0,2,3,1)
             chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
+            chunk_rs[chunk_rs > 255] = 255
 
             ## drop into final video array
             video_out[
-                cum_start_idx[i_mat] : n_frames_per_chunk[i_mat] + cum_start_idx[i_mat],
+                cum_start_idx_chunk[i_mat] : n_frames_per_chunk[i_mat] + cum_start_idx_chunk[i_mat],
                 tile_topLeft_idx[i_vid][0] : tile_topLeft_idx[i_vid][0]+block_height_width[0], 
                 tile_topLeft_idx[i_vid][1] : tile_topLeft_idx[i_vid][1]+block_height_width[1], 
                 :
             ] = chunk_rs
-    
+
     return video_out
