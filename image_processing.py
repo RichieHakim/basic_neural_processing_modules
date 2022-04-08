@@ -476,8 +476,8 @@ def make_tiled_video_array(
 
             ## then we resize the movie to the final correct size
             chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=torchvision.transforms.InterpolationMode.BICUBIC).transpose(0,2,3,1)
-            chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
-            chunk_rs[chunk_rs > 255] = 255
+            # chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
+            # chunk_rs[chunk_rs > 255] = 255
 
             ## drop into final video array
             video_out[
