@@ -129,3 +129,39 @@ def real2polar(x):
     else:
         abs, angle = np.abs, np.angle
     return abs(x), angle(x)
+
+
+def make_correlated_distributions_2D(means, stds, corrs, n_points_per_mode):
+    """
+    Makes correlated noisey distributions in 2D.
+    RH 2022
+    
+    Args:
+        means:
+            List of lists.
+            outer list: each mode
+            inner list: means of each mode (2 entries)
+        stds:
+            List of lists.
+            outer list: each mode
+            inner list: stds of each mode (2 entries)
+        corrs:
+            List: correlations of each mode
+        n_points_per_mode:
+            List: number of points in each mode
+            
+    Returns:
+        dist:
+            The output data with all the distributions concatenated
+    """
+    for ii, (mean, std, corr) in enumerate(zip(means, stds, corrs)):
+        cov = [
+            [std[0]**2, std[0]*std[1]*corr],
+            [std[0]*std[1]*corr, std[1]**2]
+              ]
+        if ii == 0:
+            dist = np.random.multivariate_normal(mean, cov, n_points_per_mode[ii])
+        else:
+            dist = np.vstack((dist, np.random.multivariate_normal(mean, cov, n_points_per_mode[ii])))
+            
+    return dist

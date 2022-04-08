@@ -226,3 +226,110 @@ def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, f
         arr_out = function(arr_out, axis=n, **function_kwargs)
         
     return arr_out
+
+
+def flatten_channels_along_frames(images):
+    """
+    Concatenates channels along frame dimension.
+    Opposite of reravel_channels.
+    RH 2022
+
+    Args:
+        images: 
+            Input images or video.
+            shape(frames, height, width, channels)
+    
+    Returns:
+        output images:
+            Reshaped images.
+            shape(frames*channels, height, width)
+    """
+    return images.transpose(1,2,0,3).reshape(images.shape[1], images.shape[2], images.shape[0]*images.shape[3]).transpose(2,0,1)
+
+def reravel_channels(images, n_channels=3):
+    """
+    De-concatenates channels from the frame dimension to a new dimension.
+    Opposite of flatten_channels_along_frames.
+    RH 2022
+    
+    Args:
+        images:
+            Input images or video. Channels should be concatenated in an
+             interleaved fashion along the frame dimension.
+            shape(frames*channels, height, width)
+        n_channels:
+            Number of channels.
+
+    Returns:
+        output images:
+            Reshaped images.
+            shape(frames, height, width, channels)
+    """
+    return images.transpose(1,2,0).reshape(images.shape[1], images.shape[2], images.shape[0]//n_channels, n_channels).transpose(2,0,1,3)
+
+
+def center_crop_images(images, height_width=None):
+    """
+    Crops images around the center.
+    RH 2022
+
+    Args:
+        images:
+            Input images or video.
+            shape(frames, height, width, channels)
+        height_width:
+            2-tuple or list of height and width to crop to.
+            If None, then set to the minimum of the height or width
+             of the images (making the images square).
+
+    Returns:
+        output images:
+            Cropped images.
+    """
+    if height_width is None:
+        minimum_shape = min(images.shape[1], images.shape[2])
+        height = minimum_shape
+        width  = minimum_shape
+    else:
+        height = height_width[0]
+        width  = height_width[1]
+        
+    center_idx = [images.shape[1]//2, images.shape[2]//2]
+    height_half = height//2
+    width_half  = width//2
+    
+    return images[:, center_idx[0] - height_half : center_idx[0] + height_half, center_idx[1] - width_half : center_idx[1] + width_half, :]
+
+def center_pad_images(images, height_width=None):
+    """
+    Pads images around the center.
+    RH 2022
+
+    Args:
+        images:
+            Input images or video.
+            shape(frames, height, width, channels)
+        height_width:
+            2-tuple or list of height and width to pad to.
+            If None, then set to the maximum of the height or width
+             of the images (making the images square).
+
+    Returns:
+        output images:
+            Padded images.
+    """
+    if height_width is None:
+        maximum_shape = max(images.shape[1], images.shape[2])
+        height = maximum_shape
+        width = maximum_shape
+    else:
+        height = height_width[1]
+        width = height_width[2]
+        
+    pad_height = (height - images.shape[1]) // 2
+    pad_width  = (height - images.shape[2]) // 2
+    images_out = np.zeros((images.shape[0], height, width, images.shape[3]))
+    
+    images_out[:, pad_height : pad_height + images.shape[1], pad_width : pad_width + images.shape[2], :] = images
+    
+    return images_out
