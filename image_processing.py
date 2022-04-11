@@ -400,6 +400,13 @@ def make_tiled_video_array(
         dtype:
             Data type of the output array. Should match the data
              type of the input videos.
+        interpolation:
+            Interpolation mode for the video. Should be one of the
+             torchvision.transforms.InterpolationMode values.
+        crop_idx:
+            4-tuple or list of indices to crop the video.
+            [top, bottom, left, right]
+            If None, then no cropping is performed.
 
     Returns:
         output video array:
