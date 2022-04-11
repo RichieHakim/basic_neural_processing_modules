@@ -551,7 +551,7 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
             Outer list: one element per frame.
             Inner list: each element is a line of text.
         position (tuple):
-            (x,y) position of text (top left corner)
+            (y,x) position of text (top left corner)
         font_size (int):
             font size of text
         color (tuple):
@@ -584,3 +584,59 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
             cv2.waitKey(int(1000/frameRate))
     cv2.destroyWindow('add_text_to_images')
     return images_cp
+
+
+def add_image_overlay(
+    images_overlay,
+    images_underlay,
+    position_topLeft=(0,0),
+    height_width=(100,100),
+    interpolation=None,
+):
+    """
+    Add an image/video overlay to an image/video underlay.
+    RH 2022
+
+    Args:
+        images_overlay (np.array):
+            frames of video or images.
+            shape: (n_frames, height, width, n_channels)
+        images_underlay (np.array):
+            frames of video or images.
+            shape: (n_frames, height, width, n_channels)
+        position_topLeft (tuple):
+            (y,x) position of overlay (top left corner of overlay)
+        height_width (tuple):
+            (height, width) of overlay
+            Images will be resized to this size.
+        interpolation (str):
+            interpolation method to use.
+            
+    Returns:
+        images_with_overlay (np.array):
+            frames of video or images with overlay added.
+    """
+    
+    if interpolation is None:
+        interpolation = torchvision.transforms.InterpolationMode.BICUBIC
+        
+    def resize_torch(images, new_shape=[100,100], interpolation=interpolation):
+        resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
+        return resize(torch.as_tensor(images)).numpy()
+
+    im_hw = images_underlay[0].shape
+
+    pos_all = np.array([position_topLeft[0], position_topLeft[0]+height_width[0], position_topLeft[1], position_topLeft[1]+height_width[1]])
+    pos_all[pos_all < 0] = 0
+    pos_all[1] = min(im_hw[0], pos_all[1])
+    pos_all[3] = min(im_hw[1], pos_all[3])
+
+    rs_size = [pos_all[1]-pos_all[0], pos_all[3]-pos_all[2]]
+
+    images_rs = resize_torch(images_overlay.transpose(0,3,1,2), new_shape=rs_size, interpolation=interpolation).transpose(0,2,3,1)
+
+    pos_tl = position_topLeft
+    images_out = copy.copy(images_underlay)
+    images_out[:, pos_all[0]:pos_all[1], pos_all[2]:pos_all[3],:] = images_rs
+    
+    return images_out
