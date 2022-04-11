@@ -16,9 +16,9 @@ for frame in test:
     cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
     cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
     cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-    cv2.imshow('test', frame)
+    cv2.imshow('startup', frame)
     cv2.waitKey(100)
-cv2.destroyAllWindows()
+cv2.destroyWindow('startup')
 ###############################################################################
 
 
@@ -411,6 +411,16 @@ def make_tiled_video_array(
             4-tuple or list of indices to crop the video.
             [top, bottom, left, right]
             If None, then no cropping is performed.
+        overlay_signals:
+            List of signals to overlay on the video.
+            Each signal should be a numpy array of shape(frames, n_channels).
+            The signals will be represented as a white rectangle with
+             indices from overlay_idx.
+        overlay_idx:
+            List of indices to overlay the signals.
+            [top, bottom, left, right]
+        spacer_black_frames:
+            Number of black frames to add between each chunk.
 
     Returns:
         output video array:
@@ -418,14 +428,10 @@ def make_tiled_video_array(
             shape(frames, tiling_shape[0]*block_height_width[0], tiling_shape[1]*block_height_width[1], channels)
     """
 
-#     block_height_width = [300, 300]
-#     # frame_idx_list = [np.array([[703,843], [743,883], [799, 939], [744, 884]]*2).T, np.array([[39,89], [43,93], [99, 149], [44, 94]]*2).T]
-#     frame_idx_list = [np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T, np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T]
-#     paths_videos = [data_file] * 8
-#     n_channels = 3
-#     tiling_shape=None
-#     dtype = np.uint8
-#     interpolation=torchvision.transforms.InterpolationMode.BICUBIC
+    ##  Example values
+    ##  - frame_idx_list = [np.array([[703,843], [743,883], [799, 939], [744, 884]]*2).T, np.array([[39,89], [43,93], [99, 149], [44, 94]]*2).T]
+    ##  - frame_idx_list = [np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T, np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T]
+    ##  - paths_videos = [path_video] * 8
 
     def resize_torch(images, new_shape=[100,100], interpolation=interpolation):
         resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
