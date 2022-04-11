@@ -3,6 +3,8 @@ import numpy as np
 
 import cv2
 
+from tqdm.notebook import tqdm
+
 from ipywidgets import widgets
 import IPython.display as Disp
 import matplotlib
@@ -237,7 +239,7 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
     if array.dtype != 'uint8':
         array = array.astype('uint8')
          
-    for i_frame, frame in enumerate(array):
+    for i_frame, frame in enumerate(tqdm(array)):
         if array.ndim == 4:
             if array.shape[3] == 3:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)

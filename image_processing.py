@@ -1,10 +1,33 @@
 import numpy as np
-import cv2
+import cv2 
+
+
+###############################################################################
+## This block of code is used to initialize cv2.imshow
+## This is necessary because importing av and decord 
+##  will cause cv2.imshow to fail unless it is initialized.
+## Obviously, this should be commented out when running on
+##  systems that do not support cv2.imshow like servers.
+## Also be sure to import BNPM before importing most other
+##  modules.
+test = np.zeros((1,300,400,3))
+for frame in test:
+    cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+    cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+    cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+    cv2.imshow('test', frame)
+    cv2.waitKey(100)
+cv2.destroyAllWindows()
+###############################################################################
+
+
+import av
+import decord
+# import cv2 
+
 import copy
 import torch
 import torchvision
-import decord
-import av
 from tqdm.notebook import tqdm
 
 from . import indexing
@@ -348,9 +371,13 @@ def make_tiled_video_array(
     tiling_shape=None, 
     dtype=np.uint8,
     interpolation=torchvision.transforms.InterpolationMode.BICUBIC,
+    crop_idx=None,
     ):
     """
     Creates a tiled video array from a list of paths to videos.
+    NOTE: On my Ubuntu machine:
+        - importing 'av' after cv2 causes cv2.imshow to hang forever and
+        - importing 'decord' after cv2 causes cv2.imshow to crash the kernel
     RH 2022
 
     Args:
@@ -424,7 +451,7 @@ def make_tiled_video_array(
         if isinstance(path_vid, list):
             flag_multivid = True
             multivid_lens = [av.open(str(path)).streams.video[0].frames for path in path_vid]
-    #             multivid_lens = [len(decord.VideoReader(path)) for path in path_vid]  ## decord method of same thing
+            # multivid_lens = [len(decord.VideoReader(path)) for path in path_vid]  ## decord method of same thing
             cum_start_idx_multiVid = np.cumsum(np.concatenate(([0], multivid_lens)))[:-1]
         else:
             flag_multivid = False
@@ -464,9 +491,13 @@ def make_tiled_video_array(
                 vid = decord.VideoReader(path_vid, ctx=decord.cpu())
                 chunk = vid[idx_mat[0, i_vid] : idx_mat[1, i_vid]].asnumpy()  ## raw video chunk
 
+            chunk_height, chunk_width, chunk_n_frames, _ = chunk.shape
+            if crop_idx is not None:
+                chunk = chunk[:, crop_idx[0]:crop_idx[1], crop_idx[2]:crop_idx[3], :]
+
             ## first we get the aspect ratio right by padding to correct aspect ratio
             aspect_ratio = chunk.shape[1] / chunk.shape[2]
-            if aspect_ratio > block_aspect_ratio:
+            if aspect_ratio >= block_aspect_ratio:
                 tmp_height = chunk.shape[1]
                 tmp_width = int(np.ceil(chunk.shape[1] / block_aspect_ratio))
             if aspect_ratio < block_aspect_ratio:
@@ -476,8 +507,8 @@ def make_tiled_video_array(
 
             ## then we resize the movie to the final correct size
             chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=torchvision.transforms.InterpolationMode.BICUBIC).transpose(0,2,3,1)
-            # chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
-            # chunk_rs[chunk_rs > 255] = 255
+            chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
+            chunk_rs[chunk_rs > 255] = 255
 
             ## drop into final video array
             video_out[
