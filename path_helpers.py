@@ -53,7 +53,7 @@ def get_dir_contents(directory):
     return folders, files
 
 
-def get_numeric_contents(directory, sort=True):
+def get_numeric_contents(directory, sort=True, contains_string=None):
     """
     Get the contents of a directory that have
      numeric names (files and/or folders).
@@ -80,7 +80,8 @@ def get_numeric_contents(directory, sort=True):
     for ii, num in enumerate(numerics):
         if num is None:
             numerics[ii] = np.nan
-    numerics = np.array(numerics, dtype=np.uint64)
+    # numerics = np.array(numerics, dtype=np.uint64)
+    numerics = np.array(numerics)
     if sort:
         numerics_argsort = np.argsort(numerics)
         numerics_output = numerics[numerics_argsort]
@@ -89,7 +90,12 @@ def get_numeric_contents(directory, sort=True):
         numerics_output = numerics
         contents_output = contents[np.isnan(numerics_output)==False]
 
-    paths_output = [Path(directory).resolve() / str(ii) for ii in contents_output]
+    paths_output = [str(Path(directory).resolve() / str(ii)) for ii in contents_output]
+
+    if contains_string is not None:
+        paths_output = [path for path in paths_output if contains_string in path]
+        contents_output = [contents_output[ii] for ii, path in enumerate(paths_output) if contains_string in path]
+        numerics_output = [numerics_output[ii] for ii, path in enumerate(paths_output) if contains_string in path]
 
     return paths_output, contents_output, numerics_output
 

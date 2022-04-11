@@ -446,9 +446,9 @@ def make_tiled_video_array(
         assert np.all(np.array([[(col[1]-col[0]) == (mat[1,0]-mat[0,0]) for col in mat.T] for mat in frame_idx_list])), f'RH ERROR: range of frames for each video in a given idx matrix column must be the same'
 
     n_vids = len(paths_videos)
-    n_chunks = frame_idx_list[0].shape[1]
+    n_chunks = len(frame_idx_list)
     n_frames_per_chunk = np.array([mat[1,0]-mat[0,0] for mat in frame_idx_list]) + spacer_black_frames  ## number of frames in each temporal chunk
-    n_frames_total = n_frames_per_chunk.sum() + spacer_black_frames*n_chunks ## total number of frames in the final video
+    n_frames_total = n_frames_per_chunk.sum()  ## total number of frames in the final video
     block_aspect_ratio = block_height_width[0] / block_height_width[1]
 
     cum_start_idx_chunk = np.cumsum(np.concatenate(([0], n_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
@@ -537,7 +537,7 @@ def make_tiled_video_array(
     return video_out
 
 
-def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,255,255), line_width=1, font=None, show=False):
+def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,255,255), line_width=1, font=None, show=False, frameRate=30):
     """
     Add text to images using cv2.putText()
     RH 2022
@@ -546,9 +546,10 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
         images (np.array):
             frames of video or images.
             shape: (n_frames, height, width, n_channels)
-        text (str or list):
+        text (list of lists):
             text to add to images.
-            If list, then each element will be a new line.
+            Outer list: one element per frame.
+            Inner list: each element is a line of text.
         position (tuple):
             (x,y) position of text (top left corner)
         font_size (int):
@@ -573,15 +574,13 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
     
     if font is None:
         font = cv2.FONT_HERSHEY_SIMPLEX
-    if not isinstance(text, list):
-        text = [text]
     
     images_cp = copy.copy(images)
-    for frame in images_cp:
-        for i_t, t in enumerate(text):
+    for i_f, frame in enumerate(images_cp):
+        for i_t, t in enumerate(text[i_f]):
             cv2.putText(frame, t, [position[0] , position[1] + i_t*font_size*30], font, font_size, color, line_width)
         if show:
             cv2.imshow('add_text_to_images', frame)
-            cv2.waitKey(1)
+            cv2.waitKey(int(1000/frameRate))
     cv2.destroyWindow('add_text_to_images')
     return images_cp
