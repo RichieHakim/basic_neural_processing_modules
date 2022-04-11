@@ -1,5 +1,6 @@
 import numpy as np
-import cv2 
+import cv2
+import scipy as sp 
 
 
 ###############################################################################
@@ -372,6 +373,9 @@ def make_tiled_video_array(
     dtype=np.uint8,
     interpolation=torchvision.transforms.InterpolationMode.BICUBIC,
     crop_idx=None,
+    overlay_signals=None,
+    overlay_idx=None,
+    spacer_black_frames=0,
     ):
     """
     Creates a tiled video array from a list of paths to videos.
@@ -427,6 +431,13 @@ def make_tiled_video_array(
         resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
         return resize(torch.as_tensor(images)).numpy()
 
+    def add_overlay(chunk, overlay_signal, overlay_idx):
+        ol_height = overlay_idx[1]-overlay_idx[0]
+        ol_width = overlay_idx[3]-overlay_idx[2]
+        ol = np.ones((chunk.shape[0], ol_height, ol_width, chunk.shape[3])) * overlay_signal[:,None,None,None]
+        chunk[:, overlay_idx[0]:overlay_idx[1], overlay_idx[2]:overlay_idx[3], :] = ol
+        return chunk
+
     ## ASSERTIONS
     ## check to make sure that shapes are correct
     for i_mat, mat in enumerate(frame_idx_list):
@@ -435,8 +446,9 @@ def make_tiled_video_array(
         assert np.all(np.array([[(col[1]-col[0]) == (mat[1,0]-mat[0,0]) for col in mat.T] for mat in frame_idx_list])), f'RH ERROR: range of frames for each video in a given idx matrix column must be the same'
 
     n_vids = len(paths_videos)
-    n_frames_per_chunk = np.array([mat[1,0]-mat[0,0] for mat in frame_idx_list])  ## number of frames in each temporal chunk
-    n_frames_total = n_frames_per_chunk.sum()  ## total number of frames in the final video
+    n_chunks = frame_idx_list[0].shape[1]
+    n_frames_per_chunk = np.array([mat[1,0]-mat[0,0] for mat in frame_idx_list]) + spacer_black_frames  ## number of frames in each temporal chunk
+    n_frames_total = n_frames_per_chunk.sum() + spacer_black_frames*n_chunks ## total number of frames in the final video
     block_aspect_ratio = block_height_width[0] / block_height_width[1]
 
     cum_start_idx_chunk = np.cumsum(np.concatenate(([0], n_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
@@ -508,12 +520,68 @@ def make_tiled_video_array(
             # chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
             # chunk_rs[chunk_rs > 255] = 255
 
+            ## add overlay to the chunk
+            if overlay_signals is not None:
+                chunk_ol = add_overlay(chunk_rs, overlay_signals[idx_mat[0,i_vid]:idx_mat[1,i_vid], i_mat], overlay_idx)
+            else: 
+                chunk_ol = chunk_rs
+
             ## drop into final video array
             video_out[
-                cum_start_idx_chunk[i_mat] : n_frames_per_chunk[i_mat] + cum_start_idx_chunk[i_mat],
+                cum_start_idx_chunk[i_mat] : n_frames_per_chunk[i_mat] + cum_start_idx_chunk[i_mat] - spacer_black_frames,
                 tile_topLeft_idx[i_vid][0] : tile_topLeft_idx[i_vid][0]+block_height_width[0], 
                 tile_topLeft_idx[i_vid][1] : tile_topLeft_idx[i_vid][1]+block_height_width[1], 
                 :
             ] = chunk_rs
 
     return video_out
+
+
+def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,255,255), line_width=1, font=None, show=False):
+    """
+    Add text to images using cv2.putText()
+    RH 2022
+
+    Args:
+        images (np.array):
+            frames of video or images.
+            shape: (n_frames, height, width, n_channels)
+        text (str or list):
+            text to add to images.
+            If list, then each element will be a new line.
+        position (tuple):
+            (x,y) position of text (top left corner)
+        font_size (int):
+            font size of text
+        color (tuple):
+            (r,g,b) color of text
+        line_width (int):
+            line width of text
+        font (str):
+            font to use.
+            If None, then will use cv2.FONT_HERSHEY_SIMPLEX
+            See cv2.FONT... for more options
+        show (bool):
+            if True, then will show the images with text added.
+
+    Returns:
+        images_with_text (np.array):
+            frames of video or images with text added.
+    """
+    import cv2
+    import copy
+    
+    if font is None:
+        font = cv2.FONT_HERSHEY_SIMPLEX
+    if not isinstance(text, list):
+        text = [text]
+    
+    images_cp = copy.copy(images)
+    for frame in images_cp:
+        for i_t, t in enumerate(text):
+            cv2.putText(frame, t, [position[0] , position[1] + i_t*font_size*30], font, font_size, color, line_width)
+        if show:
+            cv2.imshow('add_text_to_images', frame)
+            cv2.waitKey(1)
+    cv2.destroyWindow('add_text_to_images')
+    return images_cp
