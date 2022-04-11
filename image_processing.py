@@ -456,7 +456,6 @@ def make_tiled_video_array(
         else:
             flag_multivid = False
 
-    #         vid = decord.VideoReader(path_vid, ctx=decord.cpu())
 
         for i_mat, idx_mat in enumerate(frame_idx_list):
             if flag_multivid:
@@ -465,27 +464,19 @@ def make_tiled_video_array(
 
                 chunks_list = []
                 while frames_remainder > 0:
-    #                 print(frames_remainder)
                     multivid_toStart = indexing.get_last_True_idx((frame_toStartGlobal - cum_start_idx_multiVid) >= 0)  ## which of the multivids to start at
-    #                 print(multivid_toStart)
 
                     frame_toStartInVid = frame_toStartGlobal - cum_start_idx_multiVid[multivid_toStart]  ## where to start in the vid
-    #                 print(frame_toStartInVid)
 
                     frames_toEndOfVid = multivid_lens[multivid_toStart] - frame_toStartInVid  ## number of frames left in the vid
-    #                 print(frames_toEndOfVid)
                     frames_toGrab = min(frames_remainder  ,  frames_toEndOfVid)  ## number of frames to get from current vid
-    #                 print(frames_toGrab)
                     frames_remainder -= frames_toGrab
-    #                 print(frames_remainder)
 
                     vid = decord.VideoReader(str(path_vid[multivid_toStart]), ctx=decord.cpu())  ## open the vid
                     chunks_list.append(vid[frame_toStartInVid : frame_toStartInVid+frames_toGrab].asnumpy())  ## raw video chunk
-    #                 print(chunks_list[-1].shape)
                     frame_toStartGlobal += frames_toGrab
 
                 chunk = np.concatenate(chunks_list, axis=0)
-    #             print(chunk.shape)
 
             else:
                 vid = decord.VideoReader(path_vid, ctx=decord.cpu())
