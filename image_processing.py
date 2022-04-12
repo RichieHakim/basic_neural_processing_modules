@@ -528,9 +528,8 @@ def make_tiled_video_array(
 
             ## add overlay to the chunk
             if overlay_signals is not None:
-                chunk_ol = add_overlay(chunk_rs, overlay_signals[idx_mat[0,i_vid]:idx_mat[1,i_vid], i_mat], overlay_idx)
-            else: 
-                chunk_ol = chunk_rs
+                add_overlay(chunk_rs, overlay_signals[idx_mat[0,i_vid]:idx_mat[1,i_vid], i_mat], overlay_idx)
+
 
             ## drop into final video array
             video_out[
@@ -557,7 +556,7 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
             Outer list: one element per frame.
             Inner list: each element is a line of text.
         position (tuple):
-            (y,x) position of text (top left corner)
+            (x,y) position of text (top left corner)
         font_size (int):
             font size of text
         color (tuple):
@@ -588,7 +587,9 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
         if show:
             cv2.imshow('add_text_to_images', frame)
             cv2.waitKey(int(1000/frameRate))
-    cv2.destroyWindow('add_text_to_images')
+    
+    if show:
+        cv2.destroyWindow('add_text_to_images')
     return images_cp
 
 
@@ -641,7 +642,6 @@ def add_image_overlay(
 
     images_rs = resize_torch(images_overlay.transpose(0,3,1,2), new_shape=rs_size, interpolation=interpolation).transpose(0,2,3,1)
 
-    pos_tl = position_topLeft
     images_out = copy.copy(images_underlay)
     images_out[:, pos_all[0]:pos_all[1], pos_all[2]:pos_all[3],:] = images_rs
     

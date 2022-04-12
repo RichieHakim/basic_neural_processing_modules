@@ -236,10 +236,10 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
                         'color': (255, 255, 255), 
                         'thickness': 1}
     
-    if array.dtype != 'uint8':
-        array = array.astype('uint8')
     array[array < 0] = 0
     array[array > 255] = 255
+    if array.dtype != 'uint8':
+        array = array.astype('uint8')
          
     for i_frame, frame in enumerate(tqdm(array)):
         if array.ndim == 4:
