@@ -57,6 +57,34 @@ def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cm
     return fig, axs
 
 
+def display_toggle_image_stack(images, clim=None):
+    """
+    Scrub through iamges in a stack using a slider.
+    RH 2022
+
+    Args:
+        images (list of 2D arrays):
+            List of images
+        clim (tuple):
+            Limits of the colorbar
+    """
+    from ipywidgets import interact, widgets
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    imshow_FOV = ax.imshow(
+        images[0],
+#         vmax=clim[1]
+    )
+
+    def update(i_frame = 0):
+        fig.canvas.draw_idle()
+        imshow_FOV.set_data(images[i_frame])
+        imshow_FOV.set_clim(clim)
+
+
+    interact(update, i_frame=widgets.IntSlider(min=0, max=len(images)-1, step=1, value=0));
+
 ###############
 ### Helpers ###
 ###############

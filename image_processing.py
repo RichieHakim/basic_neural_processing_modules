@@ -376,6 +376,7 @@ def make_tiled_video_array(
     overlay_signals=None,
     overlay_idx=None,
     spacer_black_frames=0,
+    pixel_val_range=None,
     ):
     """
     Creates a tiled video array from a list of paths to videos.
@@ -408,9 +409,11 @@ def make_tiled_video_array(
             Interpolation mode for the video. Should be one of the
              torchvision.transforms.InterpolationMode values.
         crop_idx:
-            4-tuple or list of indices to crop the video.
+            List of 4-tuples or lists of indices to crop the video.
             [top, bottom, left, right]
             If None, then no cropping is performed.
+            Outer list should be same length as paths_videos. Each 
+             entry should correspond to the crop indices for a video.
         overlay_signals:
             List of signals to overlay on the video.
             Each signal should be a numpy array of shape(frames, n_channels).
@@ -421,6 +424,9 @@ def make_tiled_video_array(
             [top, bottom, left, right]
         spacer_black_frames:
             Number of black frames to add between each chunk.
+        pixel_val_range:
+            2-tuple or list of the minimum and maximum pixel values.
+            If None, then no clipping is performed.
 
     Returns:
         output video array:
@@ -431,7 +437,15 @@ def make_tiled_video_array(
     ##  Example values
     ##  - frame_idx_list = [np.array([[703,843], [743,883], [799, 939], [744, 884]]*2).T, np.array([[39,89], [43,93], [99, 149], [44, 94]]*2).T]
     ##  - frame_idx_list = [np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T, np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T]
+    
+    ##  - roi = plotting_helpers.select_ROI(image)
+    ##  - pts = np.array(roi.selected_points).squeeze().astype('uint32')
+    ##  - crop_idx = [pts[0,1], pts[1,1], pts[0,0], pts[1,0]]*8
+    ##  - block_height_width=[crop_idx[1]-crop_idx[0] , crop_idx[3]-crop_idx[2]]
+    ##  - tiling_shape = [2,2]
+    ##  - spacer_black_frames = 5
     ##  - paths_videos = [path_video] * 8
+
 
     def resize_torch(images, new_shape=[100,100], interpolation=interpolation):
         resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
@@ -509,7 +523,7 @@ def make_tiled_video_array(
 
             chunk_height, chunk_width, chunk_n_frames, _ = chunk.shape
             if crop_idx is not None:
-                chunk = chunk[:, crop_idx[0]:crop_idx[1], crop_idx[2]:crop_idx[3], :]
+                chunk = chunk[:, crop_idx[i_vid][0]:crop_idx[i_vid][1], crop_idx[i_vid][2]:crop_idx[i_vid][3], :]
 
             ## first we get the aspect ratio right by padding to correct aspect ratio
             aspect_ratio = chunk.shape[1] / chunk.shape[2]
@@ -523,12 +537,16 @@ def make_tiled_video_array(
 
             ## then we resize the movie to the final correct size
             chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=interpolation).transpose(0,2,3,1)
-            # chunk_rs[chunk_rs < 0] = 0  ## clean up interpolation errors
-            # chunk_rs[chunk_rs > 255] = 255
+
+            if pixel_val_range is not None:
+                chunk_rs[chunk_rs < pixel_val_range[0]] = pixel_val_range[0]  ## clean up interpolation errors
+                chunk_rs[chunk_rs > pixel_val_range[1]] = pixel_val_range[1]
 
             ## add overlay to the chunk
             if overlay_signals is not None:
-                add_overlay(chunk_rs, overlay_signals[idx_mat[0,i_vid]:idx_mat[1,i_vid], i_mat], overlay_idx)
+                # print(idx_mat[0,i_vid], idx_mat[1,i_vid], i_mat)
+                # print(overlay_signals.shape)
+                add_overlay(chunk_rs, overlay_signals[i_vid][idx_mat[0,i_vid]:idx_mat[1,i_vid], i_mat], overlay_idx)
 
 
             ## drop into final video array

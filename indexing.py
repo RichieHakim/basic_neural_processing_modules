@@ -216,10 +216,24 @@ def get_last_True_idx(input_array):
     nz = np.nonzero(input_array)[0]
     # print(nz.size)
     if nz.size==0:
-        output = len(input_array)-1
+        raise ValueError('No True values in array')
     else:
         output = np.max(nz)
 #     print(output)
+    return output
+
+def get_nth_True_idx(input_array, n):
+    '''
+    for 1-d arrays only. gets idx of nth True entry.
+    nth is zero-indexed.
+    RH 2022
+    '''
+    nz = np.nonzero(input_array)[0]
+    # print(nz.size)
+    if nz.size==0:
+        raise ValueError('No True values in array')
+    else:
+        output = nz[n]
     return output
 
 
