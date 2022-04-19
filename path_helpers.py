@@ -46,6 +46,8 @@ def get_dir_contents(directory):
             list of file names
     '''
     walk = os.walk(directory, followlinks=False)
+    folders = []
+    files = []
     for ii,level in enumerate(walk):
         folders, files = level[1:]
         if ii==0:
