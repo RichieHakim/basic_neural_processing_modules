@@ -388,12 +388,12 @@ def make_tiled_video_array(
     Args:
         paths_videos:
             List of paths to videos.
-        frame_idx_list:
-            List of matrices.
-            Each matrix corresponds to a temporal chunk of the video.
-            Each matrix has shape(2, n_videos)
-            The first row is the start frame index and the second row
-             is the end frame index.
+        frame_idx_list (ndarray, 3D, int):
+            Shape: (n_chunks, 2, n_videos)
+            Second dimension: (start_frame, end_frame) of chunk.
+            Values should be positive integers.
+            To insert black frames instead of video chunk, use
+             [-1, -1] for the idx tuple.
         block_height_width:
             2-tuple or list of height and width of each block.
         n_channels:
@@ -458,20 +458,22 @@ def make_tiled_video_array(
         chunk[:, overlay_idx[0]:overlay_idx[1], overlay_idx[2]:overlay_idx[3], :] = ol
         return chunk
 
+    duration_chunks = frame_idx_list[:,1,:] - frame_idx_list[:,0,:] + spacer_black_frames
+    max_frames_per_chunk = np.nanmax(duration_chunks, axis=1) + spacer_black_frames
+
+    null_chunks = (frame_idx_list == -1).all(axis=1)
+    
     ## ASSERTIONS
     ## check to make sure that shapes are correct
-    for i_mat, mat in enumerate(frame_idx_list):
-        assert mat.shape[0] == 2, f'RH ERROR: size of first dimension of each frame_idx matrix should be 2'
-        assert mat.shape[1] == len(paths_videos), f'RH ERROR: size of second dimension of each frame_idx matrix should match len(paths_videos)'
-        assert np.all(np.array([[(col[1]-col[0]) == (mat[1,0]-mat[0,0]) for col in mat.T] for mat in frame_idx_list])), f'RH ERROR: range of frames for each video in a given idx matrix column must be the same'
+    for i_chunk, chunk in enumerate(frame_idx_list):
+        assert chunk.shape[0] == 2, f'RH ERROR: size of first dimension of each frame_idx matrix should be 2'
+        assert chunk.shape[1] == len(paths_videos), f'RH ERROR: size of second dimension of each frame_idx matrix should match len(paths_videos)'
 
     n_vids = len(paths_videos)
-    n_chunks = len(frame_idx_list)
-    n_frames_per_chunk = np.array([mat[1,0]-mat[0,0] for mat in frame_idx_list]) + spacer_black_frames  ## number of frames in each temporal chunk
-    n_frames_total = n_frames_per_chunk.sum()  ## total number of frames in the final video
+    n_frames_total = max_frames_per_chunk.sum()  ## total number of frames in the final video
     block_aspect_ratio = block_height_width[0] / block_height_width[1]
 
-    cum_start_idx_chunk = np.cumsum(np.concatenate(([0], n_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
+    cum_start_idx_chunk = np.cumsum(np.concatenate(([0], max_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
 
     if tiling_shape is None:
         el = int(np.ceil(np.sqrt(n_vids)))  ## 'edge length' in number of videos
@@ -496,10 +498,12 @@ def make_tiled_video_array(
             flag_multivid = False
 
 
-        for i_mat, idx_mat in enumerate(frame_idx_list):
-            if flag_multivid:
-                frames_remainder = idx_mat[1,i_vid] - idx_mat[0,i_vid]  ## initialization of remaining frames
-                frame_toStartGlobal = idx_mat[0,i_vid]  ## frame to start at (in concatenated frame indices)
+        for i_chunk, idx_chunk in enumerate(frame_idx_list):
+            if null_chunks[i_chunk, i_vid]:
+                continue
+            elif flag_multivid:
+                frames_remainder = idx_chunk[1,i_vid] - idx_chunk[0,i_vid]  ## initialization of remaining frames
+                frame_toStartGlobal = idx_chunk[0,i_vid]  ## frame to start at (in concatenated frame indices)
 
                 chunks_list = []
                 while frames_remainder > 0:
@@ -516,10 +520,9 @@ def make_tiled_video_array(
                     frame_toStartGlobal += frames_toGrab
 
                 chunk = np.concatenate(chunks_list, axis=0)
-
             else:
                 vid = decord.VideoReader(path_vid, ctx=decord.cpu())
-                chunk = vid[idx_mat[0, i_vid] : idx_mat[1, i_vid]].asnumpy()  ## raw video chunk
+                chunk = vid[idx_chunk[0, i_vid] : idx_chunk[1, i_vid]].asnumpy()  ## raw video chunk
 
             chunk_height, chunk_width, chunk_n_frames, _ = chunk.shape
             if crop_idx is not None:
@@ -544,14 +547,12 @@ def make_tiled_video_array(
 
             ## add overlay to the chunk
             if overlay_signals is not None:
-                # print(idx_mat[0,i_vid], idx_mat[1,i_vid], i_mat)
-                # print(overlay_signals.shape)
-                add_overlay(chunk_rs, overlay_signals[i_vid][idx_mat[0,i_vid]:idx_mat[1,i_vid], i_mat], overlay_idx)
+                add_overlay(chunk_rs, overlay_signals[i_vid][idx_chunk[0,i_vid]:idx_chunk[1,i_vid], i_chunk], overlay_idx)
 
 
             ## drop into final video array
             video_out[
-                cum_start_idx_chunk[i_mat] : n_frames_per_chunk[i_mat] + cum_start_idx_chunk[i_mat] - spacer_black_frames,
+                cum_start_idx_chunk[i_chunk] : duration_chunks[i_chunk, i_vid] + cum_start_idx_chunk[i_chunk] - spacer_black_frames,
                 tile_topLeft_idx[i_vid][0] : tile_topLeft_idx[i_vid][0]+block_height_width[0], 
                 tile_topLeft_idx[i_vid][1] : tile_topLeft_idx[i_vid][1]+block_height_width[1], 
                 :
