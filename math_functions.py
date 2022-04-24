@@ -25,14 +25,8 @@ def gaussian(x, mu, sig , plot_pref=False):
         plt.plot(x , gaus)
         plt.xlabel('x')
         plt.title(f'$\mu$={mu}, $\sigma$={sig}')
-    
-    params_gaus = {
-        "x": x,
-        "mu": mu,
-        "sig": sig,
-    }
 
-    return gaus , params_gaus
+    return gaus
 
 
 def generalised_logistic_function(x, a=0, k=1, b=1, v=1, q=1, c=1):
