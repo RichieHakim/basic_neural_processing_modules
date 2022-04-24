@@ -8,7 +8,7 @@ import torch
 
 
 # @njit
-def OLS(X,y):
+def OLS(X,y, add_bias_terms=False):
     '''
     Ordinary Least Squares regression.
     This method works great and is fast under most conditions.
@@ -27,17 +27,32 @@ def OLS(X,y):
             regression coefficents
         y_rec (ndarray):
             y reconstructions
+        bias (ndarray):
+            bias terms
     '''
     if X.ndim==1:
         X = X[:,None]
     if type(X) == np.ndarray:
         inv = np.linalg.inv
+        ones = np.ones
+        cat = np.concatenate
     elif type(X) == torch.Tensor:
         inv = torch.inverse
+        ones = torch.ones
+        cat = torch.cat
+    if add_bias_terms:
+        X = cat((X, ones((X.shape[0],1))), axis=1)
 
     theta = inv(X.T @ X) @ X.T @ y
     y_rec = X @ theta
-    return theta, y_rec
+
+    if add_bias_terms:
+        bias = theta[-1]
+        theta = theta[:-1]
+    else:
+        bias = None
+
+    return theta, y_rec, bias
 
 
 # @njit

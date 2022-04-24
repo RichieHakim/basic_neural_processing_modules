@@ -459,7 +459,7 @@ def make_tiled_video_array(
         return chunk
 
     duration_chunks = frame_idx_list[:,1,:] - frame_idx_list[:,0,:] + spacer_black_frames
-    max_frames_per_chunk = np.nanmax(duration_chunks, axis=1) + spacer_black_frames
+    max_frames_per_chunk = np.nanmax(duration_chunks, axis=1)
 
     null_chunks = (frame_idx_list == -1).all(axis=1)
     

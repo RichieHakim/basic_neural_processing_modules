@@ -555,11 +555,12 @@ class phase_shifter():
              ])
         self.discard_imaginary_component = discard_imaginary_component
 
-    def __call__(self, signal, shift_angle=90, deg_or_rad='deg', dim=0):
+    def __call__(self, signal, shift_angle=90, deg_or_rad='deg'):
         """
         Shifts the frequency angles of a signal by a given amount.
         A signal containing multiple frequecies will see each 
          frequency shifted independently by the shift_angle.
+        Functions on first dimension only.
         RH 2021
 
         Args:
@@ -582,11 +583,11 @@ class phase_shifter():
         
         shift_angle = np.deg2rad(shift_angle) if deg_or_rad == 'deg' else shift_angle
 
-        signal_fft = torch.fft.fft(signal, dim=dim) # convert to spectral domain
+        signal_fft = torch.fft.fft(signal, dim=0) # convert to spectral domain
         mag, ang = torch.abs(signal_fft), torch.angle(signal_fft) # extract magnitude and angle
         ang_shifted = ang + (self.angle_mask.reshape([len(self.angle_mask)] + [1]*(len(signal.shape)-1))) * shift_angle # shift the angle. The bit in the middle is for matching the shape of the signal
         signal_fft_shifted = mag * torch.exp(1j*ang_shifted) # remix magnitude and angle
-        signal_shifted = torch.fft.ifft(signal_fft_shifted, dim=dim) # convert back to signal domain
+        signal_shifted = torch.fft.ifft(signal_fft_shifted, dim=0) # convert back to signal domain
         if self.discard_imaginary_component:
             signal_shifted = torch.real(signal_shifted) # discard imaginary component
         return signal_shifted
