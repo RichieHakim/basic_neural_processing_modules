@@ -484,6 +484,8 @@ def phase_shift(signal, shift_angle=90, deg_or_rad='deg', axis=0):
     Shifts the frequency angles of a signal by a given amount.
     This is the functional version. It can be faster if needing
      to initialize multiple times.
+    Setting shift_angle=90 with deg_or_rad='deg' will output the
+     imaginary part of an analytic signal (i.e. a Hilbert transform).
     Numpy / Torch are both compatible
     RH 2021
 
@@ -528,6 +530,8 @@ class phase_shifter():
         This is the object version. It can be faster than
          the functional version if needing to call it 
          multiple times.
+        Setting shift_angle=90 with deg_or_rad='deg' will output the
+         imaginary part of an analytic signal (i.e. a Hilbert transform).
         See __call__ for more details.
         RH 2021
 
