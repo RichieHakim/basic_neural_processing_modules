@@ -479,7 +479,7 @@ def convolve_torch(X, kernels, **conv1d_kwargs):
     return convolved_rshp
 
 
-def phase_shift(signal, shift_angle, deg_or_rad='rad', axis=0):
+def phase_shift(signal, shift_angle=90, deg_or_rad='deg', axis=0):
     """
     Shifts the frequency angles of a signal by a given amount.
     This is the functional version. It can be faster if needing

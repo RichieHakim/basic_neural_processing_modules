@@ -22,6 +22,9 @@ def OLS(X,y, add_bias_terms=False):
             array where columns are vectors to regress against 'y'
         y (ndarray):
             1-D or 2-D array
+        add_bias_terms (bool):
+            If True, add a column of ones to X.
+            Theta will not contain the bias term.
     Returns:
         theta (ndarray):
             regression coefficents
@@ -40,6 +43,7 @@ def OLS(X,y, add_bias_terms=False):
         inv = torch.inverse
         ones = torch.ones
         cat = torch.cat
+
     if add_bias_terms:
         X = cat((X, ones((X.shape[0],1))), axis=1)
 
@@ -56,7 +60,7 @@ def OLS(X,y, add_bias_terms=False):
 
 
 # @njit
-def Ridge(X, y, lam=1):
+def Ridge(X, y, lam=1, add_bias_terms=False):
     '''
     Ridge regression.
     This method works great and is fast under most conditions.
@@ -70,6 +74,9 @@ def Ridge(X, y, lam=1):
             1-D or 2-D array
         lam (float):
             regularization parameter
+        add_bias_terms (bool):
+            If True, add a column of ones to X.
+            Theta will not contain the bias term.
     Returns:
         theta (ndarray):
             regression coefficents
@@ -80,14 +87,28 @@ def Ridge(X, y, lam=1):
         X = X[:,None]
     if type(X) == np.ndarray:
         inv = np.linalg.inv
-        eye = np.eye(X.shape[1])
+        eye = np.eye(X.shape[1] + 1*add_bias_terms)
+        ones = np.ones
+        cat = np.concatenate
     elif type(X) == torch.Tensor:
         inv = torch.inverse
-        eye = torch.eye(X.shape[1]).to(X.device)
+        eye = torch.eye(X.shape[1] + 1*add_bias_terms).to(X.device)
+        ones = torch.ones
+        cat = torch.cat
+
+    if add_bias_terms:
+        X = cat((X, ones((X.shape[0],1))), axis=1)
 
     theta = inv(X.T @ X + lam*eye) @ X.T @ y
     y_rec = X @ theta
-    return theta, y_rec
+
+    if add_bias_terms:
+        bias = theta[-1]
+        theta = theta[:-1]
+    else:
+        bias = None
+
+    return theta, y_rec, bias
 
 
 def LinearRegression_sweep(X_in,

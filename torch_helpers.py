@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
+import numpy as np
 
 import sys
 import gc
@@ -9,7 +10,7 @@ import gc
 ############ VARIABLE HELPERS ##############
 ############################################
 
-def show_all_tensors(globals, data_unit='GB'):
+def show_all_tensors(globals, sort_by_size_pref=False, data_unit='GB'):
     """
     Show all tensors in a dict.
     RH 2021
@@ -19,11 +20,19 @@ def show_all_tensors(globals, data_unit='GB'):
             Dict of global variables.
             Call globals() to get this.
     """
-    var = []
+    size = []
+    strings = []
     for var in globals:
         if (type(globals[var]) is torch.Tensor):
-            size = convert_size(globals[var].element_size() * globals[var].nelement(), return_size=data_unit)
-            print(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size} {data_unit},   requires_grad: {globals[var].requires_grad}')           
+            size.append(convert_size(globals[var].element_size() * globals[var].nelement(), return_size=data_unit))
+            strings.append(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size[-1]} {data_unit},   requires_grad: {globals[var].requires_grad}')
+
+    if sort_by_size_pref:
+        i_sort = np.argsort(size)[::-1]
+        strings = [strings[ii] for ii in i_sort]
+
+    for string in strings:
+        print(string)
 
 
 def tensor_sizeOnDisk(tensor, print_pref=True, return_size='GB'):
@@ -237,6 +246,40 @@ def nanmin(arr, dim=None, keepdim=False):
     arr_no_nan = arr.masked_fill(nan_mask, float('inf'))
     return torch.min(arr_no_nan, **kwargs)
 
+
+def hilbert(x, dim=0):
+    """
+    Computes the analytic signal using the Hilbert transform.
+    Based on scipy.signal.hilbert
+    RH 2022
+    
+    Args:
+        x (nd tensor):
+            Signal data. Should be real.
+        dim (int):
+            Dimension along which to do the transformation.
+    
+    Returns:
+        xa (nd tensor):
+            Analytic signal of input x along dim
+    """
+    
+    xf = torch.fft.fft(x, dim=dim)
+    m = torch.zeros(x.shape[dim])
+    n = x.shape[dim]
+    if n % 2: ## then even
+        m[0] = m[n//2] = 1
+        m[1:n//2] = 2
+    else:  ## then odd
+        m[0] = 1
+        m[1:(n+1)//2] = 2
+
+    if x.ndim > 1:
+        ind = [np.newaxis] * x.ndim
+        ind[dim] = slice(None)
+        m = m[tuple(ind)]
+
+    return torch.fft.ifft(xf * m, dim=dim)
 
       
 
