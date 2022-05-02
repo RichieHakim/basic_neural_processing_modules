@@ -665,3 +665,96 @@ def add_image_overlay(
     images_out[:, pos_all[0]:pos_all[1], pos_all[2]:pos_all[3],:] = images_rs
     
     return images_out
+
+
+    #############################################
+################ Video ######################
+#############################################
+
+def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=True, fourcc_code='MJPG', text=None, kwargs_text={}):
+    """
+    Play a video using OpenCV
+    RH 2021
+
+    Args:
+        array:
+            Either 3D array of images (frames x height x width)
+             or a 4D array of images (frames x height x width x channels)
+            Scaling assumed to be between 0 and 255
+            If None, then path must be specified
+        path:
+            Path to video file
+        frameRate:  
+            Frame rate of the video (in Hz)
+        save_path:
+            Path to save the video
+        show:   
+            Whether to show the video or not
+        fourcc_code:
+            FourCC code for the codec
+        text:
+            Text to write on the video.
+            If list, each element is on a different frame
+        kwargs_text:
+            Keyword arguments for text
+    """
+    wait_frames = max(int((1/frameRate)*1000), 1)
+    if save_path is not None:
+        size = tuple((np.flip(array.shape[1:3])))
+        fourcc = cv2.VideoWriter_fourcc(*fourcc_code)
+        print(f'saving to file {save_path}')
+        writer = cv2.VideoWriter(save_path, fourcc, frameRate, size)
+
+    if kwargs_text is None:
+        kwargs_text = { 'org': (5, 15), 
+                        'fontFace': 1, 
+                        'fontScale': 1,
+                        'color': (255, 255, 255), 
+                        'thickness': 1}
+    
+    if array is not None:
+
+        array[array < 0] = 0
+        array[array > 255] = 255
+        if array.dtype != 'uint8':
+            array = array.astype('uint8')
+        movie = array
+        if array.ndim == 4:
+            flag_convert_to_gray = True
+        else:
+            flag_convert_to_gray = False
+    else:
+        movie = decord.VideoReader(path)
+        flag_convert_to_gray = False
+
+    for i_frame, frame in enumerate(tqdm(movie)):
+        frame = frame.asnumpy()
+
+        if array is not None:
+            if flag_convert_to_gray:
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            else:
+                Exception('RH: Unsupported number of channels, check array shape')
+            # else:  
+            #     frame = cv2.merge([frame, frame, frame])
+
+        if text is not None:
+            if isinstance(text, list):
+                text_frame = text[i_frame]
+            else:
+                text_frame = text
+
+            # frame = cv2.putText(frame, text, (5,15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2, cv2.LINE_AA)
+            frame = cv2.putText(frame, text_frame, **kwargs_text)
+            
+        if show:
+            cv2.imshow('handle', np.uint8(frame))
+            cv2.waitKey(wait_frames)
+        if save_path is not None:
+            writer.write(np.uint8(frame))
+    if save_path is not None:
+        writer.release()
+        print('Video saved')
+    if show:
+        cv2.destroyWindow('handle')
+

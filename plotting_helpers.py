@@ -228,7 +228,7 @@ def simple_cmap(colors, name='none'):
 ################ Video ######################
 #############################################
 
-def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJPG', text=None, kwargs_text={}):
+def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=True, fourcc_code='MJPG', text=None, kwargs_text={}):
     """
     Play a video using OpenCV
     RH 2021
@@ -238,6 +238,9 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
             Either 3D array of images (frames x height x width)
              or a 4D array of images (frames x height x width x channels)
             Scaling assumed to be between 0 and 255
+            If None, then path must be specified
+        path:
+            Path to video file
         frameRate:  
             Frame rate of the video (in Hz)
         save_path:
@@ -266,13 +269,20 @@ def play_video_cv2(array, frameRate, save_path=None, show=True, fourcc_code='MJP
                         'color': (255, 255, 255), 
                         'thickness': 1}
     
-    array[array < 0] = 0
-    array[array > 255] = 255
-    if array.dtype != 'uint8':
-        array = array.astype('uint8')
-         
-    for i_frame, frame in enumerate(tqdm(array)):
+    if array is not None:
+
+        array[array < 0] = 0
+        array[array > 255] = 255
+        if array.dtype != 'uint8':
+            array = array.astype('uint8')
+        movie = array
         if array.ndim == 4:
+            flag_convert_to_gray = True
+    else:
+        movie = cv2.VideoCapture(path)
+
+    for i_frame, frame in enumerate(tqdm(movie)):
+        if flag_convert_to_gray:
             if array.shape[3] == 3:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             else:

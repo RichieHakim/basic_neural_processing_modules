@@ -12,6 +12,9 @@ Functions and Interdependencies:
 import scipy.signal
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
+from . import math_functions, timeSeries
+from tqdm.notebook import tqdm
 
 
 def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
@@ -245,3 +248,167 @@ def simple_cwt(
         ax.set_yticklabels(np.round(freq[ticks_toUse],2))
 
     return coeff, freq
+
+
+def torch_hilbert(x, dim=0):
+    """
+    Computes the analytic signal using the Hilbert transform.
+    Based on scipy.signal.hilbert
+    RH 2022
+    
+    Args:
+        x (nd tensor):
+            Signal data. Should be real.
+        dim (int):
+            Dimension along which to do the transformation.
+    
+    Returns:
+        xa (nd tensor):
+            Analytic signal of input x along dim
+    """
+    
+    xf = torch.fft.fft(x, dim=dim)
+    m = torch.zeros(x.shape[dim])
+    n = x.shape[dim]
+    if n % 2: ## then even
+        m[0] = m[n//2] = 1
+        m[1:n//2] = 2
+    else:
+        m[0] = 1
+        m[1:(n+1)//2] = 2
+
+    if x.ndim > 1:
+        ind = [np.newaxis] * x.ndim
+        ind[dim] = slice(None)
+        m = m[tuple(ind)]
+
+    return torch.fft.ifft(xf * m, dim=dim)
+
+
+def make_VQT_filters(    
+    Fs_sample=1000,
+    Q_lowF=3,
+    Q_highF=20,
+    F_min=10,
+    F_max=400,
+    n_freq_bins=55,
+    win_size=501,
+    plot_pref=False
+):
+
+    assert win_size%2==1, "RH Warning: win_size should be an odd integer"
+    
+    freqs = math_functions.bounded_logspace(
+        start=F_min,
+        stop=F_max,
+        num=n_freq_bins,
+    )
+
+    periods = 1 / freqs
+    periods_inSamples = Fs_sample * periods
+
+    sigma_all = np.linspace(
+        start=Q_lowF*periods_inSamples[0] / 4,
+        stop=Q_highF*periods_inSamples[-1] / 4,
+        num=n_freq_bins,
+        endpoint=True
+    )
+
+    wins = torch.stack([math_functions.gaussian(torch.arange(-win_size//2, win_size//2), 0, sig=sigma) for sigma in sigma_all])
+
+    filts = torch.stack([torch.cos(torch.linspace(-np.pi, np.pi, win_size) * freq * (win_size/Fs_sample)) * win for freq, win in zip(freqs, wins)], dim=0)    
+    filts_complex = torch_hilbert(filts.T, dim=0).T
+    
+    if plot_pref:
+        plt.figure()
+        plt.plot(freqs)
+        plt.xlabel('filter num')
+        plt.ylabel('frequency (Hz)')
+
+        plt.figure()
+        plt.imshow(wins / torch.max(wins, 1, keepdims=True)[0], aspect='auto')
+        plt.title('windows (gaussian)')
+
+        plt.figure()
+        plt.plot(sigma_all)
+        plt.xlabel('filter num')
+        plt.ylabel('window width (sigma of gaussian)')    
+
+        plt.figure()
+        plt.imshow(filts / torch.max(filts, 1, keepdims=True)[0], aspect='auto', cmap='bwr', vmin=-1, vmax=1)
+        plt.title('filters (real component)')
+
+
+    return filts_complex, freqs, wins
+
+
+class VQT():
+    def __init__(
+        self,
+        Fs_sample=1000,
+        Q_lowF=3,
+        Q_highF=20,
+        F_min=10,
+        F_max=400,
+        n_freq_bins=55,
+        win_size=501,
+        downsample_factor=4,
+        DEVICE_compute='cpu',
+        DEVICE_return='cpu',
+        return_complex=False,
+        plot_pref=False,
+        ):
+    
+        self.filters, self.freqs, self.wins = make_VQT_filters(
+            Fs_sample=Fs_sample,
+            Q_lowF=Q_lowF,
+            Q_highF=Q_highF,
+            F_min=F_min,
+            F_max=F_max,
+            n_freq_bins=n_freq_bins,
+            win_size=win_size,
+            plot_pref=plot_pref
+        )
+        
+        self.args = {}
+        self.args['Fs_sample'] = Fs_sample
+        self.args['Q_lowF'] = Q_lowF
+        self.args['Q_highF'] = Q_highF
+        self.args['F_min'] = F_min
+        self.args['F_max'] = F_max
+        self.args['n_freq_bins'] = n_freq_bins
+        self.args['win_size'] = win_size
+        self.args['downsample_factor'] = downsample_factor
+        self.args['DEVICE_compute'] = DEVICE_compute
+        self.args['DEVICE_return'] = DEVICE_return
+        self.args['return_complex'] = return_complex
+        self.args['plot_pref'] = plot_pref
+
+    def helper_ds(self, X, ds_factor):
+        if ds_factor == 1:
+            return X
+        else:
+            return torch.nn.functional.avg_pool1d(X.T, kernel_size=ds_factor, stride=ds_factor, ceil_mode=True).T
+
+    def helper_conv(self, arr, filters, DEVICE):
+        return timeSeries.convolve_torch(arr.to(DEVICE),  torch.real(filters.T).to(DEVICE), padding='same') + \
+            1j*timeSeries.convolve_torch(arr.to(DEVICE), -torch.imag(filters.T).to(DEVICE), padding='same')
+
+    def __call__(self, X):
+                
+        if self.args['return_complex']:
+            return torch.stack([self.helper_ds(
+                self.helper_conv(
+                    arr=arr, 
+                    filters=self.filters, 
+                    DEVICE=self.args['DEVICE_compute']
+                    ), 
+                self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in tqdm(X)], dim=0)
+        else:
+            return torch.stack([self.helper_ds(
+                self.helper_conv(
+                    arr=arr, 
+                    filters=self.filters, 
+                    DEVICE=self.args['DEVICE_compute']
+                    ).abs(), 
+                self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in tqdm(X)], dim=0)
