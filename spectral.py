@@ -9,6 +9,8 @@ Functions and Interdependencies:
     simple_cwt
 '''
 
+import math
+from re import S
 import scipy.signal
 import numpy as np
 import matplotlib.pyplot as plt
@@ -307,12 +309,12 @@ def make_VQT_filters(
     periods = 1 / freqs
     periods_inSamples = Fs_sample * periods
 
-    sigma_all = np.linspace(
-        start=Q_lowF*periods_inSamples[0] / 4,
-        stop=Q_highF*periods_inSamples[-1] / 4,
+    sigma_all = math_functions.bounded_logspace(
+        start=Q_lowF,
+        stop=Q_highF,
         num=n_freq_bins,
-        endpoint=True
     )
+    sigma_all = sigma_all * periods_inSamples / 4
 
     wins = torch.stack([math_functions.gaussian(torch.arange(-win_size//2, win_size//2), 0, sig=sigma) for sigma in sigma_all])
 
@@ -356,19 +358,23 @@ class VQT():
         DEVICE_compute='cpu',
         DEVICE_return='cpu',
         return_complex=False,
+        filters=None,
         plot_pref=False,
         ):
-    
-        self.filters, self.freqs, self.wins = make_VQT_filters(
-            Fs_sample=Fs_sample,
-            Q_lowF=Q_lowF,
-            Q_highF=Q_highF,
-            F_min=F_min,
-            F_max=F_max,
-            n_freq_bins=n_freq_bins,
-            win_size=win_size,
-            plot_pref=plot_pref
-        )
+
+        if filters is not None:
+            self.filters = filters
+        else:
+            self.filters, self.freqs, self.wins = make_VQT_filters(
+                Fs_sample=Fs_sample,
+                Q_lowF=Q_lowF,
+                Q_highF=Q_highF,
+                F_min=F_min,
+                F_max=F_max,
+                n_freq_bins=n_freq_bins,
+                win_size=win_size,
+                plot_pref=plot_pref
+            )
         
         self.args = {}
         self.args['Fs_sample'] = Fs_sample
@@ -384,29 +390,29 @@ class VQT():
         self.args['return_complex'] = return_complex
         self.args['plot_pref'] = plot_pref
 
-    def helper_ds(self, X, ds_factor):
+    def _helper_ds(self, X, ds_factor):
         if ds_factor == 1:
             return X
         else:
             return torch.nn.functional.avg_pool1d(X.T, kernel_size=ds_factor, stride=ds_factor, ceil_mode=True).T
 
-    def helper_conv(self, arr, filters, DEVICE):
+    def _helper_conv(self, arr, filters, DEVICE):
         return timeSeries.convolve_torch(arr.to(DEVICE),  torch.real(filters.T).to(DEVICE), padding='same') + \
             1j*timeSeries.convolve_torch(arr.to(DEVICE), -torch.imag(filters.T).to(DEVICE), padding='same')
 
     def __call__(self, X):
                 
         if self.args['return_complex']:
-            return torch.stack([self.helper_ds(
-                self.helper_conv(
+            return torch.stack([self._helper_ds(
+                self._helper_conv(
                     arr=arr, 
                     filters=self.filters, 
                     DEVICE=self.args['DEVICE_compute']
                     ), 
                 self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in tqdm(X)], dim=0)
         else:
-            return torch.stack([self.helper_ds(
-                self.helper_conv(
+            return torch.stack([self._helper_ds(
+                self._helper_conv(
                     arr=arr, 
                     filters=self.filters, 
                     DEVICE=self.args['DEVICE_compute']
