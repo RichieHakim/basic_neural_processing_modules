@@ -380,6 +380,25 @@ def make_VQT_filters(
         plt.title('filters (real component)')
 
 
+        worN=win_size*4
+        filts_freq = np.array([scipy.signal.freqz(
+            b=filt,
+            fs=Fs_sample,
+            worN=worN,
+        )[1] for filt in filts_complex])
+
+        filts_freq_xAxis = scipy.signal.freqz(
+            b=filts_complex[0],
+            worN=worN,
+            fs=Fs_sample
+        )[0]
+
+        plt.figure()
+        plt.plot(filts_freq_xAxis, np.abs(filts_freq.T));
+        plt.xscale('log')
+        plt.xlabel('frequency (Hz)')
+        plt.ylabel('magnitude')
+
     return filts_complex, freqs, wins
 
 
