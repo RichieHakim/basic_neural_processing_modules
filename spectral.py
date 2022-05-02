@@ -297,6 +297,45 @@ def make_VQT_filters(
     win_size=501,
     plot_pref=False
 ):
+    """
+    Creates a set of filters for use in the VQT algorithm.
+
+    Set Q_lowF and Q_highF to be the same value for a 
+     Constant Q Transform (CQT).
+    Varying these values will varying the Q factor 
+     logarithmically across the frequency range.
+
+    RH 2022
+
+    Args:
+        Fs_sample (float):
+            Sampling frequency of the signal.
+        Q_lowF (float):
+            Q factor to use for the lowest frequency.
+        Q_highF (float):
+            Q factor to use for the highest frequency.
+        F_min (float):
+            Lowest frequency to use.
+        F_max (float):
+            Highest frequency to use (inclusive).
+        n_freq_bins (int):
+            Number of frequency bins to use.
+        win_size (int):
+            Size of the window to use, in samples.
+        plot_pref (bool):
+            Whether to plot the filters.
+
+    Returns:
+        filters (Torch ndarray):
+            Array of complex sinusoid filters.
+            shape: (n_freq_bins, win_size)
+        freqs (Torch array):
+            Array of frequencies corresponding to the filters.
+        wins (Torch ndarray):
+            Array of window functions (gaussians)
+             corresponding to each filter.
+            shape: (n_freq_bins, win_size)
+    """
 
     assert win_size%2==1, "RH Error: win_size should be an odd integer"
     
@@ -364,9 +403,20 @@ class VQT():
         """
         Variable Q Transform.
         Class for applying the variable Q transform to signals.
+
+        This function works differently than the VQT from 
+         librosa or nnAudio. This one does not use iterative
+         lowpass filtering. Instead, it uses a fixed set of 
+         filters, and a Hilbert transform to compute the analytic
+         signal. It can then take the envelope and downsample.
+        
+        Uses Pytorch for GPU acceleration, and allows gradients
+         to pass through.
+
         Q: quality factor; roughly corresponds to the number 
          of cycles in a filter. Here, Q is the number of cycles
          within 4 sigma (95%) of a gaussian window.
+
         RH 2022
 
         Args:
