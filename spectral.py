@@ -301,7 +301,7 @@ def make_VQT_filters(
     Creates a set of filters for use in the VQT algorithm.
 
     Set Q_lowF and Q_highF to be the same value for a 
-     Constant Q Transform (CQT).
+     Constant Q Transform (CQT) filter set.
     Varying these values will varying the Q factor 
      logarithmically across the frequency range.
 
@@ -401,7 +401,6 @@ def make_VQT_filters(
 
     return filts_complex, freqs, wins
 
-
 class VQT():
     def __init__(
         self,
@@ -469,6 +468,7 @@ class VQT():
                 downsample_factor must be 1 if this is True.
             filters (Torch tensor):
                 Filters to use. If None, will make new filters.
+                Should be complex sinusoids.
                 shape: (n_freq_bins, win_size)
             plot_pref (bool):
                 Whether to plot the filters.
@@ -511,8 +511,10 @@ class VQT():
             return torch.nn.functional.avg_pool1d(X.T, kernel_size=ds_factor, stride=ds_factor, ceil_mode=True).T
 
     def _helper_conv(self, arr, filters, take_abs, DEVICE):
-        out =  timeSeries.convolve_torch(arr.to(DEVICE),  torch.real(filters.T).to(DEVICE), padding='same') + \
-            1j*timeSeries.convolve_torch(arr.to(DEVICE), -torch.imag(filters.T).to(DEVICE), padding='same')
+        out = torch.complex(
+            torch.nn.functional.conv1d(arr.to(DEVICE)[None,None,:],  torch.real(filters.T).to(DEVICE).T[:,None,:], padding='same'),
+            torch.nn.functional.conv1d(arr.to(DEVICE)[None,None,:], -torch.imag(filters.T).to(DEVICE).T[:,None,:], padding='same')
+        )[0]
         if take_abs:
             return torch.abs(out)
         else:
