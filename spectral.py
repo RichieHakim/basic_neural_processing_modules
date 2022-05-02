@@ -298,7 +298,7 @@ def make_VQT_filters(
     plot_pref=False
 ):
 
-    assert win_size%2==1, "RH Warning: win_size should be an odd integer"
+    assert win_size%2==1, "RH Error: win_size should be an odd integer"
     
     freqs = math_functions.bounded_logspace(
         start=F_min,
@@ -361,6 +361,51 @@ class VQT():
         filters=None,
         plot_pref=False,
         ):
+        """
+        Variable Q Transform.
+        Class for applying the variable Q transform to signals.
+        Q: quality factor; roughly corresponds to the number 
+         of cycles in a filter. Here, Q is the number of cycles
+         within 4 sigma (95%) of a gaussian window.
+        RH 2022
+
+        Args:
+            Fs_sample (float):
+                Sampling frequency of the signal.
+            Q_lowF (float):
+                Q factor to use for the lowest frequency.
+            Q_highF (float):
+                Q factor to use for the highest frequency.
+            F_min (float):
+                Lowest frequency to use.
+            F_max (float):
+                Highest frequency to use.
+            n_freq_bins (int):
+                Number of frequency bins to use.
+            win_size (int):
+                Size of the window to use, in samples.
+            downsample_factor (int):
+                Factor to downsample the signal by.
+                If the length of the input signal is not
+                 divisible by downsample_factor, the signal
+                 will be zero-padded at the end so that it is.
+            DEVICE_compute (str):
+                Device to use for computation.
+            DEVICE_return (str):
+                Device to use for returning the results.
+            return_complex (bool):
+                Whether to return the complex version of 
+                 the transform. If False, then returns the
+                 absolute value (envelope) of the transform.
+                downsample_factor must be 1 if this is True.
+            filters (Torch tensor):
+                Filters to use. If None, will make new filters.
+                shape: (n_freq_bins, win_size)
+            plot_pref (bool):
+                Whether to plot the filters.
+        """
+
+        assert all((return_complex==True, downsample_factor!=1))==False, "RH Error: if return_complex==True, then downsample_factor must be 1"
 
         if filters is not None:
             self.filters = filters
@@ -396,25 +441,33 @@ class VQT():
         else:
             return torch.nn.functional.avg_pool1d(X.T, kernel_size=ds_factor, stride=ds_factor, ceil_mode=True).T
 
-    def _helper_conv(self, arr, filters, DEVICE):
-        return timeSeries.convolve_torch(arr.to(DEVICE),  torch.real(filters.T).to(DEVICE), padding='same') + \
+    def _helper_conv(self, arr, filters, take_abs, DEVICE):
+        out =  timeSeries.convolve_torch(arr.to(DEVICE),  torch.real(filters.T).to(DEVICE), padding='same') + \
             1j*timeSeries.convolve_torch(arr.to(DEVICE), -torch.imag(filters.T).to(DEVICE), padding='same')
+        if take_abs:
+            return torch.abs(out)
+        else:
+            return out
 
     def __call__(self, X):
-                
-        if self.args['return_complex']:
-            return torch.stack([self._helper_ds(
-                self._helper_conv(
-                    arr=arr, 
-                    filters=self.filters, 
-                    DEVICE=self.args['DEVICE_compute']
-                    ), 
-                self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in tqdm(X)], dim=0)
-        else:
-            return torch.stack([self._helper_ds(
-                self._helper_conv(
-                    arr=arr, 
-                    filters=self.filters, 
-                    DEVICE=self.args['DEVICE_compute']
-                    ).abs(), 
-                self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in tqdm(X)], dim=0)
+        """
+        Forward pass of VQT.
+
+        Args:
+            X (Torch tensor):
+                Input signal.
+                shape: (n_channels, n_samples)
+
+        Returns:
+            Spectrogram (Torch tensor):
+                Spectrogram of the input signal.
+                shape: (n_channels, n_samples_ds, n_freq_bins)
+        """
+        return torch.stack([self._helper_ds(
+            self._helper_conv(
+                arr=arr, 
+                filters=self.filters, 
+                take_abs=(self.args['return_complex']==False),
+                DEVICE=self.args['DEVICE_compute']
+                ), 
+            self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in tqdm(X)], dim=0)
