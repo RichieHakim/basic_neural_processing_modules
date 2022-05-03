@@ -667,7 +667,7 @@ def add_image_overlay(
     return images_out
 
 
-    #############################################
+#############################################
 ################ Video ######################
 #############################################
 
@@ -684,6 +684,7 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
             If None, then path must be specified
         path:
             Path to video file
+            If None, then array must be specified
         frameRate:  
             Frame rate of the video (in Hz)
         save_path:
