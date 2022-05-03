@@ -224,92 +224,6 @@ def simple_cmap(colors, name='none'):
 
     return LinearSegmentedColormap(name, {k: tuple(v) for k, v in cdict.items()})
 
-#############################################
-################ Video ######################
-#############################################
-
-def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=True, fourcc_code='MJPG', text=None, kwargs_text={}):
-    """
-    Play a video using OpenCV
-    RH 2021
-
-    Args:
-        array:
-            Either 3D array of images (frames x height x width)
-             or a 4D array of images (frames x height x width x channels)
-            Scaling assumed to be between 0 and 255
-            If None, then path must be specified
-        path:
-            Path to video file
-        frameRate:  
-            Frame rate of the video (in Hz)
-        save_path:
-            Path to save the video
-        show:   
-            Whether to show the video or not
-        fourcc_code:
-            FourCC code for the codec
-        text:
-            Text to write on the video.
-            If list, each element is on a different frame
-        kwargs_text:
-            Keyword arguments for text
-    """
-    wait_frames = max(int((1/frameRate)*1000), 1)
-    if save_path is not None:
-        size = tuple((np.flip(array.shape[1:3])))
-        fourcc = cv2.VideoWriter_fourcc(*fourcc_code)
-        print(f'saving to file {save_path}')
-        writer = cv2.VideoWriter(save_path, fourcc, frameRate, size)
-
-    if kwargs_text is None:
-        kwargs_text = { 'org': (5, 15), 
-                        'fontFace': 1, 
-                        'fontScale': 1,
-                        'color': (255, 255, 255), 
-                        'thickness': 1}
-    
-    if array is not None:
-
-        array[array < 0] = 0
-        array[array > 255] = 255
-        if array.dtype != 'uint8':
-            array = array.astype('uint8')
-        movie = array
-        if array.ndim == 4:
-            flag_convert_to_gray = True
-    else:
-        movie = cv2.VideoCapture(path)
-
-    for i_frame, frame in enumerate(tqdm(movie)):
-        if flag_convert_to_gray:
-            if array.shape[3] == 3:
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            else:
-                Exception('RH: Unsupported number of channels, check array shape')
-        else:  
-            frame = cv2.merge([frame, frame, frame])
-
-        if text is not None:
-            if isinstance(text, list):
-                text_frame = text[i_frame]
-            else:
-                text_frame = text
-
-            # frame = cv2.putText(frame, text, (5,15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2, cv2.LINE_AA)
-            frame = cv2.putText(frame, text_frame, **kwargs_text)
-            
-        if show:
-            cv2.imshow('handle', np.uint8(frame))
-            cv2.waitKey(wait_frames)
-        if save_path is not None:
-            writer.write(np.uint8(frame))
-    if save_path is not None:
-        writer.release()
-        print('Video saved')
-    if show:
-        cv2.destroyWindow('handle')
-
 
 #############################################
 ########### Interactive plots ###############
@@ -325,7 +239,7 @@ class select_ROI:
     RH 2021
     """
 
-    def __init__(self, im):
+    def __init__(self, im, kwargs_subplots={}, kwargs_imshow={}):
         """
         Initialize the class
 
@@ -333,22 +247,22 @@ class select_ROI:
             im:
                 Image to select the ROI from
         """
-        self.im = im
+        self._im = im
         self.selected_points = []
-        self.fig, self.ax = plt.subplots()
-        self.img = self.ax.imshow(self.im.copy())
-        self.completed_status = False
-        self.ka = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+        self._fig, self._ax = plt.subplots(**kwargs_subplots)
+        self._img = self._ax.imshow(self._im.copy(), **kwargs_imshow)
+        self._completed_status = False
+        self._ka = self._fig.canvas.mpl_connect('button_press_event', self._onclick)
         disconnect_button = widgets.Button(description="Confirm ROI")
         new_ROI_button = widgets.Button(description="New ROI")
         Disp.display(disconnect_button)
         Disp.display(new_ROI_button)
-        disconnect_button.on_click(self.disconnect_mpl)
-        new_ROI_button.on_click(self.new_ROI)
+        disconnect_button.on_click(self._disconnect_mpl)
+        new_ROI_button.on_click(self._new_ROI)
 
-        self.selected_points_last_ROI = []
+        self._selected_points_last_ROI = []
 
-    def poly_img(self, img, pts):
+    def _poly_img(self, img, pts):
         pts = np.array(pts, np.int32)
         pts = pts.reshape((-1, 1, 2))
         cv2.polylines(img, 
@@ -358,37 +272,37 @@ class select_ROI:
                       2)
         return img
 
-    def onclick(self, event):
-        self.selected_points_last_ROI.append([event.xdata, event.ydata])
-        if len(self.selected_points_last_ROI) > 1:
-            self.fig
-            im = self.im.copy()
+    def _onclick(self, event):
+        self._selected_points_last_ROI.append([event.xdata, event.ydata])
+        if len(self._selected_points_last_ROI) > 1:
+            self._fig
+            im = self._im.copy()
             for ii in range(len(self.selected_points)):
-                im = self.poly_img(im, self.selected_points[ii])
-            im = self.poly_img(im, self.selected_points_last_ROI)
-            self.img.set_data(im)
+                im = self._poly_img(im, self.selected_points[ii])
+            im = self._poly_img(im, self._selected_points_last_ROI)
+            self._img.set_data(im)
 
 
-    def disconnect_mpl(self, _):
+    def _disconnect_mpl(self, _):
         import skimage.draw
 
-        self.selected_points.append(self.selected_points_last_ROI)
+        self.selected_points.append(self._selected_points_last_ROI)
 
-        self.fig.canvas.mpl_disconnect(self.ka)
-        self.completed_status = True
+        self._fig.canvas.mpl_disconnect(self._ka)
+        self._completed_status = True
         
         self.mask_frames = []
         for ii, pts in enumerate(self.selected_points):
             pts = np.array(pts)
-            mask_frame = np.zeros((self.im.shape[0], self.im.shape[1]))
+            mask_frame = np.zeros((self._im.shape[0], self._im.shape[1]))
             pts_y, pts_x = skimage.draw.polygon(pts[:, 1], pts[:, 0])
             mask_frame[pts_y, pts_x] = 1
             mask_frame = mask_frame.astype(np.bool)
             self.mask_frames.append(mask_frame)
         print(f'mask_frames computed')
 
-    def new_ROI(self, _):
-        self.selected_points.append(self.selected_points_last_ROI)
-        self.selected_points_last_ROI = []
+    def _new_ROI(self, _):
+        self.selected_points.append(self._selected_points_last_ROI)
+        self._selected_points_last_ROI = []
         
         
