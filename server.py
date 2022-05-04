@@ -3,7 +3,7 @@ import os
 import json
 # from . import indexing
 
-def batch_run(script_paths, 
+def batch_run(paths_scripts, 
                 params_list, 
                 sbatch_config_list, 
                 max_n_jobs=2,
@@ -18,7 +18,7 @@ def batch_run(script_paths,
            you wish to sweep over as variables.
         - Prepend the script to take in string arguments
            pointing to a param_config file (maybe a dict).
-           See script_paths Arg below for details.
+           See paths_scripts Arg below for details.
         - Save the script in .py file.
         - In a new script, call this function (batch_run)
         - A new job will be run for each item in params_list
@@ -34,7 +34,7 @@ def batch_run(script_paths,
     RH 2021
 
     Args:
-        script_paths (List):
+        paths_scripts (List):
             - List of script paths to run.
             - List can contain either 1 or n_jobs items.
             - Each script must save its results it's own way
@@ -82,7 +82,7 @@ def batch_run(script_paths,
             - Will be created if it does not exist.
             - Will be populated by folders for each job
             - Will be sent to the script for each job as the
-               third argument. See script_paths demo for details.
+               third argument. See paths_scripts demo for details.
         name_save (str or List):
             - Name of each job (used as inner directory name)
             - If str, then will be used for all jobs 
@@ -93,7 +93,7 @@ def batch_run(script_paths,
     """
 
     # make sure the arguments are matched in length
-    n_jobs = max(len(script_paths), len(params_list), len(sbatch_config_list))
+    n_jobs = max(len(paths_scripts), len(params_list), len(sbatch_config_list))
     if max_n_jobs is not None:
         if n_jobs > max_n_jobs:
             raise ValueError(f'Too many jobs requested: max_n_jobs={n_jobs} > n_jobs={max_n_jobs}')
@@ -104,7 +104,7 @@ def batch_run(script_paths,
         else:
             return item
 
-    script_paths       = rep_inputs(script_paths,   n_jobs)
+    paths_scripts      = rep_inputs(paths_scripts,   n_jobs)
     params_list        = rep_inputs(params_list,  n_jobs)
     sbatch_config_list = rep_inputs(sbatch_config_list, n_jobs)
     name_save          = rep_inputs([name_save], n_jobs)
@@ -129,9 +129,9 @@ def batch_run(script_paths,
         # run the job
         if verbose:
             print(f'Submitting job: {name_save[ii]} {ii}')
-        # ! sbatch --job-name=${name_save}_${ii} --output=${dir_save_job}/log.txt --error=${dir_save_job}/err.txt --time=${sbatch_config_list[ii]["time"]} --mem=${sbatch_config_list[ii]["mem"]} --cpus-per-task=${sbatch_config_list[ii]["cpus"]} --wrap="${script_paths[ii]} ${params_list[ii]} ${sbatch_config_list[ii]} ${dir_save_job}"
+        # ! sbatch --job-name=${name_save}_${ii} --output=${dir_save_job}/log.txt --error=${dir_save_job}/err.txt --time=${sbatch_config_list[ii]["time"]} --mem=${sbatch_config_list[ii]["mem"]} --cpus-per-task=${sbatch_config_list[ii]["cpus"]} --wrap="${paths_scripts[ii]} ${params_list[ii]} ${sbatch_config_list[ii]} ${dir_save_job}"
         # with open()
-        os.system(f'sbatch {save_path_sbatchConfig} {script_paths[ii]} {save_path_params} {dir_save_job}')
+        os.system(f'sbatch {save_path_sbatchConfig} {paths_scripts[ii]} {save_path_params} {dir_save_job}')
 
 
 #############################################
