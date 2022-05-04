@@ -41,14 +41,14 @@ from basic_neural_processing_modules import server
     
     
 # import sys
-# path_script, path_params, save_dir = sys.argv
+# path_script, path_params, dir_save = sys.argv
 
 # import json
 # with open(path_params, 'r') as f:
 #     params = json.load(f)
     
 # from pathlib import Path
-# with open(Path(save_dir).resolve() / 'IT_WORKED.json', 'w') as f:
+# with open(Path(dir_save).resolve() / 'IT_WORKED.json', 'w') as f:
 #     for param in params:
 #         json.dump(param, f)
 
@@ -71,14 +71,14 @@ script_paths = ['/n/data1/hms/neurobio/sabatini/rich/github_repos/test.py']
 params_list = [[3,4], [5,6]]
 sbatch_config_list = [sbatch_config_default]
 max_n_jobs=2
-save_dir='/n/data1/hms/neurobio/sabatini/rich/analysis/'
-save_name='jobNum_'
+dir_save='/n/data1/hms/neurobio/sabatini/rich/analysis/'
+name_save='jobNum_'
 
 server.batch_run(script_paths=script_paths,
                     params_list=params_list,
                     sbatch_config_list=sbatch_config_list,
                     max_n_jobs=2,
-                    save_dir=save_dir,
-                    save_name='jobNum_',
+                    dir_save=dir_save,
+                    name_save='jobNum_',
                     verbose=True,
                     )

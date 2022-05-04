@@ -7,8 +7,8 @@ def batch_run(script_paths,
                 params_list, 
                 sbatch_config_list, 
                 max_n_jobs=2,
-                save_dir='/n/data1/hms/neurobio/sabatini/rich/analysis/', 
-                save_name='jobNum_', 
+                dir_save='/n/data1/hms/neurobio/sabatini/rich/analysis/', 
+                name_save='jobNum_', 
                 verbose=True,
                 ):
     r"""
@@ -26,7 +26,7 @@ def batch_run(script_paths,
                it will save (1) a .json file containing the 
                parameters used, and (2) the .sh file that 
                was run.
-        - Save output files using the 'save_dir' argument
+        - Save output files using the 'dir_save' argument
 
     Alternative workflows where you have multiple different
      scripts or different config files are also possible.
@@ -38,13 +38,13 @@ def batch_run(script_paths,
             - List of script paths to run.
             - List can contain either 1 or n_jobs items.
             - Each script must save its results it's own way
-               using a relative path (see 'save_dir' below)
+               using a relative path (see 'dir_save' below)
             - Each script should contain the following to handle
                input arguments specified by the user and this
                function, DEMO:
                 ```
                 import sys
-                    path_script, path_params, save_dir = sys.argv
+                    path_script, path_params, dir_save = sys.argv
                 
                 import json
                 with open(path_params, 'r') as f:
@@ -77,13 +77,13 @@ def batch_run(script_paths,
             - Maximum number of jobs that can be called
             - Used as a safety precaution
             - Be careful that params_list has the right len
-        save_dir (str or Path):
+        dir_save (str or Path):
             - Outer directory to save results to.
             - Will be created if it does not exist.
             - Will be populated by folders for each job
             - Will be sent to the script for each job as the
                third argument. See script_paths demo for details.
-        save_name (str or List):
+        name_save (str or List):
             - Name of each job (used as inner directory name)
             - If str, then will be used for all jobs 
             - Job iteration always appended to the end.
@@ -107,31 +107,31 @@ def batch_run(script_paths,
     script_paths       = rep_inputs(script_paths,   n_jobs)
     params_list        = rep_inputs(params_list,  n_jobs)
     sbatch_config_list = rep_inputs(sbatch_config_list, n_jobs)
-    save_name          = rep_inputs([save_name], n_jobs)
+    name_save          = rep_inputs([name_save], n_jobs)
 
     # setup the save path
-    Path(save_dir).mkdir(parents=True, exist_ok=True)
-    save_dir = Path(save_dir).resolve()
+    Path(dir_save).mkdir(parents=True, exist_ok=True)
+    dir_save = Path(dir_save).resolve()
 
     # run the jobs
     for ii in range(n_jobs):
-        save_dir_job = save_dir / f'{save_name[ii]}{ii}'
-        save_dir_job.mkdir(parents=True, exist_ok=True)
+        dir_save_job = dir_save / f'{name_save[ii]}{ii}'
+        dir_save_job.mkdir(parents=True, exist_ok=True)
         # save the shell scripts
-        save_path_sbatchConfig = save_dir_job / 'sbatch_config.sh'
+        save_path_sbatchConfig = dir_save_job / 'sbatch_config.sh'
         with open(save_path_sbatchConfig, 'w') as f:
             f.write(sbatch_config_list[ii])
         # save the parameters        
-        save_path_params = save_dir_job / 'params.json'
+        save_path_params = dir_save_job / 'params.json'
         with open(save_path_params, 'w') as f:
             json.dump(params_list[ii], f)
     
         # run the job
         if verbose:
-            print(f'Submitting job: {save_name[ii]} {ii}')
-        # ! sbatch --job-name=${save_name}_${ii} --output=${save_dir_job}/log.txt --error=${save_dir_job}/err.txt --time=${sbatch_config_list[ii]["time"]} --mem=${sbatch_config_list[ii]["mem"]} --cpus-per-task=${sbatch_config_list[ii]["cpus"]} --wrap="${script_paths[ii]} ${params_list[ii]} ${sbatch_config_list[ii]} ${save_dir_job}"
+            print(f'Submitting job: {name_save[ii]} {ii}')
+        # ! sbatch --job-name=${name_save}_${ii} --output=${dir_save_job}/log.txt --error=${dir_save_job}/err.txt --time=${sbatch_config_list[ii]["time"]} --mem=${sbatch_config_list[ii]["mem"]} --cpus-per-task=${sbatch_config_list[ii]["cpus"]} --wrap="${script_paths[ii]} ${params_list[ii]} ${sbatch_config_list[ii]} ${dir_save_job}"
         # with open()
-        os.system(f'sbatch {save_path_sbatchConfig} {script_paths[ii]} {save_path_params} {save_dir_job}')
+        os.system(f'sbatch {save_path_sbatchConfig} {script_paths[ii]} {save_path_params} {dir_save_job}')
 
 
 #############################################
