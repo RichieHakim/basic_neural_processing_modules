@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 import json
-from . import indexing
+# from . import indexing
 
 def batch_run(script_paths, 
                 params_list, 
@@ -100,7 +100,7 @@ def batch_run(script_paths,
 
     def rep_inputs(item, n_jobs):
         if len(item)==1 and (n_jobs>1):
-            return indexing.lazy_repeat_item(item[0], pseudo_length=n_jobs)
+            return lazy_repeat_item(item[0], pseudo_length=n_jobs)
         else:
             return item
 
@@ -132,3 +132,45 @@ def batch_run(script_paths,
         # ! sbatch --job-name=${save_name}_${ii} --output=${save_dir_job}/log.txt --error=${save_dir_job}/err.txt --time=${sbatch_config_list[ii]["time"]} --mem=${sbatch_config_list[ii]["mem"]} --cpus-per-task=${sbatch_config_list[ii]["cpus"]} --wrap="${script_paths[ii]} ${params_list[ii]} ${sbatch_config_list[ii]} ${save_dir_job}"
         # with open()
         os.system(f'sbatch {save_path_sbatchConfig} {script_paths[ii]} {save_path_params} {save_dir_job}')
+
+
+#############################################
+####### copied from 'indexing' module #######
+#############################################
+
+class lazy_repeat_item():
+    """
+    Makes a lazy iterator that repeats an item.
+     RH 2021
+    """
+    def __init__(self, item, pseudo_length=None):
+        """
+        Args:
+            item (any object):
+                item to repeat
+            pseudo_length (int):
+                length of the iterator.
+        """
+        self.item = item
+        self.pseudo_length = pseudo_length
+
+    def __getitem__(self, i):
+        """
+        Args:
+            i (int):
+                index of item to return.
+                Ignored if pseudo_length is None.
+        """
+        if self.pseudo_length is None:
+            return self.item
+        elif i < self.pseudo_length:
+            return self.item
+        else:
+            raise IndexError('Index out of bounds')
+
+
+    def __len__(self):
+        return self.pseudo_length
+
+    def __repr__(self):
+        return repr(self.item)
