@@ -34,6 +34,22 @@ def show_all_tensors(globals, sort_by_size_pref=False, data_unit='GB'):
     for string in strings:
         print(string)
 
+    
+    # # prints currently alive Tensors and Variables
+    # import torch
+    # import gc
+    # for obj in gc.get_objects():
+    #     try:
+    #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+    #             if str(obj.device) != 'cpu':
+    # #                 print(obj.device)
+    # #                 print(type(obj), obj.size(), obj.dtype, obj.device)
+    #                 sod = misc.estimate_array_size(input_shape=obj.shape)
+    #                 if sod > 0.01:
+    #                     print(type(obj), obj.size(), obj.dtype, obj.device, sod)
+    #     except:
+    #         pass
+
 
 def tensor_sizeOnDisk(tensor, print_pref=True, return_size='GB'):
     """
@@ -107,6 +123,8 @@ def delete_all_cuda_tensors(globals):
 def set_device(use_GPU=True, verbose=True):
     """
     Set torch.cuda device to use.
+    Assumes that only one GPU is available or
+     that you wish to use cuda:0 only.
     RH 2021
 
     Args:
@@ -115,8 +133,8 @@ def set_device(use_GPU=True, verbose=True):
             If 0, use CPU.
     """
     if use_GPU:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        if device != "cuda":
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        if device != "cuda:0":
             print("no GPU available. Using CPU.") if verbose else None
         else:
             print(f"device: '{device}'") if verbose else None
@@ -246,43 +264,7 @@ def nanmin(arr, dim=None, keepdim=False):
     arr_no_nan = arr.masked_fill(nan_mask, float('inf'))
     return torch.min(arr_no_nan, **kwargs)
 
-
-def hilbert(x, dim=0):
-    """
-    Computes the analytic signal using the Hilbert transform.
-    Based on scipy.signal.hilbert
-    RH 2022
-    
-    Args:
-        x (nd tensor):
-            Signal data. Should be real.
-        dim (int):
-            Dimension along which to do the transformation.
-    
-    Returns:
-        xa (nd tensor):
-            Analytic signal of input x along dim
-    """
-    
-    xf = torch.fft.fft(x, dim=dim)
-    m = torch.zeros(x.shape[dim])
-    n = x.shape[dim]
-    if n % 2: ## then even
-        m[0] = m[n//2] = 1
-        m[1:n//2] = 2
-    else:  ## then odd
-        m[0] = 1
-        m[1:(n+1)//2] = 2
-
-    if x.ndim > 1:
-        ind = [np.newaxis] * x.ndim
-        ind[dim] = slice(None)
-        m = m[tuple(ind)]
-
-    return torch.fft.ifft(xf * m, dim=dim)
-
       
-
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################
