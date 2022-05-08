@@ -34,19 +34,16 @@ from basic_neural_processing_modules import server
 # print('hi')
 
 # import sys
-# args = sys.argv
-
-# for arg in args:
-#     print(arg)
-    
-    
-# import sys
 # path_script, path_params, dir_save = sys.argv
 
 # import json
 # with open(path_params, 'r') as f:
 #     params = json.load(f)
     
+# import shutil
+# shutil.copy2(path_script, str(Path(dir_save) / Path(path_script).name));
+
+
 # from pathlib import Path
 # with open(Path(dir_save).resolve() / 'IT_WORKED.json', 'w') as f:
 #     for param in params:

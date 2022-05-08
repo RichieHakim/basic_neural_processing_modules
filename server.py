@@ -50,6 +50,15 @@ def batch_run(paths_scripts,
                 with open(path_params, 'r') as f:
                     params = json.load(f)
                 ```                
+            - It's also good practice to save the script .py file
+               within dir_save DEMO:
+                ```
+                import shutil
+                shutil.copy2(
+                    path_script, 
+                    str(Path(dir_save) / Path(path_script).name)
+                    );
+                ```
         params_list (List):
             - Parameters (arguments) to be used
             - List can contain either 1 or n_jobs items.
