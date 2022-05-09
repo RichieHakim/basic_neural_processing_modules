@@ -151,6 +151,22 @@ def batch_run(paths_scripts,
 ############################################
 
 def find_differences_across_dictionaries(dicts):
+    """
+    Finds differences across many dictionaries.
+    RH 2022
+
+    Args:
+        dicts (List):
+            List of dictionaries to compare.
+
+    Returns:
+        params_unchanging (list of dicts):
+            List of dictionary items that are the 
+             same across all dictionaries.
+        params_changing (list of dicts):
+            List of dictionary items that are 
+             different in at least one dictionary.
+    """
     def get_binary_search_combos(n):
         combos = list(np.arange(n))
         if len(combos)%2 == 1:
