@@ -578,6 +578,49 @@ def dict_missing_keys(d1, d2):
     return {k for k,v in d1.items() if k not in d2}
 
 
+def find_differences_across_dictionaries(dicts):
+    """
+    Finds differences across many dictionaries.
+    RH 2022
+
+    Args:
+        dicts (List):
+            List of dictionaries to compare.
+
+    Returns:
+        params_unchanging (list of dicts):
+            List of dictionary items that are the 
+             same across all dictionaries.
+        params_changing (list of dicts):
+            List of dictionary items that are 
+             different in at least one dictionary.
+    """
+    def get_binary_search_combos(n):
+        combos = list(np.arange(n))
+        if len(combos)%2 == 1:
+            combos.append(combos[-1])
+        combos = np.array(combos).reshape(len(combos)//2, 2)
+        return combos
+
+    ## flatten params to ease matching functions
+    params_flat = [flatten_dict(param) for param in dicts]
+
+    ## find unchanging params
+    params_unchanging = copy.deepcopy(params_flat)
+    while len(params_unchanging) > 1:
+        combos = get_binary_search_combos(len(params_unchanging))
+        params_unchanging = [dict_shared_items(params_unchanging[combo[0]], params_unchanging[combo[1]]) for combo in combos]
+    params_unchanging = params_unchanging[0]
+
+    ## find keys that are not unchanging
+    mk = dict_missing_keys(params_flat[0], params_unchanging)
+
+    ## make list dicts of changing params
+    params_changing = [{k: params[k] for k in mk} for params in params_flat]
+    
+    return params_unchanging, params_changing
+
+
 #######################################
 ############ SPARSE STUFF #############
 #######################################
