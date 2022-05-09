@@ -1,7 +1,10 @@
 from pathlib import Path
 import os
 import json
-# from . import indexing
+import copy
+
+from . import indexing
+import numpy as np
 
 def batch_run(paths_scripts, 
                 params_list, 
@@ -109,7 +112,7 @@ def batch_run(paths_scripts,
 
     def rep_inputs(item, n_jobs):
         if len(item)==1 and (n_jobs>1):
-            return lazy_repeat_item(item[0], pseudo_length=n_jobs)
+            return indexing.lazy_repeat_item(item[0], pseudo_length=n_jobs)
         else:
             return item
 
@@ -143,43 +146,32 @@ def batch_run(paths_scripts,
         os.system(f'sbatch {save_path_sbatchConfig} {paths_scripts[ii]} {save_path_params} {dir_save_job}')
 
 
-#############################################
-####### copied from 'indexing' module #######
-#############################################
+############################################
+############# HELPER FUNCTIONS #############
+############################################
 
-class lazy_repeat_item():
-    """
-    Makes a lazy iterator that repeats an item.
-     RH 2021
-    """
-    def __init__(self, item, pseudo_length=None):
-        """
-        Args:
-            item (any object):
-                item to repeat
-            pseudo_length (int):
-                length of the iterator.
-        """
-        self.item = item
-        self.pseudo_length = pseudo_length
+def find_differences_across_dictionaries(dicts):
+    def get_binary_search_combos(n):
+        combos = list(np.arange(n))
+        if len(combos)%2 == 1:
+            combos.append(combos[-1])
+        combos = np.array(combos).reshape(len(combos)//2, 2)
+        return combos
 
-    def __getitem__(self, i):
-        """
-        Args:
-            i (int):
-                index of item to return.
-                Ignored if pseudo_length is None.
-        """
-        if self.pseudo_length is None:
-            return self.item
-        elif i < self.pseudo_length:
-            return self.item
-        else:
-            raise IndexError('Index out of bounds')
+    ## flatten params to ease matching functions
+    params_flat = [indexing.flatten_dict(param) for param in dicts]
 
+    ## find unchanging params
+    params_unchanging = copy.deepcopy(params_flat)
+    while len(params_unchanging) > 1:
+        combos = get_binary_search_combos(len(params_unchanging))
+        params_unchanging = [indexing.dict_shared_items(params_unchanging[combo[0]], params_unchanging[combo[1]]) for combo in combos]
+    params_unchanging = params_unchanging[0]
 
-    def __len__(self):
-        return self.pseudo_length
+    ## find keys that are not unchanging
+    mk = indexing.dict_missing_keys(params_flat[0], params_unchanging)
 
-    def __repr__(self):
-        return repr(self.item)
+    ## make list dicts of changing params
+    params_changing = [{k: params[k] for k in mk} for params in params_flat]
+    
+    return params_unchanging, params_changing
