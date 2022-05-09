@@ -4,6 +4,8 @@ import copy
 import scipy.signal
 import matplotlib.pyplot as plt
 
+from collections.abc import MutableMapping
+
 
 
 def widen_boolean(arr, n_before, n_after, axis=None):
@@ -499,7 +501,6 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
         output (Dict):
             flattened dictionary
     """
-    from collections.abc import MutableMapping
 
     items = []
     for k, v in d.items():
