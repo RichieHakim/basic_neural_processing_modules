@@ -460,7 +460,7 @@ def shift_pad(array, shift=1, axis=-1, pad_val=0, in_place=False):
     
 
 ######################################
-############ PURE PYTHON #############
+########### NATIVE PYTHON ############
 ######################################
 
 def flatten_list(irregular_list):
