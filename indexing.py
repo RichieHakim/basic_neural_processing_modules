@@ -456,6 +456,126 @@ def shift_pad(array, shift=1, axis=-1, pad_val=0, in_place=False):
     return arr_shifted
     
 
+######################################
+############ PURE PYTHON #############
+######################################
+
+def flatten_list(irregular_list):
+    """
+    Flattens a list of lists into a single list.
+    Stolen from https://stackabuse.com/python-how-to-flatten-list-of-lists/
+    RH 2022
+
+    Args:
+        irregular_list (list):
+            list of lists to flatten
+
+    Returns:
+        output (list):
+            flattened list
+    """
+    helper = lambda irregular_list:[element for item in irregular_list for element in flatten_list(item)] if type(irregular_list) is list else [irregular_list]
+    return helper(irregular_list)
+
+
+def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> MutableMapping:
+    """
+    Flattens a dictionary of dictionaries into a 
+     single dictionary.
+    Stolen from https://stackoverflow.com/a/6027615
+    RH 2022
+
+    Args:
+        d (Dict):
+            dictionary to flatten
+        parent_key (str):
+            key to prepend to flattened keys
+            IGNORE: USED INTERNALLY FOR RECURSION
+        sep (str):
+            separator to use between keys
+            IGNORE: USED INTERNALLY FOR RECURSION
+
+    Returns:
+        output (Dict):
+            flattened dictionary
+    """
+    from collections.abc import MutableMapping
+
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def deep_update_dict(dictionary, key, val, in_place=False):
+    """
+    Updates a dictionary with a new value.
+    RH 2022
+
+    Args:
+        dictionary (Dict):
+            dictionary to update
+        key (list of str):
+            Key to update
+            List elements should be strings.
+            Each element should be a hierarchical
+             level of the dictionary.
+            DEMO:
+                deep_update_dict(params, ['dataloader_kwargs', 'prefetch_factor'], val)
+        val (any):
+            Value to update with
+        in_place (bool):
+            whether to update in place
+
+    Returns:
+        output (Dict):
+            updated dictionary
+    """
+    def helper_deep_update_dict(d, key, val):
+        if type(key) is str:
+            key = [key]
+
+        assert key[0] in d, f"RH ERROR, key: '{key[0]}' is not found"
+
+        if type(key) is list:
+            if len(key) > 1:
+                helper_deep_update_dict(d[key[0]], key[1:], val)
+            elif len(key) == 1:
+                key = key[0]
+                d.update({key:val})
+
+    if in_place:
+        helper_deep_update_dict(dictionary, key, val)
+    else:
+        d = copy.deepcopy(dictionary)
+        helper_deep_update_dict(d, key, val)
+        return d
+
+
+def dict_shared_items(d1, d2):
+    """
+    Returns the matching items between two dictionaries.
+    RH 2022
+    """
+    return {k: d1[k] for k in d1 if k in d2 and d1[k] == d2[k]}
+def dict_diff_items(d1, d2):
+    """
+    Returns the differing items between two dictionaries.
+    RH 2022
+    """    
+    return {k: d1[k] for k in d1 if k in d2 and d1[k] != d2[k]}
+def dict_missing_keys(d1, d2):
+    """
+    Returns the keys in d1 that are missing in d2
+    RH 2022
+    """    
+    return {k for k,v in d1.items() if k not in d2}
+
+
 #######################################
 ############ SPARSE STUFF #############
 #######################################
