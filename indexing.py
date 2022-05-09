@@ -561,12 +561,14 @@ def deep_update_dict(dictionary, key, val, in_place=False):
 def dict_shared_items(d1, d2):
     """
     Returns the matching items between two dictionaries.
+    Searches for d1 items within d2.
     RH 2022
     """
     return {k: d1[k] for k in d1 if k in d2 and d1[k] == d2[k]}
 def dict_diff_items(d1, d2):
     """
     Returns the differing items between two dictionaries.
+    Searches for d1 items within d2.
     RH 2022
     """    
     return {k: d1[k] for k in d1 if k in d2 and d1[k] != d2[k]}
