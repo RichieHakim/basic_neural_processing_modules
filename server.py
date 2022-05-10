@@ -3,8 +3,7 @@ import os
 import json
 import copy
 
-from . import indexing
-import numpy as np
+from . import container_helpers
 
 def batch_run(paths_scripts, 
                 params_list, 
@@ -112,7 +111,7 @@ def batch_run(paths_scripts,
 
     def rep_inputs(item, n_jobs):
         if len(item)==1 and (n_jobs>1):
-            return indexing.lazy_repeat_item(item[0], pseudo_length=n_jobs)
+            return container_helpers.lazy_repeat_item(item[0], pseudo_length=n_jobs)
         else:
             return item
 
@@ -144,50 +143,3 @@ def batch_run(paths_scripts,
         # ! sbatch --job-name=${name_save}_${ii} --output=${dir_save_job}/log.txt --error=${dir_save_job}/err.txt --time=${sbatch_config_list[ii]["time"]} --mem=${sbatch_config_list[ii]["mem"]} --cpus-per-task=${sbatch_config_list[ii]["cpus"]} --wrap="${paths_scripts[ii]} ${params_list[ii]} ${sbatch_config_list[ii]} ${dir_save_job}"
         # with open()
         os.system(f'sbatch {save_path_sbatchConfig} {paths_scripts[ii]} {save_path_params} {dir_save_job}')
-
-
-############################################
-############# HELPER FUNCTIONS #############
-############################################
-
-def find_differences_across_dictionaries(dicts):
-    """
-    Finds differences across many dictionaries.
-    RH 2022
-
-    Args:
-        dicts (List):
-            List of dictionaries to compare.
-
-    Returns:
-        params_unchanging (list of dicts):
-            List of dictionary items that are the 
-             same across all dictionaries.
-        params_changing (list of dicts):
-            List of dictionary items that are 
-             different in at least one dictionary.
-    """
-    def get_binary_search_combos(n):
-        combos = list(np.arange(n))
-        if len(combos)%2 == 1:
-            combos.append(combos[-1])
-        combos = np.array(combos).reshape(len(combos)//2, 2)
-        return combos
-
-    ## flatten params to ease matching functions
-    params_flat = [indexing.flatten_dict(param) for param in dicts]
-
-    ## find unchanging params
-    params_unchanging = copy.deepcopy(params_flat)
-    while len(params_unchanging) > 1:
-        combos = get_binary_search_combos(len(params_unchanging))
-        params_unchanging = [indexing.dict_shared_items(params_unchanging[combo[0]], params_unchanging[combo[1]]) for combo in combos]
-    params_unchanging = params_unchanging[0]
-
-    ## find keys that are not unchanging
-    mk = indexing.dict_missing_keys(params_flat[0], params_unchanging)
-
-    ## make list dicts of changing params
-    params_changing = [{k: params[k] for k in mk} for params in params_flat]
-    
-    return params_unchanging, params_changing

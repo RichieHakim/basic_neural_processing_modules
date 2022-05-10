@@ -64,14 +64,14 @@ sbatch_config_default = \
 python "$@"
 """
 
-script_paths = ['/n/data1/hms/neurobio/sabatini/rich/github_repos/test.py']
+paths_scripts = ['/n/data1/hms/neurobio/sabatini/rich/github_repos/test.py']
 params_list = [[3,4], [5,6]]
 sbatch_config_list = [sbatch_config_default]
 max_n_jobs=2
 dir_save='/n/data1/hms/neurobio/sabatini/rich/analysis/'
 name_save='jobNum_'
 
-server.batch_run(script_paths=script_paths,
+server.batch_run(paths_scripts=paths_scripts,
                     params_list=params_list,
                     sbatch_config_list=sbatch_config_list,
                     max_n_jobs=2,
