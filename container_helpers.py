@@ -2,6 +2,13 @@ import numpy as np
 from collections.abc import MutableMapping
 import itertools
 
+"""
+This module is intended to have minimal dependencies.
+It is called by server.py which is intended to run
+ outside of a specialized environment, so no weird
+ libraries should be required.
+RH 2022
+"""
 
 class lazy_repeat_item():
     """
