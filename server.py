@@ -83,6 +83,19 @@ def batch_run(paths_scripts,
                     #SBATCH --mem=1GB
                     #SBATCH --time=0-00:00:10
 
+                    unset XDG_RUNTIME_DIR
+
+                    cd /n/data1/hms/neurobio/sabatini/rich/
+
+                    date
+
+                    echo "loading modules"
+                    module load gcc/9.2.0 cuda/11.2
+
+                    echo "activating environment"
+                    source activate ROI_env
+
+                    echo "starting job"
                     python "$@" '
         max_n_jobs (int):
             - Maximum number of jobs that can be called
