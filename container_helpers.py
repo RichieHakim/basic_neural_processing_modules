@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 from collections.abc import MutableMapping
 import itertools
 
