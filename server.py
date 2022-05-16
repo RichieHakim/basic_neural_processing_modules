@@ -165,6 +165,7 @@ import time
 class ssh_interface():
     """
     Interface to ssh to a remote server.
+    Mostly a wrapper for paramiko.SSHClient.
     Tested on O2 cluster at Harvard.
     RH 2022
     """
