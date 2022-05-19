@@ -1,6 +1,7 @@
 import numpy as np
 from numba import njit
 import sys
+import re
 
 def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64, units='GB'):
     '''
@@ -117,6 +118,28 @@ def recursive_for_loop(final_ndim, func, data, loop_depth=0):
     else:
         return func(data)
     return output
+
+
+def get_nums_from_str(str_in, dtype_out=np.float64):
+    """
+    Returns a list of numbers from a string.
+    Numbers can be negative and decimals.
+    RH 2022
+
+    Args:
+        str_in (str):
+            String to be parsed.
+            Should contain numbers separated by spaces, commas,
+             letters, or most other characters.
+        dtype_out (type obj):
+            dtype of output.
+
+    Returns:
+        nums (np.array):
+            List of numbers found in the string.
+
+    """
+    return np.array([float(i) for i in re.findall(r'\-?\d+\.?\d*', str_in)], dtype=dtype_out)
 
 
 #########################################################
