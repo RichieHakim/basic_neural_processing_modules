@@ -265,3 +265,85 @@ def shift(X, lag, fill_val):
     return X_shift
 def shift_along_axis(X, lag, fill_val, axis):
     return np.apply_along_axis(shift, axis, X, lag, fill_val)
+
+
+def mspline_grid(order, num_basis_funcs, nt):
+    """
+    Generate a set of M-spline basis functions with evenly
+    spaced knots.
+
+    Ramsay, J. O. (1988). Monotone regression splines in action.
+    Statistical science, 3(4), 425-441.
+
+    Stolen with love from Alex Williams: https://gist.github.com/ahwillia/511097a0968bf05a2579db0eab353393
+
+    Parameters
+    ----------
+    order : int
+        Order parameter of the splines.
+    num_basis_funcs : int
+        Number of desired basis functions. Note that we
+        require num_basis_funcs >= order.
+    nt : int
+        Number of points to evaluate the basis functions.
+    Returns
+    -------
+    spine_basis : array
+        Matrix with shape (num_basis_funcs, nt), holding the
+        desired spline basis functions.
+    """
+
+    # Determine number of interior knots.
+    num_interior_knots = num_basis_funcs - order
+    
+    if num_interior_knots < 0:
+        raise ValueError(
+            "Spline `order` parameter cannot be larger "
+            "than `num_basis_funcs` parameter."
+        )
+
+    # Fine grid of numerically evaluated points.
+    x = np.linspace(0, 1 - 1e-6, nt)
+
+    # Set of spline knots. We need to add extra knots to
+    # the end to handle boundary conditions for higher-order
+    # spline bases. See Ramsay (1988) cited above.
+    #
+    # Note - this is poorly explained on most corners of the
+    # internet that I've found.
+    knots = np.concatenate((
+        np.zeros(order - 1),
+        np.linspace(0, 1, num_interior_knots + 2),
+        np.ones(order - 1),
+    ))
+
+    # Evaluate and stack each basis function.
+    return np.row_stack(
+        [mspline(x, order, i, knots) for i in range(num_basis_funcs)]
+    )
+def mspline(x, k, i, T):
+    """
+    Compute M-spline basis function `i` at points `x` for a spline
+    basis of order-`k` with knots `T`.
+    Parameters
+    ----------
+    x : array
+        Vector holding points to evaluate the spline.
+    """
+
+    # Boundary conditions.
+    if (T[i + k] - T[i]) < 1e-6:
+        return np.zeros_like(x)
+
+    # Special base case of first-order spline basis.
+    elif k == 1:
+        v = np.zeros_like(x)
+        v[(x >= T[i]) & (x < T[i + 1])] = 1 / (T[i + 1] - T[i])
+        return v
+
+    # General case, defined recursively
+    else:
+        return k * (
+            (x - T[i]) * mspline(x, k - 1, i, T)
+            + (T[i + k] - x) * mspline(x, k - 1, i + 1, T)
+        ) / ((k-1) * (T[i + k] - T[i]))
