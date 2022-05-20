@@ -144,6 +144,18 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
             Use same value as in 'make_dFoF' above
         Fs:
             Framerate of imaging
+        plot_pref:
+            Whether to plot the traces and metrics
+        thresh:
+            Dictionary of thresholds to use.
+            If None, then use default values:
+                'var_ratio': 1,
+                'EV_F_by_Fneu': 0.6,
+                'base_FneuSub': 0,
+                'base_F': 50,
+                'noise_levels': 12,
+                'max_dFoF': 50,
+                'baseline_var': 1,
     
     Returns:
         tqm: dict with the following fields:
