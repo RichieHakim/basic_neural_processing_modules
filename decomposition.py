@@ -19,7 +19,46 @@ from tqdm.notebook import tqdm
 ###########################
 
 def simple_pca(X , n_components=None , mean_sub=True, zscore=False, plot_pref=False , n_PCs_toPlot=2):
+    """
+    Performs PCA on X.
+    RH 2021
 
+    Args:
+        X (np.ndarray):
+            Data to be decomposed.
+            2-D array. Columns are features, rows are samples.
+        n_components (int):
+            Number of components to keep. If None, then
+             n_components = X.shape[1]
+        mean_sub (bool):
+            Whether or not to mean subtract ('center') the
+             columns.
+        zscore (bool):
+            Whether or not to z-score the columns. This is
+             equivalent to doing PCA on the correlation-matrix.
+        plot_pref (bool):
+            Whether or not to plot the first n_PCs_toPlot of the
+             PCA.
+        n_PCs_toPlot (int):
+            Number of PCs to plot.
+
+    Returns:
+        components (np.ndarray):
+            The components of the decomposition.
+            2-D array.
+            Each column is a component vector. Each row is a
+             feature weight.
+        scores (np.ndarray):
+            The scores of the decomposition.
+            2-D array.
+            Each column is a score vector. Each row is a
+             sample weight.
+        EVR (np.ndarray):
+            The explained variance ratio of each component.
+            1-D array.
+            Each element is the explained variance ratio of
+             the corresponding component.
+    """
     if mean_sub and not zscore:
         X = X - np.mean(X, axis=0)
     if zscore:
@@ -27,8 +66,6 @@ def simple_pca(X , n_components=None , mean_sub=True, zscore=False, plot_pref=Fa
         X = X - np.mean(X, axis=0)
         stds = np.std(X, axis=0)
         X = X / stds[None,:]
-    else:
-        stds = None
     
     if n_components is None:
         n_components = X.shape[1]
@@ -58,7 +95,7 @@ def simple_pca(X , n_components=None , mean_sub=True, zscore=False, plot_pref=Fa
         axs[3].set_xlabel('feature num')
         axs[3].set_ylabel('score')
     
-    return components , scores , decomp.explained_variance_ratio_ , stds
+    return components , scores , decomp.explained_variance_ratio_
 
 
 def torch_pca(  X, 
