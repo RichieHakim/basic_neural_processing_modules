@@ -18,6 +18,8 @@ import time
 
 from numba import jit, njit, prange
 
+from pathlib import Path
+
 from .timeSeries import percentile_numba, var_numba, rolling_percentile_pd, rolling_percentile_rq_multicore, min_numba, max_numba
 
 
@@ -80,6 +82,24 @@ def make_dFoF(
         print(f'Calculated dFoF. Total elapsed time: {round(time.time() - tic,2)} seconds')
     
     return dFoF , dF , F_neuSub , F_baseline
+
+
+def import_s2p(dir_s2p):
+    """
+    Imports suite2p data
+    """
+    dir_S2p = Path(dir_s2p).resolve()
+
+    F = np.load(dir_s2p / 'F.npy')
+    Fneu = np.load(dir_s2p / 'Fneu.npy')
+    iscell = np.load(dir_s2p / 'iscell.npy')
+    ops = np.load(dir_s2p / 'ops.npy', allow_pickle=True)[()]
+    spks = np.load(dir_s2p / 'spks.npy')
+    stat = np.load(dir_s2p / 'stat.npy', allow_pickle=True)
+
+    num_frames_S2p = F.shape[1]
+
+    return F , Fneu , iscell , ops , spks , stat , num_frames_S2p
 
 
 @njit(parallel=True)
