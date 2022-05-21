@@ -27,7 +27,9 @@ def make_dFoF(
     neuropil_fraction=0.7, 
     percentile_baseline=30, 
     multicore_pref=False, 
-    verbose=True):
+    verbose=True,
+    dtype=np.float32,
+    ):
     """
     calculates the dF/F and other signals. Designed for Suite2p data.
     If Fneu is left empty or =None, then no neuropil subtraction done.
@@ -68,6 +70,12 @@ def make_dFoF(
         F_baseline = np.percentile(F_neuSub , percentile_baseline , axis=1)
     dF = F_neuSub - F_baseline[:,None]
     dFoF = dF / F_baseline[:,None]
+
+    dFoF       = dFoF.astype(dtype)
+    dF         = dF.astype(dtype)
+    F_neuSub   = F_neuSub.astype(dtype)
+    F_baseline = F_baseline.astype(dtype)
+
     if verbose:
         print(f'Calculated dFoF. Total elapsed time: {round(time.time() - tic,2)} seconds')
     
@@ -109,9 +117,14 @@ def calculate_noise_levels(dFoF, frame_rate):
     noise_levels = noise_levels / np.sqrt(frame_rate) * 100    # scale noise levels to percent
     return noise_levels
 
-def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
-                        percentile_baseline=30, Fs=30,
-                        plot_pref=True, thresh=None):
+def trace_quality_metrics(
+    F, Fneu, dFoF, dF, F_neuSub, F_baseline,
+    percentile_baseline=30,
+    Fs=30,
+    plot_pref=True, 
+    thresh=None,
+    clip_range=(-1,1)
+    ):
     '''
     Some simple quality metrics for calcium imaging traces. Designed to
     work with Suite2p's outputs (F, Fneu) and the make_dFoF function
@@ -156,6 +169,9 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
                 'noise_levels': 12,
                 'max_dFoF': 50,
                 'baseline_var': 1,
+        clip_range (tuple of floats):
+            Range of values to clip dFoF to for calculating
+             noise_levels and baseline_var.
     
     Returns:
         tqm: dict with the following fields:
@@ -183,18 +199,22 @@ def trace_quality_metrics(F, Fneu, dFoF, dF, F_neuSub, F_baseline,
 
     base_FneuSub = percentile_numba(F_neuSub, percentile_baseline)
     base_F = percentile_numba(F, percentile_baseline)
+
     
-    noise_levels = calculate_noise_levels(dFoF, Fs)
+    dFoF_clip = np.clip(dFoF, clip_range[0], clip_range[1])
+
+    noise_levels = calculate_noise_levels(dFoF_clip, Fs)
     # noise_levels = np.median(np.abs(np.diff(dFoF, axis=1)), axis=1) # Use this line of code if numba is acting up
     noise_levels[np.abs(noise_levels) > 1e3] = np.nan
 
-    max_dFoF = np.max(dFoF, axis=1)
 
     # currently hardcoding the rolling baseline window to be 10 minutes
     # rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
-    rolling_baseline = rolling_percentile_rq_multicore(dFoF, ptile=percentile_baseline, window=int(Fs*60*10 + 1))
+    rolling_baseline = rolling_percentile_rq_multicore(dFoF_clip, ptile=percentile_baseline, window=int(Fs*60*10 + 1))
     baseline_var = var_numba(rolling_baseline)
     # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
+
+    max_dFoF = np.max(dFoF, axis=1)
 
     metrics = {
         'var_ratio': var_ratio,
