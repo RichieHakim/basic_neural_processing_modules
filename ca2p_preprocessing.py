@@ -103,7 +103,7 @@ def import_s2p(dir_s2p):
 
 
 @njit(parallel=True)
-def calculate_noise_levels(dFoF, frame_rate):
+def peter_noise_levels(dFoF, frame_rate):
 
     """"
     adapted from:  Peter Rupprecht (github: CASCADE by PTRRupprecht)
@@ -131,11 +131,34 @@ def calculate_noise_levels(dFoF, frame_rate):
         return Y
     noise_levels = np.zeros(dFoF.shape[0])
     for ii in prange(dFoF.shape[0]):
-        noise_levels[ii] = np.median(abs_numba(np.diff(dFoF[ii,:])))
+        noise_levels[ii] = np.median(abs_numba(np.diff(dFoF[ii,:],1)))
 
     # noise_levels = np.median(np.abs(np.diff(dFoF, axis=1)), axis=1)
     noise_levels = noise_levels / np.sqrt(frame_rate) * 100    # scale noise levels to percent
     return noise_levels
+
+def snr_autoregressive(x, axis=1, center=True, standardize=True):
+    """
+    Calculate the SNR of an autoregressive signal.
+    Relies on the assumption that the magnitude of the signal
+     can be estimated as the correlation of a signal and
+     its autoregressive component (corr(sig, roll(sig, 1))).
+    
+    """
+    if center:
+        x_norm = x - np.mean(x, axis=axis, keepdims=True)
+    else:
+        x_norm = x
+    if standardize:
+        x_norm = x_norm / np.std(x, axis=axis, keepdims=True)
+    else:
+        x_norm = x_norm
+    var = ((x_norm**2).sum(axis) / x_norm.shape[axis])  ## total variance of each trace
+    sig = ((x_norm * np.roll(x_norm, 1, axis=axis)).sum(axis) / x_norm.shape[axis])  ## signal variance of each trace based on assumption that trace = signal + noise, signal is autoregressive, noise is not autoregressive
+    
+    noise = var - sig
+    
+    return sig / noise, sig, noise
 
 def trace_quality_metrics(
     F, Fneu, dFoF, dF, F_neuSub, F_baseline,
@@ -186,12 +209,12 @@ def trace_quality_metrics(
                 'EV_F_by_Fneu': 0.6,
                 'base_FneuSub': 0,
                 'base_F': 50,
-                'noise_levels': 12,
+                'peter_noise_levels': 12,
                 'max_dFoF': 50,
                 'baseline_var': 1,
         clip_range (tuple of floats):
             Range of values to clip dFoF to for calculating
-             noise_levels and baseline_var.
+             peter_noise_levels and baseline_var.
     
     Returns:
         tqm: dict with the following fields:
@@ -223,9 +246,11 @@ def trace_quality_metrics(
     
     dFoF_clip = np.clip(dFoF, clip_range[0], clip_range[1])
 
-    noise_levels = calculate_noise_levels(dFoF_clip, Fs)
-    # noise_levels = np.median(np.abs(np.diff(dFoF, axis=1)), axis=1) # Use this line of code if numba is acting up
-    noise_levels[np.abs(noise_levels) > 1e3] = np.nan
+    peter_noise = peter_noise_levels(dFoF_clip, Fs)
+    # peter_noise = np.median(np.abs(np.diff(dFoF, axis=1)), axis=1) # Use this line of code if numba is acting up
+    peter_noise[np.abs(peter_noise) > 1e3] = np.nan
+
+    rich_nsr = 1 / snr_autoregressive(dFoF_clip, center=True, standardize=False)[0]
 
 
     # currently hardcoding the rolling baseline window to be 10 minutes
@@ -241,7 +266,8 @@ def trace_quality_metrics(
         'EV_F_by_Fneu': EV_F_by_Fneu,
         'base_FneuSub': base_FneuSub,
         'base_F': base_F,
-        'noise_levels': noise_levels,
+        'peter_noise_levels': peter_noise,
+        'rich_nsr': rich_nsr,
         'max_dFoF': max_dFoF,
         'baseline_var': baseline_var,
     }
@@ -253,7 +279,8 @@ def trace_quality_metrics(
                     'EV_F_by_Fneu': 0.6,
                     'base_FneuSub': 0,
                     'base_F': 50,
-                    'noise_levels': 12,
+                    'peter_noise_levels': 12,
+                    'rich_nsr': 2,
                     'max_dFoF': 50,
                     'baseline_var': 1,
                 }
@@ -262,7 +289,8 @@ def trace_quality_metrics(
     # 'EV_F_by_Fneu': 1,
     # 'base_FneuSub': -1000,
     # 'base_F': -1000,
-    # 'noise_levels': 500,
+    # 'peter_noise_levels': 500,
+    # 'rich_nsr': 1,
     # 'max_dFoF': 3000,
     # 'baseline_var': 1,
     # }
@@ -272,7 +300,8 @@ def trace_quality_metrics(
     'EV_F_by_Fneu': 1,
     'base_FneuSub': -1,
     'base_F': -1,
-    'noise_levels': 1,
+    'peter_noise_levels': 1,
+    'rich_nsr': 1,
     'max_dFoF': 1,
     'baseline_var': 1,
     }
@@ -302,7 +331,7 @@ def trace_quality_metrics(
     if plot_pref:
         fig, axs = plt.subplots(len(tqm['metrics']), figsize=(7,10))
         for ii, val in enumerate(tqm['metrics']):
-            if val=='noise_levels':
+            if val=='peter_noise_levels':
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
                 axs[ii].set_xlim([0,20])
