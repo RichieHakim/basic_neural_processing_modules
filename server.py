@@ -4,8 +4,6 @@ import json
 import copy
 import time
 
-import paramiko
-
 from . import container_helpers
 
 def batch_run(paths_scripts, 
@@ -186,7 +184,8 @@ class ssh_interface():
             verbose (bool):
                 Whether or not to print progress
         """
-        
+        import paramiko
+
         self.nbytes = nbytes_toReceive
         self.recv_timeout = recv_timeout
         self.verbose=verbose
