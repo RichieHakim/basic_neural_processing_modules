@@ -2,6 +2,9 @@ from pathlib import Path
 import os
 import json
 import copy
+import time
+
+import paramiko
 
 from . import container_helpers
 
@@ -160,8 +163,6 @@ def batch_run(paths_scripts,
 
 
 
-import paramiko
-import time
 class ssh_interface():
     """
     Interface to ssh to a remote server.

@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 
 # Third party
-import pkg_resources
+# import pkg_resources
 
 def mkdir(directory, parents=True, exist_ok=True):
     '''
@@ -123,21 +123,21 @@ def get_all_files(root: str, followlinks: bool = False) -> List:
     return filepaths
 
 
-def get_from_package(package_name: str, path: str) -> str:
-    """
-    Get the absolute path to a file in a package.
-    Parameters
-    ----------
-    package_name : str
-        e.g. 'mpu'
-    path : str
-        Path within a package
-    Returns
-    -------
-    filepath : str
-    """
-    filepath = pkg_resources.resource_filename(package_name, path)
-    return os.path.abspath(filepath)
+# def get_from_package(package_name: str, path: str) -> str:
+#     """
+#     Get the absolute path to a file in a package.
+#     Parameters
+#     ----------
+#     package_name : str
+#         e.g. 'mpu'
+#     path : str
+#         Path within a package
+#     Returns
+#     -------
+#     filepath : str
+#     """
+#     filepath = pkg_resources.resource_filename(package_name, path)
+#     return os.path.abspath(filepath)
 
 
 def get_nums_from_string(string_with_nums):

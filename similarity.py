@@ -24,7 +24,7 @@ from opt_einsum import contract
 from numba import njit, prange, jit
 import torch
 
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 from . import indexing
 
