@@ -255,8 +255,11 @@ def trace_quality_metrics(
 
     # currently hardcoding the rolling baseline window to be 10 minutes
     # rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
-    rolling_baseline = rolling_percentile_rq_multicore(dFoF_clip, ptile=percentile_baseline, window=int(Fs*60*10 + 1))
-    baseline_var = var_numba(rolling_baseline)
+    dFoF_clipNaN = copy.copy(dFoF)
+    dFoF_clipNaN[dFoF_clipNaN <= clip_range[0]] = np.nan
+    dFoF_clipNaN[dFoF_clipNaN >= clip_range[1]] = np.nan
+    rolling_baseline = rolling_percentile_rq_multicore(dFoF_clipNaN, ptile=percentile_baseline, window=int(Fs*60*20 + 1))
+    baseline_var = var_numba(rolling_baseline[:,int(Fs*60*10):-int(Fs*60*10)])
     # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
 
     max_dFoF = np.max(dFoF, axis=1)
@@ -335,11 +338,11 @@ def trace_quality_metrics(
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
                 axs[ii].set_xlim([0,20])
-            elif val=='baseline_var':
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
-                axs[ii].set_xlim(right=50)
-                # axs[ii].set_xscale('log')
+            # elif val=='baseline_var':
+            #     axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
+            #     axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
+            #     axs[ii].set_xlim(right=50)
+            #     # axs[ii].set_xscale('log')
             else:
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')

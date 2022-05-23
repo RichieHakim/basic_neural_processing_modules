@@ -1,6 +1,9 @@
 import pickle
+from pathlib import Path
 
-def simple_save(obj, filename):
+def simple_save(obj, filename, mkdir=False):
+    if mkdir:
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
     with open(filename, 'wb') as f:
         pickle.dump(obj, f)
 
