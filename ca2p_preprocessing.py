@@ -20,7 +20,7 @@ from numba import jit, njit, prange
 
 from pathlib import Path
 
-from .timeSeries import percentile_numba, var_numba, rolling_percentile_pd, rolling_percentile_rq_multicore, min_numba, max_numba
+# from .timeSeries import percentile_numba, var_numba, rolling_percentile_pd, rolling_percentile_rq_multicore, min_numba, max_numba
 
 
 def make_dFoF(
@@ -59,6 +59,8 @@ def make_dFoF(
         F_baseline (np.ndarray): 
             1-D array of size F.shape[0]. Baseline value for each ROI
     """
+    from .timeSeries import percentile_numba
+
     tic = time.time()
 
     if Fneu is None:
@@ -231,6 +233,8 @@ def trace_quality_metrics(
         good_ROIs:
             ROIs that did not meet the exclusion creteria
     '''
+    from .timeSeries import percentile_numba, var_numba, rolling_percentile_rq_multicore
+
     var_F = var_numba(F)
     var_Fneu = var_numba(Fneu)
     var_FneuSub = var_numba(F_neuSub)
@@ -374,7 +378,7 @@ def get_chan1_offset(path_to_tif):
         if val[:25] == 'SI.hScan2D.channelOffsets':
             chan1_offset = int(val[29:33])
 
-    print(f'{chan1_offset=}')
+    print(f'chan1_offset= {chan1_offset}')
     return chan1_offset
 def get_metadata(path_to_tif):
     from ScanImageTiffReader import ScanImageTiffReader
@@ -395,9 +399,6 @@ import copy
 import numpy as np
 import matplotlib.pyplot as plt
 
-import torch
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
 
 ###############################################################################
 ############################## IMPORT STAT FILES ##############################
