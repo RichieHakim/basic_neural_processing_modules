@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+import copy
+
 # import cuml
 # import cuml.decomposition
 # import cupy
@@ -98,7 +100,7 @@ def simple_pca(X , n_components=None , mean_sub=True, zscore=False, plot_pref=Fa
     return components , scores , decomp.explained_variance_ratio_
 
 
-def torch_pca(  X, 
+def torch_pca(  X_in, 
                 device='cpu', 
                 mean_sub=True, 
                 zscore=False, 
@@ -111,7 +113,7 @@ def torch_pca(  X,
     RH 2021
 
     Args:
-        X (torch.Tensor or np.ndarray):
+        X_in (torch.Tensor or np.ndarray):
             Data to be decomposed.
             2-D array. Columns are features, rows are samples.
             PCA will be performed column-wise.
@@ -157,10 +159,12 @@ def torch_pca(  X,
              the corresponding component.
     """
     
-    if isinstance(X, torch.Tensor) == False:
-        X = torch.from_numpy(X).to(device)
+    if isinstance(X_in, torch.Tensor) == False:
+        X = torch.from_numpy(X_in).to(device)
     elif X.device != device:
-            X = X.to(device)
+            X = X_in.to(device)
+    else:
+        X = copy.copy(X_in)
             
     if mean_sub and not zscore:
         X = X - torch.mean(X, dim=0)
