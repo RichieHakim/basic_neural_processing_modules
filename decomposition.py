@@ -161,7 +161,7 @@ def torch_pca(  X_in,
     
     if isinstance(X_in, torch.Tensor) == False:
         X = torch.from_numpy(X_in).to(device)
-    elif X.device != device:
+    elif X_in.device != device:
             X = X_in.to(device)
     else:
         X = copy.copy(X_in)
