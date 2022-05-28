@@ -160,6 +160,16 @@ def batch_run(paths_scripts,
 
 
 
+###############################
+### MASTER CONTROLLER STUFF ###
+###############################
+
+import paramiko
+import time
+from pathlib import Path
+import os
+import stat
+import re
 
 class ssh_interface():
     """
@@ -184,8 +194,7 @@ class ssh_interface():
             verbose (bool):
                 Whether or not to print progress
         """
-        import paramiko
-
+        
         self.nbytes = nbytes_toReceive
         self.recv_timeout = recv_timeout
         self.verbose=verbose
@@ -281,7 +290,8 @@ class ssh_interface():
         """
         self.send(cmd=cmd, append_enter=append_enter)
         time.sleep(post_send_wait_t)
-        out = self.receive(timeout=timeout, verbose=verbose)    
+        out = self.receive(timeout=timeout, verbose=verbose)   
+        return out 
     
     def expect(
         self,
@@ -289,6 +299,7 @@ class ssh_interface():
         partial_match=True,
         recv_timeout=0.3,
         total_timeout=60,
+        sleep_time = 0.1,
         verbose=None,
     ):
         """
@@ -303,6 +314,9 @@ class ssh_interface():
                  check iteration.
             total_timeout (float):
                 Total time to wait for the string.
+            sleep_time (float):
+                Time to sleep between checks.
+                Allows for keyboard interrupts.
             verbose (bool):
                 Whether or not to print progress.
                 0/False: no printing
@@ -336,6 +350,8 @@ class ssh_interface():
                 if str_success == out:
                     success = True
             
+            time.sleep(sleep_time)
+
             if time.time() - t_start > total_timeout:
                 break
         
@@ -345,7 +361,7 @@ class ssh_interface():
             else:
                 print(f'expect failed')
                 
-        return success
+        return out, success
         
     def close(self):
         self.ssh.close()
@@ -361,6 +377,7 @@ class ssh_interface():
         password='',
         passcode_method=1,
         verbose=1,
+        skip_passcode=False,
     ):
         """
         Connect to the O2 cluster.
@@ -383,6 +400,8 @@ class ssh_interface():
                 1/True: will print recv outputs.
                 2: will print expect progress.
                 None: will default to self.verbose (1 or 2).
+            skip_passcode (bool):
+                Whether or not to skip the passcode step.
         """
         self.connect(
             hostname=hostname,
@@ -391,15 +410,16 @@ class ssh_interface():
             port=22
         )
         
-        self.expect(
-            str_success=f'Passcode or option (1-3)',
-            partial_match=True,
-            recv_timeout=0.3,
-            total_timeout=60,
-            verbose=verbose,
-        )
-        
-        self.send(cmd=str(passcode_method))
+        if skip_passcode==False:
+            self.expect(
+                str_success=f'Passcode or option (1-3)',
+                partial_match=True,
+                recv_timeout=0.3,
+                total_timeout=60,
+                verbose=verbose,
+            )
+            
+            self.send(cmd=str(passcode_method))
         
         self.expect(
             str_success=f'[{username}@',
@@ -408,4 +428,204 @@ class ssh_interface():
             total_timeout=60,
             verbose=verbose,
         )
+        
+
+class sftp_interface():
+    """
+    Interface to sftp with a remote server.
+    Mostly a wrapper for paramiko.SFTPClient.
+    Tested on O2 cluster at Harvard.
+    RH 2022
+    """
+    def __init__(
+        self,
+        hostname="transfer.rc.hms.harvard.edu",
+        port=22,
+    ):
+        """
+        Args:
+            hostname (str):
+                Hostname of the remote server.
+            port (int):
+                Port of the remote server.
+        """
+        self.transport = paramiko.Transport((hostname, port))  ## open a transport object
+        
+    def connect(
+        self,
+        username='rh183',
+        password=''
+    ):
+        """
+        Connect to the remote server.
+        Args:
+            username (str):
+                Username to log in with.
+            password (str):
+                Password to log in with.
+                Is not stored.
+        """
+        self.transport.connect(None, username, password)  ## authorization
+        self.sftp = paramiko.SFTPClient.from_transport(self.transport)  ## open sftp
+    
+    def put_dir(self, source, target, verbose=True):
+        '''
+        Uploads the contents of the source directory to the target path.
+        All subdirectories in source are created under target recusively.
+        Args:
+            source (str):
+                Path to the source directory (local).
+            target (str):
+                Path to the target directory (remote).
+        '''
+        source = Path(source).resolve()
+        target = Path(target).resolve()
+        
+        
+        for item in os.listdir(source):
+            if os.path.isfile(source / item):
+                if verbose:
+                    print(f'uploading {source / item}   to   {target / item}')
+                self.sftp.put(str(source / item) , str(target / item))
+            else:
+                self.mkdir_safe(str(target / item) , ignore_existing=True)
+                self.put_dir(source / item , target / item)
+
+    def get_dir(self, source, target, verbose=True):
+        '''
+        Downloads the contents of the source directory to the target path.
+        All subdirectories in source are created under target recusively.
+        Args:
+            source (str):
+                Path to the source directory (remote).
+            target (str):
+                Path to the target directory (local).
+        '''
+        source = Path(source).resolve()
+        target = Path(target).resolve()
+        
+        for item in self.sftp.listdir(str(source)):
+            if self.isdir_remote(str(source / item)):
+                (target / item).mkdir(parents=True, exist_ok=True)
+                self.get_dir(source / item , target / item)
+            else:
+                if verbose:
+                    print(f'downloading {source / item}   to   {target / item}')
+                self.sftp.get(str(source / item) , str(target / item))
+
+        
+    def mkdir_safe(self, path_remote, mode=511, ignore_existing=False):
+        '''
+        Augments mkdir by adding an option to not fail if the folder exists.
+        Will fail if the outer directory does not exist.
+        Args:
+            path_remote (str):
+                Path to the remote directory.
+            mode (int):
+                Mode to set the directory to.   
+            ignore_existing (bool):
+                Whether or not to ignore existing folders.
+                If True, will not fail if the folder already exists.
+                If False, will fail if the folder already exists.
+        '''
+        try:
+            self.sftp.mkdir(path_remote, mode)
+        except IOError:
+            if ignore_existing:
+                pass
+            else:
+                raise
+    
+    def mkdir_p(self, dir_remote):
+        """
+        Change to this directory, recursively making new folders if needed.
+        Returns True if any folders were created.
+        Args:
+            dir_remote (str):
+                Path to the remote directory.
+        """
+        if dir_remote == '/':
+            # absolute path so change directory to root
+            self.sftp.chdir('/')
+            return
+        if dir_remote == '':
+            # top-level relative directory must exist
+            return
+        try:
+            self.sftp.chdir(dir_remote) # sub-directory exists
+        except IOError:
+            dirname, basename = os.path.split(dir_remote.rstrip('/'))
+            self.mkdir_p(dirname) # make parent directories
+            self.sftp.mkdir(basename) # sub-directory missing, so created it
+            self.sftp.chdir(basename)
+            return True
+    
+    def isdir_remote(self, path):
+        """
+        Checks if a remote path is a directory.
+        Args:
+            path (str):
+                Path to the remote directory.
+        """
+        try:
+            return stat.S_ISDIR(self.sftp.stat(path).st_mode)
+        except IOError:
+            #Path does not exist, so by definition not a directory
+            return False
+
+    def search_recursive(
+        self, 
+        path='.', 
+        search_pattern_re='', 
+        verbose=True
+    ):
+        """
+        Searches a remote directory recursively for files matching a pattern.
+        Args:
+            sftp (paramiko.SFTPClient):
+                SFTPClient object.
+            path (str):
+                Current working directory.
+            search_pattern_re (str):
+                Regular expression to search for.
+            verbose (bool):
+                Whether or not to print the paths of the files found.
+
+        Returns:
+            list:
+                List of paths to the files found.
+        """
+        search_results = []
+
+        def _recursive_search(search_results, sftp, cwd='.', search_pattern_re='', verbose=True):
+            contents = {name: stat.S_ISDIR(attr.st_mode)  for name, attr in zip(sftp.listdir(cwd), sftp.listdir_attr(cwd))}
+            for name, isdir  in contents.items():
+                if isdir:
+                    search_results = _recursive_search(
+                        search_results=search_results,
+                        sftp=sftp, 
+                        cwd=str(Path(cwd) / name), 
+                        search_pattern_re=search_pattern_re, 
+                        verbose=verbose
+                    )
+                elif re.search(search_pattern_re, name):
+                    path_found = str(Path(cwd) / name)
+                    search_results.append(path_found)
+                    if verbose:
+                        print(path_found)
+            return search_results
+
+        return _recursive_search(search_results, self.sftp, cwd=path, search_pattern_re=search_pattern_re, verbose=verbose)
+
+    def close(self):
+        self.sftp.close()
+        self.transport.close()
+
+
+def pw_encode(pw):
+    import base64
+    return base64.b64encode(pw.encode("utf-8"))
+def pw_decode(pw):
+    import base64
+    return base64.b64decode(pw).decode("utf-8")
         
