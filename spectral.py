@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from . import math_functions, timeSeries
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 
 def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
@@ -276,7 +276,7 @@ def torch_hilbert(x, dim=0):
         m[0] = m[n//2] = 1
         m[1:n//2] = 2
     else:
-        m[0] = 1
+        m[0] = 1 ## then odd
         m[1:(n+1)//2] = 2
 
     if x.ndim > 1:
