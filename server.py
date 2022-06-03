@@ -201,13 +201,17 @@ class ssh_interface():
         
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        self.ssh = None
     
     def connect(
         self,
         hostname='transfer.rc.hms.harvard.edu',
         username='rh183',
         password='',
-        port=22
+        port=22,
+        key_filename=None,
+        look_for_keys=True,
     ):
         """
         Connect to the remote server.
@@ -223,7 +227,14 @@ class ssh_interface():
                 Port to connect to.
                 sftp is always port 22.
         """
-        self.client.connect(hostname=hostname, username=username, password=password, port=port, look_for_keys=False, allow_agent=False)
+        self.client.connect(
+            hostname=hostname,
+            username=username,
+            password=password,
+            port=port, 
+            key_filename=key_filename,
+            look_for_keys=look_for_keys, 
+        )
         self.ssh = self.client.invoke_shell()
 
     def send(self, cmd='ls', append_enter=True):
@@ -241,7 +252,7 @@ class ssh_interface():
             cmd += '\n'
         self.ssh.send(cmd)
     
-    def receive(self, timeout=None, verbose=None):
+    def receive(self, timeout=None, verbose=True, throw_error=False):
         """
         Receive data from the remote server.
         Args:
@@ -255,11 +266,17 @@ class ssh_interface():
             timeout = self.recv_timeout
         self.ssh.settimeout(timeout)
         
-        out = self.ssh.recv(self.nbytes).decode('utf-8')
-        if verbose is None:
-            verbose=self.verbose
-        if verbose:
-            print(out)
+        try:
+            out = self.ssh.recv(self.nbytes, ).decode('utf-8');
+            if verbose:
+                print(out)
+        except:
+            if throw_error:
+                raise
+            else:
+                if verbose:
+                    print('Timeout')
+                out = None
         return out
     
     def send_receive(
@@ -337,13 +354,14 @@ class ssh_interface():
             if verbose==2:
                 print(f'=== expecting, t={time.time() - t_start} ===')
             
-            try:
-                out = self.receive(timeout=recv_timeout, verbose=verbose>0)
-            except:
+            out = self.receive(timeout=recv_timeout, verbose=False)
+            if out is None:
                 if verbose==2:
                     print("expect: nothing received")
+            elif verbose > 0:
+                print(out)
                     
-            if partial_match:
+            if partial_match and (out is not None):
                 if str_success in out:
                     success = True
             else:
@@ -362,6 +380,13 @@ class ssh_interface():
                 print(f'expect failed')
                 
         return out, success
+
+    def initialize_sftp(self):
+        """
+        Initialize the SFTP client.
+        """
+        self.sftp = self.client.open_sftp()
+        return self.sftp
         
     def close(self):
         self.ssh.close()
@@ -375,9 +400,11 @@ class ssh_interface():
         hostname='transfer.rc.hms.harvard.edu',
         username='rh183',
         password='',
+        skip_passcode=False,
+        key_filename=None,
+        look_for_keys=False,
         passcode_method=1,
         verbose=1,
-        skip_passcode=False,
     ):
         """
         Connect to the O2 cluster.
@@ -407,7 +434,9 @@ class ssh_interface():
             hostname=hostname,
             username=username,
             password=password,
-            port=22
+            port=22,
+            key_filename=key_filename,
+            look_for_keys=look_for_keys,
         )
         
         if skip_passcode==False:
@@ -439,17 +468,25 @@ class sftp_interface():
     """
     def __init__(
         self,
+        ssh_client=None,
         hostname="transfer.rc.hms.harvard.edu",
         port=22,
     ):
         """
         Args:
+            ssh_obj (paramiko.SSHClient):
+                SSHClient object to use.
+                Can be taken from ssh_interface with
+                 ssh_interface.client
             hostname (str):
                 Hostname of the remote server.
             port (int):
                 Port of the remote server.
         """
-        self.transport = paramiko.Transport((hostname, port))  ## open a transport object
+        if ssh_client is None:
+            self.transport = paramiko.Transport((hostname, port))  ## open a transport object
+        else:
+            self.sftp = ssh_client.open_sftp()
         
     def connect(
         self,
@@ -624,8 +661,14 @@ class sftp_interface():
 
 def pw_encode(pw):
     import base64
-    return base64.b64encode(pw.encode("utf-8"))
+    if pw is not None:
+        return base64.b64encode(pw.encode("utf-8"))
+    else:
+        return None
 def pw_decode(pw):
     import base64
-    return base64.b64decode(pw).decode("utf-8")
+    if pw is not None:
+        return base64.b64decode(pw).decode("utf-8")
+    else:
+        return None
         

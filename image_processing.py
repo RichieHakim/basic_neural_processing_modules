@@ -729,7 +729,8 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
         flag_convert_to_gray = False
 
     for i_frame, frame in enumerate(tqdm(movie)):
-        frame = frame.asnumpy()
+        if array is None:
+            frame = frame.asnumpy()
 
         if array is not None:
             if flag_convert_to_gray:
