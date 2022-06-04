@@ -5,7 +5,7 @@ from sendgrid.helpers.mail import To, From, Content, Mail
 class Sender():
     def __init__(
         self,
-        api_key='***REMOVED***',
+        api_key=None,
         ):
         """
         Initialize the Sender object.
