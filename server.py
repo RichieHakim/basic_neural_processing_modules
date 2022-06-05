@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import json
 import copy
+from this import d
 import time
 
 from . import container_helpers
@@ -653,6 +654,69 @@ class sftp_interface():
             return search_results
 
         return _recursive_search(search_results, self.sftp, cwd=path, search_pattern_re=search_pattern_re, verbose=verbose)
+        
+    def list_fileSizes_recursive(self, directory='.'):
+        """
+        Lists the sizes of all files in a remote directory recursively.
+        Args:
+            sftp (paramiko.SFTPClient):
+                SFTPClient object.
+            directory (str):
+                directory to search within.
+
+        Returns:
+            dict_of_sizes:
+                Dictionary of paths and sizes of files
+                 {'path_of_file', size) of all files found.
+        """
+        sizes = []
+
+        def _recursive_list_sizes(sftp, cwd='.', sizes=[]):
+            contents = {name: stat.S_ISDIR(attr.st_mode)  for name, attr in zip(sftp.listdir(cwd), sftp.listdir_attr(cwd))}
+            for name, isdir  in contents.items():
+                if isdir:
+                    sizes = _recursive_list_sizes(sftp, str(Path(cwd) / name), sizes=sizes)
+                else:
+                    size = sftp.stat(str(Path(cwd) / name)).st_size
+                    sizes.append((str(Path(cwd) / name), size))
+            return sizes
+
+        return dict(_recursive_list_sizes(self.sftp, cwd=directory, sizes=sizes))
+
+
+    def hierarchical_folderSizes(self, directory='.'):
+        """
+        Makes a hierarchical list of lists containing the 
+         directory tree structure and sizes of each folder.
+        Args:
+            sftp (paramiko.SFTPClient):
+                SFTPClient object.
+            directory (str):
+                Current working directory.
+
+        Returns:
+            h_dict:
+                Hierarchical dict of dicts with fields
+                 {name: children, '_size': size} where children contains
+                 either dictionaries for children.
+        """
+
+        def _recursive_sum_sizes(sftp, cwd='.', size=0):
+            contents = {name: {} for name in sftp.listdir(cwd)}
+            isdir = [stat.S_ISDIR(attr.st_mode) for attr in sftp.listdir_attr(cwd)]
+            for (name,v), isd in zip(list(contents.items()), isdir):
+                if isd==False:  ## file
+                    contents[name]['_size'] = sftp.stat(str(Path(cwd) / name)).st_size
+                else:                     ## directory
+                    contents[name], contents[name]['_size'] = _recursive_sum_sizes(sftp, cwd=str(Path(cwd) / name), size=0)
+                size += contents[name]['_size']
+            return contents, size
+
+        out = _recursive_sum_sizes(self.sftp, cwd=directory, size=0)
+        ret = {directory: out[0]}
+        ret[directory]['_size'] = out[1]
+        return ret
+
 
     def close(self):
         self.sftp.close()
