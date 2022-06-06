@@ -508,7 +508,7 @@ class VQT():
         if ds_factor == 1:
             return X
         else:
-            return torch.nn.functional.avg_pool1d(X.T, kernel_size=ds_factor, stride=ds_factor, ceil_mode=True).T
+            return torch.nn.functional.avg_pool1d(X, kernel_size=ds_factor, stride=ds_factor, ceil_mode=True)
 
     def _helper_conv(self, arr, filters, take_abs, DEVICE):
         out = torch.complex(
@@ -534,6 +534,12 @@ class VQT():
                 Spectrogram of the input signal.
                 shape: (n_channels, n_samples_ds, n_freq_bins)
         """
+        if type(X) is not torch.Tensor:
+            X = torch.as_tensor(X, dtype=torch.float32, device=self.args['DEVICE_compute'])
+
+        if X.ndim==1:
+            X = X[None,:]
+            
         return torch.stack([self._helper_ds(
             self._helper_conv(
                 arr=arr, 
