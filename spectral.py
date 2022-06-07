@@ -417,6 +417,7 @@ class VQT():
         return_complex=False,
         filters=None,
         plot_pref=False,
+        progressBar=True,
         ):
         """
         Variable Q Transform.
@@ -487,8 +488,10 @@ class VQT():
                 F_max=F_max,
                 n_freq_bins=n_freq_bins,
                 win_size=win_size,
-                plot_pref=plot_pref
+                plot_pref=plot_pref,
             )
+
+        self.progBar = tqdm if progressBar else lambda x: x
         
         self.args = {}
         self.args['Fs_sample'] = Fs_sample
@@ -547,4 +550,4 @@ class VQT():
                 take_abs=(self.args['return_complex']==False),
                 DEVICE=self.args['DEVICE_compute']
                 ), 
-            self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in tqdm(X)], dim=0)
+            self.args['downsample_factor']).to(self.args['DEVICE_return']) for arr in self.progBar(X)], dim=0)
