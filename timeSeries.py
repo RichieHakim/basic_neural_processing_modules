@@ -26,7 +26,7 @@ import torch
 from . import parallel_helpers
 from .parallel_helpers import multiprocessing_pool_along_axis
 from . import cross_validation
-from .math_functions import polar2real, real2polar
+from .math_functions import polar2real, real2polar, gaussian
 from . import indexing
 
 
@@ -429,7 +429,15 @@ def make_sorted_event_triggered_average(
 #                    vmin=-1, vmax=3
                   )
     return mean_traces_sorted, et_traces, cv_idx
+    
 
+def simple_smooth(arr, x=None, mu=0, sig=1):
+    '''
+    Simple smoothing function.
+    Uses convolve_torch and math_functions.gaussian to 
+     convolve over the first dimension.
+    '''
+    return convolve_torch(arr, gaussian(sig=sig, x=None, mu=0, plot_pref=False), padding='same')
 
 ####################################
 ######## PYTORCH algorithms ########
@@ -461,6 +469,15 @@ def convolve_torch(X, kernels, **conv1d_kwargs):
         output (torch.Tensor):
             N-D array. Convolution of X with kernels
     """
+
+    if isinstance(X, torch.Tensor)==False:
+        X = torch.from_numpy(X)
+    if isinstance(kernels, torch.Tensor)==False:
+        kernels = torch.from_numpy(kernels)
+
+    if kernels.dtype != X.dtype:
+        kernels = kernels.type(X.dtype)
+
     X_dims = list(X.shape)
     t_dim = X_dims[0]
 

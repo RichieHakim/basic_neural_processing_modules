@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
-def gaussian(x, mu, sig , plot_pref=False):
+def gaussian(x=None, mu=0, sig=1, plot_pref=False):
     '''
     A gaussian function (normalized similarly to scipy's function)
     RH 2021
@@ -17,6 +17,8 @@ def gaussian(x, mu, sig , plot_pref=False):
         gaus (np.ndarray): gaussian function (normalized) of x
         params_gaus (dict): dictionary containing the input params
     '''
+    if x is None:
+        x = np.linspace(-sig*5, sig*5, sig*7, endpoint=True)
 
     gaus = 1/(np.sqrt(2*np.pi)*sig)*np.exp((-((x-mu)/sig) **2)/2)
 
