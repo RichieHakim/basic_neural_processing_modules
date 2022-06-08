@@ -120,7 +120,7 @@ def delete_all_cuda_tensors(globals):
     torch.cuda.empty_cache()
 
 
-def set_device(use_GPU=True, verbose=True):
+def set_device(use_GPU=True, device_num=0, verbose=True):
     """
     Set torch.cuda device to use.
     Assumes that only one GPU is available or
@@ -133,11 +133,12 @@ def set_device(use_GPU=True, verbose=True):
             If 0, use CPU.
     """
     if use_GPU:
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        if device != "cuda:0":
+        print(f'devices available: {[torch.cuda.get_device_properties(ii) for ii in range(torch.cuda.device_count())]}') if verbose else None
+        device = f"cuda:{device_num}" if torch.cuda.is_available() else "cpu"
+        if device == "cpu":
             print("no GPU available. Using CPU.") if verbose else None
         else:
-            print(f"device: '{device}'") if verbose else None
+            print(f"Using device: '{device}': {torch.cuda.get_device_properties(device_num)}") if verbose else None
     else:
         device = "cpu"
         print(f"device: '{device}'") if verbose else None
