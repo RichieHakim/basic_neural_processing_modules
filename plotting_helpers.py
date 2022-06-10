@@ -57,7 +57,7 @@ def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cm
     return fig, axs
 
 
-def display_toggle_image_stack(images, labels=None, clim=None):
+def display_toggle_image_stack(images, labels=None, clim=None, figsize=None):
     """
     Scrub through iamges in a stack using a slider.
     RH 2022
@@ -70,7 +70,7 @@ def display_toggle_image_stack(images, labels=None, clim=None):
     """
     from ipywidgets import interact, widgets
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(1, 1, 1)
     imshow_FOV = ax.imshow(
         images[0],

@@ -437,7 +437,7 @@ def simple_smooth(arr, x=None, mu=0, sig=1):
     Uses convolve_torch and math_functions.gaussian to 
      convolve over the first dimension.
     '''
-    return convolve_torch(arr, gaussian(sig=sig, x=None, mu=0, plot_pref=False), padding='same')
+    return convolve_torch(arr, gaussian(sig=sig, x=x, mu=mu, plot_pref=False), padding='same')
 
 ####################################
 ######## PYTORCH algorithms ########
