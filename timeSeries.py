@@ -31,7 +31,14 @@ from . import indexing
 
 
 
-def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , verbose=False):
+def convolve_along_axis(
+    array,
+    kernel, 
+    axis=1 , 
+    mode='same', 
+    multicore_pref=False, 
+    verbose=False
+    ):
     '''
     Convolves an array with a kernel along a defined axis
     Use a continguous array ( np.ascontinguousarray() ) 
@@ -50,14 +57,21 @@ def convolve_along_axis(array , kernel , axis , mode , multicore_pref=False , ve
     RH 2021
     
     Args:
-        array (np.ndarray): array you wish to convolve
-        kernel (np.ndarray): array to be used as the convolutional kernel (see numpy.convolve documentation)
-        axis (int): axis to convolve array along. NOT USED IF multicore_pref==True
-        mode (str): see numpy.convolve documentation. Can be 'valid', 'same', 'full'
+        array (np.ndarray): 
+            array you wish to convolve
+        kernel (np.ndarray): 
+            array to be used as the convolutional kernel (see numpy.convolve documentation)
+        axis (int): 
+            axis to convolve array along. NOT USED IF multicore_pref==True
+        mode (str): 
+            see numpy.convolve documentation. Can be 'valid', 'same', 'full'
     Returns:
         output (np.ndarray): input array convolved with kernel
     '''
     tic = time.time()
+
+    if array.ndim == 1:
+        multicore_pref = False
     if multicore_pref:
         def convFun_axis0(iter):
             return np.convolve(array[:,iter], kernel, mode=mode)
@@ -431,13 +445,43 @@ def make_sorted_event_triggered_average(
     return mean_traces_sorted, et_traces, cv_idx
     
 
-def simple_smooth(arr, x=None, mu=0, sig=1):
+def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same'):
     '''
     Simple smoothing function.
     Uses convolve_torch and math_functions.gaussian to 
      convolve over the first dimension.
+    RH 2022
+
+    Args:
+        arr (np.ndarray or torch.Tensor):
+            Input array.
+        x (np.ndarray or torch.Tensor):
+            x-axis for kernel.
+            see math_functions.gaussian
+        mu (scalar):
+            Mean of gaussian.
+            see math_functions.gaussian
+        sig (scalar):
+            Standard deviation of gaussian.
+            see math_functions.gaussian
+        axis (int):
+            Axis to convolve over.
+        mode (str):
+            Mode of convolution.
+            'valid' or 'same' or 'full'
+        
+    Returns:
+        arr_smooth (np.ndarray or torch.Tensor):
+            Smoothed array.
     '''
-    return convolve_torch(arr, gaussian(sig=sig, x=x, mu=mu, plot_pref=False), padding='same')
+    return convolve_along_axis(
+        arr, 
+        gaussian(sig=sig, x=x, mu=mu, plot_pref=False), 
+        axis=axis, 
+        mode=mode, 
+        multicore_pref=True, 
+        verbose=False
+        )
 
 ####################################
 ######## PYTORCH algorithms ########
