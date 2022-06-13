@@ -87,7 +87,8 @@ def get_numeric_contents(directory, sort=True, contains_string=None):
     if sort:
         numerics_argsort = np.argsort(numerics)
         numerics_output = numerics[numerics_argsort]
-        contents_output = contents[numerics_argsort[np.isnan(numerics_output)==False]]
+        isnan = np.array([np.isnan(np.float64(val)) for val in numerics_output])
+        contents_output = contents[numerics_argsort[~isnan]]
     else:
         numerics_output = numerics
         contents_output = contents[np.isnan(numerics_output)==False]
@@ -162,5 +163,5 @@ def get_nums_from_string(string_with_nums):
             nums.append(string_with_nums[jj])
     if not nums:
         return None
-    nums = np.uint64(''.join(nums))
+    nums = int(''.join(nums))
     return nums
