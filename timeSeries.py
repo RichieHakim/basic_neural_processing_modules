@@ -13,6 +13,7 @@ Functions and Interdependencies:
 '''
 
 from logging import warn
+from this import d
 import numpy as np
 import scipy.stats
 import scipy.signal
@@ -445,11 +446,11 @@ def make_sorted_event_triggered_average(
     return mean_traces_sorted, et_traces, cv_idx
     
 
-def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same'):
+def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same', correct_edge_effects=True):
     '''
     Simple smoothing function.
     Uses convolve_torch and math_functions.gaussian to 
-     convolve over the first dimension.
+     convolve over the any dimension.
     RH 2022
 
     Args:
@@ -469,19 +470,42 @@ def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same'):
         mode (str):
             Mode of convolution.
             'valid' or 'same' or 'full'
+        correct_edge_effects (bool):
+            Whether or not to correct for edge effects.
+            Here, correcting for edge effects means to
+             normalize each time point by the number of
+             samples actually used in the convolution 
+             at each time point
         
     Returns:
         arr_smooth (np.ndarray or torch.Tensor):
             Smoothed array.
     '''
-    return convolve_along_axis(
-        arr, 
-        gaussian(sig=sig, x=x, mu=mu, plot_pref=False), 
+    gaus = gaussian(sig=sig, x=x, mu=mu, plot_pref=False)
+
+    arr_conv = convolve_along_axis(
+        array=arr, 
+        kernel=gaus,
         axis=axis, 
         mode=mode, 
         multicore_pref=True, 
         verbose=False
         )
+    
+    if correct_edge_effects:
+        trace_norm = np.convolve(
+            a=np.ones(arr.shape[axis]),
+            v=gaus,
+            mode=mode
+            )
+
+        trace_norm_padded = indexing.pad_with_singleton_dims(trace_norm, n_dims_pre=axis, n_dims_post=arr.ndim-axis-1)
+
+        arr_conv_corrected = arr_conv / trace_norm_padded
+
+        return arr_conv_corrected
+    else:
+        return arr_conv
 
 ####################################
 ######## PYTORCH algorithms ########

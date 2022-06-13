@@ -496,7 +496,7 @@ def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='
     return Y
 
 
-def simlarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
+def similarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
     """
     Convert similarity metric to distance metric.
     RH 2022
