@@ -1,3 +1,4 @@
+from matplotlib.pyplot import flag
 import numpy as np
 import cv2
 import scipy as sp 
@@ -168,7 +169,7 @@ def stack_to_RGB(images):
     return im_out
 
 
-def change_hsv(image, hsv_gain=[1,1,1], hsv_offset=[0,0,0], in_place=False):
+def change_hsv(image, hsv_gain=[1,1,1], hsv_offset=[0,0,0], in_place=False, return_float=False):
     """
     Change the hue, saturation, and value of an rgb image.
     Note: Gain is applied first, then offset.
@@ -177,12 +178,21 @@ def change_hsv(image, hsv_gain=[1,1,1], hsv_offset=[0,0,0], in_place=False):
     Args:
         image (np.ndarray):
             Input image (RGB). Shape: (H, W, 3)
+            If image is of type float, it is assumed
+             to be in the range [0, 1].
         hsv_gain (list of float):
             Gain for hue, saturation, and value.
         hsv_offset (list of float):
             Offset for hue, saturation, and value.
         in_place (bool):
             Whether to change the image in place or not.
+            If False, a copy of the image is returned.
+        return_float (bool):
+            Whether to return the image as a float or not.
+            If True, the image is returned as a float in
+             the range [0, 1].
+            If False, the image is returned as a uint8 in
+             range [0, 255].
             
     Returns:
         im_out (np.ndarray):
@@ -200,7 +210,8 @@ def change_hsv(image, hsv_gain=[1,1,1], hsv_offset=[0,0,0], in_place=False):
     out[out>255] = 255
     out = out.astype(np.uint8)
     out = cv2.cvtColor(out, cv2.COLOR_HSV2BGR)[...,(2,1,0)]
-    return out
+
+    return out if return_float==False else out.astype(np.float32)/255
 
 
 def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, function_kwargs={}):
