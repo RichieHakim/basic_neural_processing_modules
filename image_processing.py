@@ -375,8 +375,10 @@ def make_tiled_video_array(
     crop_idx=None,
     overlay_signals=None,
     overlay_idx=None,
+    overlay_color=[0,0.7,1.0],
     spacer_black_frames=0,
     pixel_val_range=None,
+    verbose=True,
     ):
     """
     Creates a tiled video array from a list of paths to videos.
@@ -386,7 +388,7 @@ def make_tiled_video_array(
     RH 2022
 
     Args:
-        paths_videos:
+        paths_videos (list of str):
             List of paths to videos.
         frame_idx_list (ndarray, 3D, int):
             Shape: (n_chunks, 2, n_videos)
@@ -394,39 +396,44 @@ def make_tiled_video_array(
             Values should be positive integers.
             To insert black frames instead of video chunk, use
              [-1, -1] for the idx tuple.
-        block_height_width:
+        block_height_width (list or 2-tuple):
             2-tuple or list of height and width of each block.
-        n_channels:
+        n_channels (int):
             Number of channels.
-        tiling_shape:
+        tiling_shape (2-tuple):
             2-tuple or list of height and width of the tiled video.
             If None, then set to be square and large enough to 
              contain all the blocks.
-        dtype:
+        dtype (np.dtype):
             Data type of the output array. Should match the data
              type of the input videos.
-        interpolation:
+        interpolation (torchvision.transforms.InterpolationMode):
             Interpolation mode for the video. Should be one of the
              torchvision.transforms.InterpolationMode values.
-        crop_idx:
+        crop_idx (list of 4-tuples):
             List of 4-tuples or lists of indices to crop the video.
             [top, bottom, left, right]
             If None, then no cropping is performed.
             Outer list should be same length as paths_videos. Each 
              entry should correspond to the crop indices for a video.
-        overlay_signals:
+        overlay_signals (list of ndarray):
             List of signals to overlay on the video.
             Each signal should be a numpy array of shape(frames, n_channels).
             The signals will be represented as a white rectangle with
              indices from overlay_idx.
-        overlay_idx:
+        overlay_idx (list or 4-tuple):
             List of indices to overlay the signals.
             [top, bottom, left, right]
+        overlay_color (list or 3-tuple of floats):
+            Color of the overlay.
+            range: 0 to 1
         spacer_black_frames:
             Number of black frames to add between each chunk.
         pixel_val_range:
             2-tuple or list of the minimum and maximum pixel values.
             If None, then no clipping is performed.
+        verbose:
+            Whether to print progress.
 
     Returns:
         output video array:
@@ -451,10 +458,10 @@ def make_tiled_video_array(
         resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
         return resize(torch.as_tensor(images)).numpy()
 
-    def add_overlay(chunk, overlay_signal, overlay_idx):
+    def add_overlay(chunk, overlay_signal, overlay_idx, overlay_color=[1,1,1]):
         ol_height = overlay_idx[1]-overlay_idx[0]
         ol_width = overlay_idx[3]-overlay_idx[2]
-        ol = np.ones((chunk.shape[0], ol_height, ol_width, chunk.shape[3])) * overlay_signal[:,None,None,None]
+        ol = np.ones((chunk.shape[0], ol_height, ol_width, chunk.shape[3])) * overlay_signal[:,None,None,None] * np.array(overlay_color)[None,None,None,:]
         chunk[:, overlay_idx[0]:overlay_idx[1], overlay_idx[2]:overlay_idx[3], :] = ol
         return chunk
 
@@ -488,6 +495,8 @@ def make_tiled_video_array(
 
     video_out = np.zeros((n_frames_total, vid_height_width[0], vid_height_width[1], n_channels), dtype)  ## pre-allocation of final video array
 
+    vid_dict = {}  ## pre-allocation of video dictionary
+
     for i_vid, path_vid in enumerate(tqdm(paths_videos)):
         if isinstance(path_vid, list):
             flag_multivid = True
@@ -498,7 +507,7 @@ def make_tiled_video_array(
             flag_multivid = False
 
 
-        for i_chunk, idx_chunk in enumerate(frame_idx_list):
+        for i_chunk, idx_chunk in enumerate(tqdm(frame_idx_list)):
             if null_chunks[i_chunk, i_vid]:
                 continue
             elif flag_multivid:
@@ -515,7 +524,13 @@ def make_tiled_video_array(
                     frames_toGrab = min(frames_remainder  ,  frames_toEndOfVid)  ## number of frames to get from current vid
                     frames_remainder -= frames_toGrab
 
-                    vid = decord.VideoReader(str(path_vid[multivid_toStart]), ctx=decord.cpu())  ## open the vid
+                    if path_vid[multivid_toStart] in vid_dict.keys():
+                        print(f'using cached video {path_vid[multivid_toStart]}') if verbose else None
+                    else:
+                        vid_dict[path_vid[multivid_toStart]] = decord.VideoReader(str(path_vid[multivid_toStart]), ctx=decord.cpu())  ## open the vid
+                        print(f'opening new video file {path_vid[multivid_toStart]}') if verbose else None
+                    vid = vid_dict[path_vid[multivid_toStart]]
+                    
                     chunks_list.append(vid[frame_toStartInVid : frame_toStartInVid+frames_toGrab].asnumpy())  ## raw video chunk
                     frame_toStartGlobal += frames_toGrab
 
@@ -524,7 +539,7 @@ def make_tiled_video_array(
                 vid = decord.VideoReader(path_vid, ctx=decord.cpu())
                 chunk = vid[idx_chunk[0, i_vid] : idx_chunk[1, i_vid]].asnumpy()  ## raw video chunk
 
-            chunk_height, chunk_width, chunk_n_frames, _ = chunk.shape
+            chunk_height, chunk_width, chunk_n_frames, chunk_n_channels = chunk.shape
             if crop_idx is not None:
                 chunk = chunk[:, crop_idx[i_vid][0]:crop_idx[i_vid][1], crop_idx[i_vid][2]:crop_idx[i_vid][3], :]
 
@@ -547,7 +562,12 @@ def make_tiled_video_array(
 
             ## add overlay to the chunk
             if overlay_signals is not None:
-                add_overlay(chunk_rs, overlay_signals[i_vid][idx_chunk[0,i_vid]:idx_chunk[1,i_vid], i_chunk], overlay_idx)
+                add_overlay(
+                    chunk_rs, 
+                    overlay_signals[i_vid][idx_chunk[0,i_vid]:idx_chunk[1,i_vid], i_chunk], 
+                    overlay_idx,
+                    overlay_color=overlay_color,
+                    )
 
 
             ## drop into final video array
