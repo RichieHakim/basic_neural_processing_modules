@@ -167,6 +167,42 @@ def stack_to_RGB(images):
 
     return im_out
 
+
+def change_hsv(image, hsv_gain=[1,1,1], hsv_offset=[0,0,0], in_place=False):
+    """
+    Change the hue, saturation, and value of an rgb image.
+    Note: Gain is applied first, then offset.
+    RH 2022
+    
+    Args:
+        image (np.ndarray):
+            Input image (RGB). Shape: (H, W, 3)
+        hsv_gain (list of float):
+            Gain for hue, saturation, and value.
+        hsv_offset (list of float):
+            Offset for hue, saturation, and value.
+        in_place (bool):
+            Whether to change the image in place or not.
+            
+    Returns:
+        im_out (np.ndarray):
+            Output image
+    """
+    
+    out = image if in_place else copy.copy(image)
+    out = out*255 if out.dtype.kind == 'f' else out
+    
+    out = (out[...,(2,1,0)]).astype(np.uint8)
+    out = cv2.cvtColor(out, cv2.COLOR_BGR2HSV)
+    out = out.astype(np.float64)
+    out *= np.array(hsv_gain)[None,None,:]
+    out += np.array(hsv_offset)[None,None,:]
+    out[out>255] = 255
+    out = out.astype(np.uint8)
+    out = cv2.cvtColor(out, cv2.COLOR_HSV2BGR)[...,(2,1,0)]
+    return out
+
+
 def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, function_kwargs={}):
     """
     Bins an array of arbitrary shape along the
