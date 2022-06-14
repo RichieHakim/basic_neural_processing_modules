@@ -173,6 +173,7 @@ def change_hsv(image, hsv_gain=[1,1,1], hsv_offset=[0,0,0], in_place=False, retu
     """
     Change the hue, saturation, and value of an rgb image.
     Note: Gain is applied first, then offset.
+    Note: Intermediate image variables are np.uint8.
     RH 2022
     
     Args:
