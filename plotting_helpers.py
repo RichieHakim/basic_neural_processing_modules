@@ -87,6 +87,38 @@ def display_toggle_image_stack(images, labels=None, clim=None, figsize=None):
 
     interact(update, i_frame=widgets.IntSlider(min=0, max=len(images)-1, step=1, value=0));
 
+
+def plot_to_image(fig, keep_alpha=True):
+    """
+    Convert a matplotlib figure to a numpy array image.
+    Recommendations:
+        - Use fig.tight_layout() to avoid overlapping subplots
+        - Use ax.margins(0.0) to remove margins
+        - Use ax.axis('off') to hide axes
+    Output will be RGBA format, shape (width, height, 4).
+    RH 2022
+
+    Args:
+        fig (matplotlib.figure):
+            figure to convert to numpy array.
+    
+    Returns:
+        image (np.array):
+            numpy array image.
+            shape: (height, width, n_channels:4)
+    """
+
+    fig.canvas.draw()
+    if keep_alpha:
+        image = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
+        image = image.reshape(fig.canvas.get_width_height()[::-1] + (4,))[...,(1,2,3,0)]
+    else:
+        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    
+    return image
+
+
 ###############
 ### Helpers ###
 ###############
