@@ -518,17 +518,17 @@ def similarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
 
     """
     if fn_toUse == 1:
-        d = ((b+1) / (x**a)) -1 # fn 1
+        d = ((b+1) / (x**a)) -1 # fn 1: 1/x
     if fn_toUse == 2:
-        d = np.exp(((-x+b)**a)) # fn 2
+        d = np.exp(((-x+b)**a)) # fn 2: exp(-x)
     if fn_toUse == 3:
-        d = np.arctan(a*(-x+b)) # fn 3
+        d = np.arctan(a*(-x+b)) # fn 3: arctan(-x)
     if fn_toUse == 4:
-        d = b - x**a # fn 4
+        d = b - x**a # fn 4: 1-x
     if fn_toUse == 5:
-        d = np.sqrt(1-(x+b))**a # fn 5
+        d = np.sqrt(1-(x+b))**a # fn 5: sqrt(1-x)
     if fn_toUse == 6:
-        d = -np.log((x*a)+b) # fn 6
+        d = -np.log((x*a)+b) # fn 6: -log(x)
     
     return d + eps
     
