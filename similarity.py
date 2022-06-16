@@ -387,6 +387,9 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
             similarity matrix dependent on method
     '''
 
+    methods = ['cov', 'pearson', 'R', 'cosine_similarity']
+    assert np.isin(method, methods), f'RH Error: method must be one of: {methods}'
+
     if v2 is None:
         v2 = v1
     
