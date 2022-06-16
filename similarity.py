@@ -397,7 +397,7 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         v1 = v1[:,None]
     if v2.ndim == 1:
         v2 = v2[:,None]
-        
+
     if method=='cov':
         v1_ms = v1 - np.mean(v1, axis=0) # 'mean subtracted'
         v2_ms = v2 - np.mean(v2, axis=0)
@@ -414,7 +414,7 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         v2_ms = v2 - np.mean(v2, axis=0)
         output = (v1_ms.T @ v2_ms) / np.sqrt(np.sum(v1_ms**2, axis=0, keepdims=True).T * np.sum(v2_ms**2, axis=0, keepdims=True))
     if method=='cosine_similarity':    
-        output = (v1 / (np.expand_dims(norm(v1 , axis=0) , axis=0))).T  @ (v2  / np.expand_dims(norm(v2 , axis=0) , axis=0))
+        output = (v1 / (norm(v1 , axis=0, keepdims=True))).T  @ (v2  / norm(v2 , axis=0, keepdims=True))
     return output
 
 
