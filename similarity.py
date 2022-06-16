@@ -412,7 +412,7 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         # prediction. Best to use EV for R^2 if unsure
         v1_ms = v1 - np.mean(v1, axis=0) # 'mean subtracted'
         v2_ms = v2 - np.mean(v2, axis=0)
-        output = (v1_ms.T @ v2_ms) / np.sqrt(np.tile(np.sum(v1_ms**2, axis=0),(v2.shape[1],1)).T * np.tile(np.sum(v2_ms**2, axis=0), (v1.shape[1],1)))
+        output = (v1_ms.T @ v2_ms) / np.sqrt(np.sum(v1_ms**2, axis=0, keepdims=True).T * np.sum(v2_ms**2, axis=0, keepdims=True))
     if method=='cosine_similarity':    
         output = (v1 / (np.expand_dims(norm(v1 , axis=0) , axis=0))).T  @ (v2  / np.expand_dims(norm(v2 , axis=0) , axis=0))
     return output
