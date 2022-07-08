@@ -1,3 +1,4 @@
+from this import d
 from matplotlib import pyplot as plt
 import numpy as np
 
@@ -10,6 +11,8 @@ import IPython.display as Disp
 import matplotlib
 
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
+
+from pathlib import Path
 
 
 ###############
@@ -256,6 +259,29 @@ def simple_cmap(colors, name='none'):
 
     return LinearSegmentedColormap(name, {k: tuple(v) for k, v in cdict.items()})
 
+
+def savefig(path, dpi=300, mkdir=True, **kwargs_savefig):
+    """
+    Save figure.
+    RH 2022
+
+    Args:
+        path (str):
+            Path to save figure to.
+            Format is inferred from path suffix.
+        dpi (int):
+            DPI of figure.
+        **kwargs_savefig:
+            Keyword arguments to pass to `matplotlib.pyplot.savefig`.
+    """
+
+    assert len(Path(path).suffix) > 0, 'RH Error: Path must have a suffix'
+    kind = Path(path).suffix[1:]
+
+    if mkdir:
+        Path(path).parent.mkdir(exist_ok=True, parents=True)
+
+    plt.savefig(path, format=kind, dpi=dpi, **kwargs_savefig)
 
 #############################################
 ########### Interactive plots ###############
