@@ -235,7 +235,10 @@ def simple_cmap(
         [0.8,0,0.8],
         [1,0,0.6],
     ],
-     name='none'):
+    under=[0,0,0],
+    over=[0.5,0.5,0.5],
+    bad=[0.9,0.9,0.9],
+    name='none'):
     """Create a colormap from a sequence of rgb values.
     Stolen with love from Alex (https://gist.github.com/ahwillia/3e022cdd1fe82627cbf1f2e9e2ad80a7ex)
     
@@ -272,7 +275,11 @@ def simple_cmap(
         cdict['green'].append((idx, g, g))
         cdict['blue'].append((idx, b, b))
 
-    return LinearSegmentedColormap(name, {k: tuple(v) for k, v in cdict.items()})
+    cmap = LinearSegmentedColormap(name, {k: tuple(v) for k, v in cdict.items()})
+    cmap.set_bad(colorConverter.to_rgb(bad))
+    cmap.set_over(colorConverter.to_rgb(over))
+    cmap.set_under(colorConverter.to_rgb(under))
+    return cmap
 
 
 def savefig(path, dpi=300, mkdir=True, **kwargs_savefig):
