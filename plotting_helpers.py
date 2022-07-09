@@ -220,7 +220,22 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
     return random_colormap
 
 
-def simple_cmap(colors, name='none'):
+def simple_cmap(
+    colors=[
+        [1,0,0],
+        [1,0.6,0],
+        [0.9,0.9,0],
+        [0.6,1,0],
+        [0,1,0],
+        [0,1,0.6],
+        [0,0.8,0.8],
+        [0,0.6,1],
+        [0,0,1],
+        [0.6,0,1],
+        [0.8,0,0.8],
+        [1,0,0.6],
+    ],
+     name='none'):
     """Create a colormap from a sequence of rgb values.
     Stolen with love from Alex (https://gist.github.com/ahwillia/3e022cdd1fe82627cbf1f2e9e2ad80a7ex)
     
