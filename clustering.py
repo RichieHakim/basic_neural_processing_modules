@@ -111,9 +111,11 @@ class rich_clust():
      cluster and between each pair of clusters. The loss
      function maximizes the within similarity and minimizes the
      between similarity.
+    Functionally, the result ends up similar to k-means
+     clustering.
     This method is not great on its own, but is useful because
      it allows for custom penalties to be applied to the loss.
-     It struggles due to a non-convex solution space which
+    It struggles due to a non-convex solution space which
      results in sensitivity to initial conditions and weird 
      sensitivities to hyperparameters.
     RH 2022
@@ -133,7 +135,14 @@ class rich_clust():
         """
         Args:
             s (torch.Tensor):
-                The similarity matrix.
+                Similarity matrix.
+                shape: (n_samples, n_samples)
+                dtype: torch.float32
+                The diagonal should be zeros.
+                Example:
+                    d = torch.cdist(data, data, p=2).type(torch.float32)
+                    s = torch.maximum(1-d, torch.as_tensor([0]))
+                    s = s * torch.logical_not(torch.eye(s.shape[0]))
             n_clusters (int):
                 The number of clusters to find.
             l (float):
@@ -148,9 +157,11 @@ class rich_clust():
                 The temperature for the cluster membership matrix.
                 Higher values result in globally less confident
                  cluster scores.
-            optimizer (torch.optim.Optimizer):
-                The optimizer to use. If None, then the default
-                 optimizer is used.
+            optimizer (partial torch.optim.Optimizer):
+                Optional. If None, then Adam is used.
+                The partial optimizer to use.
+                Can be constructed like: 
+                    functools.partial(torch.optim.Adam, lr=0.01, weight_decay=0.00001)
             DEVICE (str):
                 The device to use. Default is 'cpu'.
             init_h (torch.Tensor):
@@ -183,7 +194,7 @@ class rich_clust():
                 # weight_decay=1*10**-6
             )
         else:
-            self.optimizer = optimizer
+            self.optimizer = optimizer(params=[self.h])
 
 
     def _initialize_multihot_matrix(self, n_samples, n_clusters):
@@ -191,23 +202,25 @@ class rich_clust():
         return h
     
     def _make_cluster_similarity_matrix(self, s, h, temp_h, DEVICE='cpu'):
-    
         h = torch.nn.functional.softmax(h/temp_h, dim=1)
     #     return torch.einsum('ab, abcd -> cd', s**1, torch.einsum('ac, bd -> abcd', h,h))  /  ( (torch.eye(h.shape[1]).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
     #     return (  torch.einsum('ab, abcd -> cd', s**1, torch.einsum('ac, bd -> abcd', h,h)) * torch.eye(h.shape[1]).to(DEVICE)  +  torch.einsum('ab, abcd -> cd', s**4, torch.einsum('ac, bd -> abcd', h,h)) * (torch.logical_not(torch.eye(h.shape[1]).to(DEVICE)))*0.05  )  /  ( (torch.eye(h.shape[1]).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
-        return torch.einsum('ab, ac, bd -> cd', s, h, h)  /  ( (torch.eye(h.shape[1]).to(DEVICE) * self.ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * self.ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
+        return torch.einsum('ab, ac, bd -> cd', s, h, h)  /  \
+            ( (torch.eye(h.shape[1]).to(DEVICE) * self.ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * self.ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
 
     def fit(self, n_iter=200):
-        self.optimizer.zero_grad()
 
-        c = self._make_cluster_similarity_matrix(
-            s=self.s,
-            h=self.h, 
-            temp_h=self.temp_h,
-            DEVICE=self.DEVICE
-        )
-        
-        L_cs = torch.nn.functional.cross_entropy(c/self.temp_c, torch.arange(self.n_clusters).to(self.DEVICE))
-        loss = L_cs
-        loss.backward()
-        self.optimizer.step()
+        for i_iter in range(n_iter):
+            self.optimizer.zero_grad()
+
+            self.c = self._make_cluster_similarity_matrix(
+                s=self.s,
+                h=self.h, 
+                temp_h=self.temp_h,
+                DEVICE=self.DEVICE
+            )
+            
+            self.L_cs = torch.nn.functional.cross_entropy(self.c/self.temp_c, torch.arange(self.n_clusters).to(self.DEVICE))
+            self.loss = self.L_cs
+            self.loss.backward()
+            self.optimizer.step()
