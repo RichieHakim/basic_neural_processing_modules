@@ -184,3 +184,26 @@ def make_correlated_distributions_2D(means, stds, corrs, n_points_per_mode):
             dist = np.vstack((dist, np.random.multivariate_normal(mean, cov, n_points_per_mode[ii])))
             
     return dist
+
+
+def Linex(x, mu=1, a=1, b=1, c=1):
+    """
+    Linex (loss) function.
+    RH 2022
+
+    Args:
+        x (float or np.ndarray or torch.Tensor):
+            Input data
+        mu (float):
+            Center of the linex function
+        a (float):
+            'Slope' or 'Stregth' of the linex function
+        b (float):
+            Non-linearity of the linex function
+        c (float):
+            Multiplier for the linex function
+
+    Returns:
+        Linex function output (float or np.ndarray or torch.Tensor)
+    """
+    return c*(torch.exp(a*(x-mu)) - a*(x-mu) - 1)**b
