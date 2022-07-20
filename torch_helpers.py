@@ -265,6 +265,12 @@ def nanmin(arr, dim=None, keepdim=False):
     arr_no_nan = arr.masked_fill(nan_mask, float('inf'))
     return torch.min(arr_no_nan, **kwargs)
 
+def multiply_elementwise_sparse_dense(s, d):
+    """
+    Multiply a sparse tensor (s) with a dense tensor (d).
+    RH 2022
+    """
+    return torch.mul(d.expand(s.shape).sparse_mask(s.coalesce()), s)
       
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############

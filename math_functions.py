@@ -31,7 +31,16 @@ def gaussian(x=None, mu=0, sig=1, plot_pref=False):
     return gaus
 
 
-def generalised_logistic_function(x, a=0, k=1, b=1, v=1, q=1, c=1):
+def generalised_logistic_function(
+    x, 
+    a=0, 
+    k=1, 
+    b=1, 
+    v=1, 
+    q=1, 
+    c=1,
+    mu=0,
+    ):
     '''
     Generalized logistic function
     See: https://en.wikipedia.org/wiki/Generalised_logistic_function
@@ -50,7 +59,7 @@ def generalised_logistic_function(x, a=0, k=1, b=1, v=1, q=1, c=1):
         output:
             Logistic function
      '''
-    return a + (k-a) / (c + q*np.exp(-b*x))**(1/v)
+    return a + (k-a) / (c + q*np.exp(-b*(x-mu)))**(1/v)
 
 
 # def bounded_exponential(x, bounds=[1/10,10], base=2):
@@ -186,9 +195,12 @@ def make_correlated_distributions_2D(means, stds, corrs, n_points_per_mode):
     return dist
 
 
-def Linex(x, mu=1, a=1, b=1, c=1):
+def Linex(x, mu=1, a=1, b=1, c=1, d=1, e=1, f=1, g=1):
     """
-    Linex (loss) function.
+    Linex (loss) function. 'Linear - exponential'.
+    The curve below mu is linear, and the curve
+     above mu is exponential.
+    simple version: exp(x) - a*x - 1
     RH 2022
 
     Args:
@@ -206,4 +218,6 @@ def Linex(x, mu=1, a=1, b=1, c=1):
     Returns:
         Linex function output (float or np.ndarray or torch.Tensor)
     """
-    return c*(torch.exp(a*(x-mu)) - a*(x-mu) - 1)**b
+    # return c*(torch.exp(a*(x**d-mu**(d))) - a*(x**d-mu**(d)) - 1)**b
+    return a*(b*(torch.exp(c*(x-mu))**d) - e*(x-mu)**f - 1)**g
+    # return ((a*(x-mu)**c) - a*(x-mu)**(d) - 1)**b

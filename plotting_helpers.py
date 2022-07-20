@@ -144,7 +144,16 @@ def get_subplot_indices(axs):
     return [tuple(ii) for ii in out_array]
 
 
-def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=False, verbose=True):
+def rand_cmap(
+    nlabels, 
+    type='bright', 
+    first_color_black=False, 
+    last_color_black=False,
+    verbose=True,
+    under=[0,0,0],
+    over=[0.5,0.5,0.5],
+    bad=[0.9,0.9,0.9],
+    ):
     """
     Creates a random colormap to be used together with matplotlib. Useful for segmentation tasks
     :param nlabels: Number of labels (size of colormap)
@@ -216,6 +225,10 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
 
         cb = colorbar.ColorbarBase(ax, cmap=random_colormap, norm=norm, spacing='proportional', ticks=None,
                                    boundaries=bounds, format='%1i', orientation=u'horizontal')
+
+    random_colormap.set_bad(colorConverter.to_rgb(bad))
+    random_colormap.set_over(colorConverter.to_rgb(over))
+    random_colormap.set_under(colorConverter.to_rgb(under))
 
     return random_colormap
 
