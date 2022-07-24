@@ -246,6 +246,8 @@ def cluster_silhouette_score(
     To compute a true silhouette score, use:
      method_in='mean' and method_out='max'.
 
+    RH 2022
+
     Args:
         s (torch.Tensor, dtype float):
             The similarity matrix.
@@ -319,6 +321,8 @@ def cluster_dispersion_score(
     To compute a true silhouette score, use:
      method_in='mean' and method_out='max'.
 
+    RH 2022
+
     Args:
         s (torch.Tensor, dtype float):
             The similarity matrix.
@@ -391,6 +395,20 @@ def cluster_dispersion_score(
 
 
 class Constrained_rich_clustering:
+    """
+    Class to perform constrained clustering.
+    This method takes in putative clusters, a cluster similarity matrix,
+     and a vector of cluster 'scores' describing how valuable each
+     cluster is. It then attempts to find an optimal combination of
+     clusters. This is done by minimizing inclusion of similar clusters
+     and maximizing inclusion of clusters with high scores.
+    The cluster similarity matrix and score vector can be made using 
+     the cluster_dispersion_score and cluster_silhouette_score functions
+     respectively. The cluster membership matrix showing putative clusters
+     can be made by doing something like sweeping over linkage distances.
+
+    RH 2022
+    """
     def __init__(
         self,
         c,
@@ -399,22 +417,96 @@ class Constrained_rich_clustering:
         m_init=None,
         optimizer_partial=None,
         dmCEL_temp=1,
-        dmCEL_sigSlope=5,
+        dmCEL_sigSlope=2,
         dmCEL_sigCenter=0.5,
         dmCEL_penalty=1,
-        sampleWeight_softplusKwargs={'beta': 20, 'threshold': 50},
-        sampleWeight_penalty=1e2,
+        sampleWeight_softplusKwargs={'beta': 500, 'threshold': 50},
+        sampleWeight_penalty=1e1,
         fracWeighted_goalFrac=1.0,
-        fracWeighted_sigSlope=1,
-        fracWeighted_center=0.5,
-        fracWeight_penalty=1e3,
+        fracWeighted_sigSlope=2,
+        fracWeighted_sigCenter=0.5,
+        fracWeight_penalty=1e0,
         maskL1_penalty=1e-3,
         tol_convergence=1e-2,
         window_convergence=100,
         freqCheck_convergence=100,
         verbose=True,
-        freq_verbose=100,
     ):
+        """
+        Args:
+            c (torch.Tensor, dtype float):
+                The cluster similarity matrix.
+                shape: (n_clusters, n_clusters)
+            h (torch.Tensor, dtype bool):
+                The cluster membership matrix.
+                shape: (n_samples, n_clusters)
+            w (torch.Tensor, dtype float):
+                The cluster score vector.
+                shape: (n_clusters)
+                Weighs how much to value the inclusion of each cluster
+                 relative to the total fracWeight_penalty.
+                If None, the clusters are weighted equally.
+            m_init (torch.Tensor, dtype float):
+                The initial cluster inclusion vector.
+                shape: (n_clusters)
+                If None, then vector is initialized as small random values.
+            optimizer_partial (torch.optim.Optimizer):
+                A torch optimizer with all but the parameters initialized.
+                If None, then the optimizer is initialized with Adam and 
+                 some default parameters.
+                This can be made using:
+                 functools.partial(torch.optim.Adam, lr=x, betas=(x,x)).
+            dmCEL_temp (float):
+                The temperature used in the cross entropy loss of the
+                 interaction matrix.
+            dmCEL_sigSlope (float):
+                The slope of the sigmoid used to constrain and activate the
+                 m vector. Higher values result in more forced certainty, 
+                 but less stability.
+                Recommend staying as low as possible, around 1-5.
+            dmCEL_sigCenter (float):
+                The center of the sigmoid described above.
+                Recommend keeping to 0.5.
+            dmCEL_penalty (float):
+                The penalty applied to the cross entropy loss of the 
+                 interaction matrix. Best to keep this to 1 and change the
+                 other penalties.
+            sampleWeight_softplusKwargs (dict):
+                The kwargs passed to the softplus function used to penalize
+                 when samples are included more than once. 
+                Recommend keeping this around default values.
+            sampleWeight_penalty (float):
+                The penalty applied when samples are included more than once.
+            fracWeighted_goalFrac (float):
+                The goal fraction of samples to be included in the output.
+                Recommend keeping this to 1 for most applications.
+            fracWeighted_sigSlope (float):
+                The slope of the sigmoid used to constrain the sample weights
+                 so as to give a score simply on whether or not they were
+                 included.
+                Recommend keeping this to 1-5.
+            fracWeighted_sigCenter (float):
+                The center of the sigmoid described above.
+                Recommend keeping to 0.5.
+            fracWeight_penalty (float):
+                The penalty applied to the sample weights loss.
+            maskL1_penalty (float):
+                The penalty applied to the L1 norm of the mask.
+                Keep this to 0 unless you really want sparse outputs.
+            tol_convergence (float):
+                The tolerance for the convergence of the optimization.
+            window_convergence (int):
+                The number of iterations to use in the convergence check.
+                A regression is performed on the last window_convergence to
+                 see if the best fit line has changed by less than
+                 tol_convergence.
+            freqCheck_convergence (int):
+                The number of iterations to wait betwee checking for
+                 convergence.
+            verbose (bool):
+                Whether to print progress.
+        """
+
         self._n_samples = c.shape[0]
         self._n_clusters = h.shape[1]
 
@@ -448,7 +540,7 @@ class Constrained_rich_clustering:
             w=self.w,
             goal_frac=fracWeighted_goalFrac,
             sig_slope=fracWeighted_sigSlope,
-            sig_center=fracWeighted_center,
+            sig_center=fracWeighted_sigCenter,
         )
 
         self._loss_sampleWeight = self._Loss_sampleWeight(
