@@ -6,6 +6,10 @@ import torch
 
 import copy
 
+from tqdm import tqdm
+
+from . import torch_helpers
+
 
 class cDBSCAN():
     """
@@ -227,11 +231,163 @@ class cDBSCAN():
 #             self.optimizer.step()
 
 
-class cluster_silhouette_score:
-    def __init__(
-        self,
+def cluster_silhouette_score(
+    s,
+    h,
+    locality=1,
+    return_inAndOut=False,
+    method_in='mean',
+    method_out='max',
+):
+    """
+    Function to compute the aggregated silhouette score of clusters.
+    Here, the score measures the similarity between samples within
+     a cluster and between samples within a cluster and all other samples.
+    To compute a true silhouette score, use:
+     method_in='mean' and method_out='max'.
 
-    ):
+    Args:
+        s (torch.Tensor, dtype float):
+            The similarity matrix.
+            shape: (n_samples, n_samples)
+        h (torch.Tensor, dtype bool):
+            The cluster membership matrix.
+            shape: (n_samples, n_clusters)
+        locality (float):
+            The exponent applied to the similarity matrix.
+            Higher values make the score more dependent on local 
+             similarity. 
+            Setting method_out to 'mean' and using a high locality 
+             value can result in something similar to a silhouette
+             score.
+        return_inAndOut (bool):
+            If True then the in and out scores are returned.
+
+    """
+
+    if h.dtype != torch.bool:
+        raise ValueError('h must be a boolean tensor.')
+
+    n_clusters = h.shape[1]
+    n_samples = h.shape[0]
+    
+    DEVICE = s.device
+    s_tu = (s**locality).type(torch.float32)
+    s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
+    h_tu = h.to(DEVICE)
+    
+    if method_in == 'mean':
+        fn_mi = torch.nanmean
+    elif method_in == 'max':
+        fn_mi = torch_helpers.nanmax
+    elif method_in == 'min':
+        fn_mi = torch_helpers.nanmin
+    else:
+        raise ValueError('method_in must be one of "mean", "max", "min".')
+
+    if method_out == 'mean':
+        fn_mo = torch.nanmean
+    elif method_out == 'max':
+        fn_mo = torch_helpers.nanmax
+    elif method_out == 'min':
+        fn_mo = torch_helpers.nanmin
+    else:
+        raise ValueError('method_out must be one of "mean", "max", "min".')
+        
+    cs_in  = torch.as_tensor([fn_mi(s_tu[h[:,ii]][:, h[:,ii]]) for ii in range(h.shape[1])], device=DEVICE)
+    cs_out = torch.as_tensor([fn_mo(s_tu[h[:,ii]][:,~h[:,ii]]) for ii in range(h.shape[1])], device=DEVICE)
+    
+    cs = cs_in / cs_out
+
+    if return_inAndOut:
+        return cs, cs_in, cs_out
+    else:
+        return cs
+
+
+def cluster_dispersion_score(
+    s,
+    h,
+    locality=1,
+    method_in='mean',
+    method_out='max',
+):
+    """
+    Function to compute the aggregated dispersion score of clusters.
+    Here, the score measures the similarity between samples within
+     a cluster and between samples within a cluster and all other samples.
+    To compute a true silhouette score, use:
+     method_in='mean' and method_out='max'.
+
+    Args:
+        s (torch.Tensor, dtype float):
+            The similarity matrix.
+            shape: (n_samples, n_samples)
+        h (torch.Tensor, dtype bool):
+            The cluster membership matrix.
+            shape: (n_samples, n_clusters)
+        locality (float):
+            The exponent applied to the similarity matrix.
+            Higher values make the score more dependent on local 
+             similarity. 
+            Setting method_out to 'mean' and using a high locality 
+             value can result in something similar to a silhouette
+             score.
+        method_in (str):
+            The method used to compute the within-cluster similarity.
+            Must be one of "mean", "max", "min".
+        method_out (str):
+            The method used to compute the between-cluster similarity.
+            Must be one of "mean", "max", "min".
+    """
+
+    if h.dtype != torch.bool:
+        raise ValueError('h must be a boolean tensor.')
+
+    n_clusters = h.shape[1]
+    n_samples = h.shape[0]
+    
+    DEVICE = s.device
+    s_tu = (s**locality).type(torch.float32)
+    h_tu = h.to(DEVICE)
+
+ 
+    ii_normFactor = lambda i   : i * (i-1)
+    ij_normFactor = lambda i,j : i * j
+
+    if method_in=='mean' and method_out=='mean':
+        s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = 0
+        c = torch.einsum('ab, ac, bd -> cd', s_tu, h_tu, h_tu)  /  \
+            ( (torch.eye(n_clusters).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(n_clusters).to(DEVICE)) * ij_normFactor(*torch.meshgrid((n_samples, n_samples), indexing='ij'))) )
+        return c
+
+    s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
+    
+    yy, xx = torch.meshgrid(torch.arange(n_clusters), torch.arange(n_clusters), indexing='ij')
+    yyf, xxf = yy.reshape(-1), xx.reshape(-1)
+
+    if method_in == 'mean':
+        fn_mi = torch.nanmean
+    elif method_in == 'max':
+        fn_mi = torch_helpers.nanmax
+    elif method_in == 'min':
+        fn_mi = torch_helpers.nanmin
+    else:
+        raise ValueError('method_in must be one of "mean", "max", "min".')
+
+    if method_out == 'mean':
+        fn_mo = torch.nanmean
+    elif method_out == 'max':
+        fn_mo = torch_helpers.nanmax
+    elif method_out == 'min':
+        fn_mo = torch_helpers.nanmin
+    else:
+        raise ValueError('method_out must be one of "mean", "max", "min".')
+
+    c = torch.as_tensor([fn_mo(s_tu[h_tu[:,ii]][:, h_tu[:,jj]]) for ii,jj in tqdm(zip(yyf, xxf), total=len(yyf))], device=DEVICE).reshape(n_clusters, n_clusters)
+    c[torch.eye(n_clusters, dtype=torch.bool)] = torch.as_tensor([fn_mi(s_tu[h_tu[:,ii]][:, h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
+
+    return c
 
 
 class Constrained_rich_clustering:
