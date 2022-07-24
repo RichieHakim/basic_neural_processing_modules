@@ -105,132 +105,6 @@ class cDBSCAN():
         return self.clusters_idx_unique, self.clusters_idx_unique_freq
 
 
-# class rich_clust():
-#     """
-#     Basic clustering algorithm based on gradient descent.
-#     The approach is to optimize a 'multihot matrix' (h),
-#      which is an n_samples x n_clusters matrix describing
-#      the membership of each sample to each cluster. This matrix
-#      is used to mask a similarity matrix (s); allowing for the
-#      calculation of the mean pairwise similarity within each 
-#      cluster and between each pair of clusters. The loss
-#      function maximizes the within similarity and minimizes the
-#      between similarity.
-#     Functionally, the result ends up similar to k-means
-#      clustering.
-#     This method is not great on its own, but is useful because
-#      it allows for custom penalties to be applied to the loss.
-#     It struggles due to a non-convex solution space which
-#      results in sensitivity to initial conditions and weird 
-#      sensitivities to hyperparameters.
-#     RH 2022
-#     """
-
-#     def __init__(
-#         self,
-#         s,
-#         n_clusters=2,
-#         l=1,
-#         temp_h=1,
-#         temp_c=1,
-#         optimizer=None,
-#         DEVICE='cpu',
-#         init_h=None,
-#     ):
-#         """
-#         Args:
-#             s (torch.Tensor):
-#                 Similarity matrix.
-#                 shape: (n_samples, n_samples)
-#                 dtype: torch.float32
-#                 The diagonal should be zeros.
-#                 Example:
-#                     d = torch.cdist(data, data, p=2).type(torch.float32)
-#                     s = torch.maximum(1-d, torch.as_tensor([0]))
-#                     s = s * torch.logical_not(torch.eye(s.shape[0]))
-#             n_clusters (int):
-#                 The number of clusters to find.
-#             l (float):
-#                 'Locality' parameter. The exponent applied to 
-#                   the similarity matrix. Higher values allow for
-#                   more non-convex clusters, but can result in 
-#                   instability and cluster-splitting.
-#             temp_h (float):
-#                 The temperature for the multihot matrix. Higher
-#                  values result in fuzzier cluster edges.
-#             temp_c (float):
-#                 The temperature for the cluster membership matrix.
-#                 Higher values result in globally less confident
-#                  cluster scores.
-#             optimizer (partial torch.optim.Optimizer):
-#                 Optional. If None, then Adam is used.
-#                 The partial optimizer to use.
-#                 Can be constructed like: 
-#                     functools.partial(torch.optim.Adam, lr=0.01, weight_decay=0.00001)
-#             DEVICE (str):
-#                 The device to use. Default is 'cpu'.
-#             init_h (torch.Tensor):
-#                 The initial multihot matrix. If None, then
-#                  random initialization is used.
-#         """
-    
-#         self.s = s.to(DEVICE)**l
-#         self.n_clusters = n_clusters
-
-#         self.l = l
-#         self.temp_h = temp_h
-#         self.temp_c = temp_c
-
-#         self.DEVICE = DEVICE
-
-#         if init_h is None:
-#             self.h = self._initialize_multihot_matrix(self.s.shape[0], self.n_clusters).to(self.DEVICE)
-#         else:
-#             self.h = init_h.to(self.DEVICE)
-#         self.h.requires_grad = True
-
-#         self.ii_normFactor = lambda i   : i * (i-1)
-#         self.ij_normFactor = lambda i,j : i * j
-
-#         if optimizer is None:
-#             self.optimizer = torch.optim.Adam(
-#                 [self.h], 
-#                 lr=0.1,
-#                 # weight_decay=1*10**-6
-#             )
-#         else:
-#             self.optimizer = optimizer(params=[self.h])
-
-
-#     def _initialize_multihot_matrix(self, n_samples, n_clusters):
-#         h = torch.rand(size=(n_samples, n_clusters))  ## Random initialization
-#         return h
-    
-#     def _make_cluster_similarity_matrix(self, s, h, temp_h, DEVICE='cpu'):
-#         h = torch.nn.functional.softmax(h/temp_h, dim=1)
-#     #     return torch.einsum('ab, abcd -> cd', s**1, torch.einsum('ac, bd -> abcd', h,h))  /  ( (torch.eye(h.shape[1]).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
-#     #     return (  torch.einsum('ab, abcd -> cd', s**1, torch.einsum('ac, bd -> abcd', h,h)) * torch.eye(h.shape[1]).to(DEVICE)  +  torch.einsum('ab, abcd -> cd', s**4, torch.einsum('ac, bd -> abcd', h,h)) * (torch.logical_not(torch.eye(h.shape[1]).to(DEVICE)))*0.05  )  /  ( (torch.eye(h.shape[1]).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
-#         return torch.einsum('ab, ac, bd -> cd', s, h, h)  /  \
-#             ( (torch.eye(h.shape[1]).to(DEVICE) * self.ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * self.ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
-
-#     def fit(self, n_iter=200):
-
-#         for i_iter in range(n_iter):
-#             self.optimizer.zero_grad()
-
-#             self.c = self._make_cluster_similarity_matrix(
-#                 s=self.s,
-#                 h=self.h, 
-#                 temp_h=self.temp_h,
-#                 DEVICE=self.DEVICE
-#             )
-            
-#             self.L_cs = torch.nn.functional.cross_entropy(self.c/self.temp_c, torch.arange(self.n_clusters).to(self.DEVICE))
-#             self.loss = self.L_cs
-#             self.loss.backward()
-#             self.optimizer.step()
-
-
 def cluster_silhouette_score(
     s,
     h,
@@ -832,3 +706,130 @@ class Constrained_rich_clustering:
         cm[self._dmCEL.idx_diag, self._dmCEL.idx_diag] = self.c.diag()
         plt.figure()
         plt.imshow((cm * ma[:,None]).detach().cpu(), aspect='auto')
+
+
+
+# class rich_clust():
+#     """
+#     Basic clustering algorithm based on gradient descent.
+#     The approach is to optimize a 'multihot matrix' (h),
+#      which is an n_samples x n_clusters matrix describing
+#      the membership of each sample to each cluster. This matrix
+#      is used to mask a similarity matrix (s); allowing for the
+#      calculation of the mean pairwise similarity within each 
+#      cluster and between each pair of clusters. The loss
+#      function maximizes the within similarity and minimizes the
+#      between similarity.
+#     Functionally, the result ends up similar to k-means
+#      clustering.
+#     This method is not great on its own, but is useful because
+#      it allows for custom penalties to be applied to the loss.
+#     It struggles due to a non-convex solution space which
+#      results in sensitivity to initial conditions and weird 
+#      sensitivities to hyperparameters.
+#     RH 2022
+#     """
+
+#     def __init__(
+#         self,
+#         s,
+#         n_clusters=2,
+#         l=1,
+#         temp_h=1,
+#         temp_c=1,
+#         optimizer=None,
+#         DEVICE='cpu',
+#         init_h=None,
+#     ):
+#         """
+#         Args:
+#             s (torch.Tensor):
+#                 Similarity matrix.
+#                 shape: (n_samples, n_samples)
+#                 dtype: torch.float32
+#                 The diagonal should be zeros.
+#                 Example:
+#                     d = torch.cdist(data, data, p=2).type(torch.float32)
+#                     s = torch.maximum(1-d, torch.as_tensor([0]))
+#                     s = s * torch.logical_not(torch.eye(s.shape[0]))
+#             n_clusters (int):
+#                 The number of clusters to find.
+#             l (float):
+#                 'Locality' parameter. The exponent applied to 
+#                   the similarity matrix. Higher values allow for
+#                   more non-convex clusters, but can result in 
+#                   instability and cluster-splitting.
+#             temp_h (float):
+#                 The temperature for the multihot matrix. Higher
+#                  values result in fuzzier cluster edges.
+#             temp_c (float):
+#                 The temperature for the cluster membership matrix.
+#                 Higher values result in globally less confident
+#                  cluster scores.
+#             optimizer (partial torch.optim.Optimizer):
+#                 Optional. If None, then Adam is used.
+#                 The partial optimizer to use.
+#                 Can be constructed like: 
+#                     functools.partial(torch.optim.Adam, lr=0.01, weight_decay=0.00001)
+#             DEVICE (str):
+#                 The device to use. Default is 'cpu'.
+#             init_h (torch.Tensor):
+#                 The initial multihot matrix. If None, then
+#                  random initialization is used.
+#         """
+    
+#         self.s = s.to(DEVICE)**l
+#         self.n_clusters = n_clusters
+
+#         self.l = l
+#         self.temp_h = temp_h
+#         self.temp_c = temp_c
+
+#         self.DEVICE = DEVICE
+
+#         if init_h is None:
+#             self.h = self._initialize_multihot_matrix(self.s.shape[0], self.n_clusters).to(self.DEVICE)
+#         else:
+#             self.h = init_h.to(self.DEVICE)
+#         self.h.requires_grad = True
+
+#         self.ii_normFactor = lambda i   : i * (i-1)
+#         self.ij_normFactor = lambda i,j : i * j
+
+#         if optimizer is None:
+#             self.optimizer = torch.optim.Adam(
+#                 [self.h], 
+#                 lr=0.1,
+#                 # weight_decay=1*10**-6
+#             )
+#         else:
+#             self.optimizer = optimizer(params=[self.h])
+
+
+#     def _initialize_multihot_matrix(self, n_samples, n_clusters):
+#         h = torch.rand(size=(n_samples, n_clusters))  ## Random initialization
+#         return h
+    
+#     def _make_cluster_similarity_matrix(self, s, h, temp_h, DEVICE='cpu'):
+#         h = torch.nn.functional.softmax(h/temp_h, dim=1)
+#     #     return torch.einsum('ab, abcd -> cd', s**1, torch.einsum('ac, bd -> abcd', h,h))  /  ( (torch.eye(h.shape[1]).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
+#     #     return (  torch.einsum('ab, abcd -> cd', s**1, torch.einsum('ac, bd -> abcd', h,h)) * torch.eye(h.shape[1]).to(DEVICE)  +  torch.einsum('ab, abcd -> cd', s**4, torch.einsum('ac, bd -> abcd', h,h)) * (torch.logical_not(torch.eye(h.shape[1]).to(DEVICE)))*0.05  )  /  ( (torch.eye(h.shape[1]).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
+#         return torch.einsum('ab, ac, bd -> cd', s, h, h)  /  \
+#             ( (torch.eye(h.shape[1]).to(DEVICE) * self.ii_normFactor(h.sum(0))) + ((1-torch.eye(h.shape[1]).to(DEVICE)) * self.ij_normFactor(*torch.meshgrid((h.sum(0), h.sum(0)), indexing='ij'))) )
+
+#     def fit(self, n_iter=200):
+
+#         for i_iter in range(n_iter):
+#             self.optimizer.zero_grad()
+
+#             self.c = self._make_cluster_similarity_matrix(
+#                 s=self.s,
+#                 h=self.h, 
+#                 temp_h=self.temp_h,
+#                 DEVICE=self.DEVICE
+#             )
+            
+#             self.L_cs = torch.nn.functional.cross_entropy(self.c/self.temp_c, torch.arange(self.n_clusters).to(self.DEVICE))
+#             self.loss = self.L_cs
+#             self.loss.backward()
+#             self.optimizer.step()
