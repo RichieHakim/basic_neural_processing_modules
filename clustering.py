@@ -1,9 +1,11 @@
 import sklearn
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 
 import copy
+
 
 class cDBSCAN():
     """
@@ -25,25 +27,8 @@ class cDBSCAN():
             Includes:
                 metric_params (dict): default=None
                     The metric parameters to pass to DBSCAN.
-                algorithm (str): default='auto'
-                    The algorithm to use in DBSCAN.
-                leaf_size (int): default=30
-                    The leaf size to use in DBSCAN.
-                p (int): default=2
-                    The p value to use in DBSCAN.
-                n_jobs (int): default=-1
-                    The number of jobs to use in DBSCAN.   
+                algorithm (str): default='autoimport matplotlib.pyplot as plt
 
-    Returns:
-        clusters_idx_unique (list of np.ndarray):
-            The sample indices for each unique cluster
-        clusters_idx_unique_freq (list of int):
-            The number of times each unique cluster was found
-            over the different epsilon values.
-    """
-    def __init__(
-        self,
-        eps_values=[0.1, 0.5, 2.5],
         min_samples=2,
         **kwargs_dbscan
     ):
@@ -690,12 +675,14 @@ class Constrained_rich_clustering:
         dmCEL_temp=1,
         dmCEL_sigSlope=5,
         dmCEL_sigCenter=0.5,
+        dmCEL_penalty=1,
         sampleWeight_softplusKwargs={'beta': 20, 'threshold': 50},
         sampleWeight_penalty=1e2,
         fracWeighted_goalFrac=1.0,
         fracWeighted_sigSlope=1,
         fracWeighted_center=0.5,
-        fraceWeight_penalty=1e3,
+        fracWeight_penalty=1e3,
+        maskL1_penalty=1e-3,
         tol_convergence=1e-2,
         window_convergence=100,
         freqCheck_convergence=100,
@@ -706,6 +693,7 @@ class Constrained_rich_clustering:
         self._n_clusters = h.shape[1]
 
         self._DEVICE = c.device
+        # self.c = c.to_sparse()
         self.c = c
         self.h = h.to(self._DEVICE)
         self.w = w if w is not None else torch.ones(self._n_samples).type(torch.float32).to(self._DEVICE)
@@ -714,10 +702,14 @@ class Constrained_rich_clustering:
 
         self._optimizer = optimizer_partial(params=[self.m]) if optimizer_partial is not None else torch.optim.Adam(params=[self.m], lr=1e-2, betas=(0.9, 0.900))
         
+        self._dmCEL_penalty = dmCEL_penalty
         self._sampleWeight_penalty = sampleWeight_penalty
-        self._fracWeight_penalty = fraceWeight_penalty
+        self._fracWeight_penalty = fracWeight_penalty
+        self._maskL1_penalty = maskL1_penalty
 
         self._dmCEL = self._DoubleMasked_CEL(
+            w=self.w,
+            c=self.c,
             n_clusters=self._n_clusters,
             device=self._DEVICE,
             temp=dmCEL_temp,
@@ -746,7 +738,6 @@ class Constrained_rich_clustering:
         self._window_convergence = window_convergence
         self._freqCheck_convergence = freqCheck_convergence
         self._verbose = verbose
-        self._freq_verbose = freq_verbose
 
         self._i_iter = 0
         self.losses_logger = {
@@ -754,10 +745,12 @@ class Constrained_rich_clustering:
             'L_cs': [],
             'L_fracWeighted': [],
             'L_sampleWeight': [],
+            'L_maskL1': [],
         }
 
     def fit(
         self, 
+        min_iter=1e3,
         max_iter=1e4,
         verbose=True, 
         verbose_interval=100
@@ -767,33 +760,43 @@ class Constrained_rich_clustering:
         while self._i_iter <= max_iter:
             self._optimizer.zero_grad()
 
-            L_cs = self._dmCEL(c=self.c, m=self.m)  ## 'cluster similarity loss'
+            L_cs = self._dmCEL(c=self.c, m=self.m) * self._dmCEL_penalty  ## 'cluster similarity loss'
             L_sampleWeight = self._loss_sampleWeight(self.h, self.activate_m()) * self._sampleWeight_penalty
+            # L_sampleWeight = self._loss_sampleWeight(self.h, self.m) * self._sampleWeight_penalty
             L_fracWeighted = self._loss_fracWeighted(self.activate_m()) * self._fracWeight_penalty
+            L_maskL1 = torch.sum(torch.abs(self.activate_m())) * self._maskL1_penalty
 
-            self._loss = L_cs + L_fracWeighted + L_sampleWeight
+            self._loss = L_cs + L_fracWeighted + L_sampleWeight + L_maskL1
+            # self._loss = L_fracWeighted + L_sampleWeight + L_maskL1
+            # self._loss = L_cs 
 
             if torch.isnan(self._loss):
-                print(f'STOPPING EARLY: loss is NaN. iter: {self._i_iter}  loss: {self._loss.item():.4f}  L_cs: {L_cs.item():.4f}  L_fracWeighted: {L_fracWeighted.item():.4f}  L_sampleWeight: {L_sampleWeight.item():.4f}')
+                print(f'STOPPING EARLY: loss is NaN. iter: {self._i_iter}  loss: {self._loss.item():.4f}  L_cs: {L_cs.item():.4f}  L_fracWeighted: {L_fracWeighted.item():.4f}  L_sampleWeight: {L_sampleWeight.item():.4f}  L_maskL1: {L_maskL1.item():.4f}')
                 break
 
             self._loss.backward()
             self._optimizer.step()
 
+            self.m.data = torch.maximum(self.m.data , torch.as_tensor(-14, device=self._DEVICE))
+            # if torch.isnan(self.m).sum() > 0:
+            #     print('fuck')
+            #     break
+
             self.losses_logger['loss'].append(self._loss.item())
             self.losses_logger['L_cs'].append(L_cs.item())
             self.losses_logger['L_fracWeighted'].append(L_fracWeighted.item())
             self.losses_logger['L_sampleWeight'].append(L_sampleWeight.item())
+            self.losses_logger['L_maskL1'].append(L_maskL1.item())
 
-            if self._i_iter%self._freqCheck_convergence==0 and self._i_iter>self._window_convergence:
+            if self._i_iter%self._freqCheck_convergence==0 and self._i_iter>self._window_convergence and self._i_iter>min_iter:
                 diff_window_convergence, loss_smooth, converged = self._convergence_checker(self.losses_logger['loss'])
                 if converged:
                     print(f"STOPPING: Convergence reached in {self._i_iter} iterations.  loss: {self.losses_logger['loss'][-1]:.4f}  loss_smooth: {loss_smooth:.4f}")
                     break
 
             if verbose and self._i_iter % verbose_interval == 0:
-                print(f'iter: {self._i_iter}:  loss_total: {self._loss.item():.4f}   loss_cs: {L_cs.item():.4f}  loss_fracWeighted: {L_fracWeighted.item():.4f}  loss_sampleWeight: {L_sampleWeight.item():.4f}  diff_loss: {diff_window_convergence:.4f}  loss_smooth: {loss_smooth:.4f}')
-
+                print(f'iter: {self._i_iter}:  loss_total: {self._loss.item():.4f}   loss_cs: {L_cs.item():.4f}  loss_fracWeighted: {L_fracWeighted.item():.4f}  loss_sampleWeight: {L_sampleWeight.item():.4f}  loss_maskL1: {L_maskL1.item():.4f}  diff_loss: {diff_window_convergence:.4f}  loss_smooth: {loss_smooth:.4f}')
+                # print(torch.isnan(self.m).sum())
             self._i_iter += 1
 
 
@@ -804,6 +807,10 @@ class Constrained_rich_clustering:
         m_bool = self.activate_m() > m_threshold
         h_preds = (self.h[:, m_bool] * (torch.arange(m_bool.sum(), device=self._DEVICE)[None,:]+1)).detach().cpu()
         h_preds[h_preds==0] = -1
+
+        if h_preds.numel() == 0:
+            print(f'WARNING: No predictions made.  m_threshold: {m_threshold}')
+            return None, None
 
         preds = torch.max(h_preds, dim=1)[0]
         preds[torch.isinf(preds)] = -1
@@ -823,6 +830,8 @@ class Constrained_rich_clustering:
     class _DoubleMasked_CEL:
         def __init__(
             self,
+            w,
+            c,
             n_clusters,
             device='cpu',
             temp=1,
@@ -834,6 +843,21 @@ class Constrained_rich_clustering:
             self.temp = temp
             self.activation = self.make_sigmoid_function(sig_slope, sig_center)
             
+            # self.w = w
+            
+            self.idx_diag = torch.arange(n_clusters, device=device, dtype=torch.int64)
+
+            self.worst_case_loss = self.CEL(
+                # (torch.logical_not(torch.eye(n_clusters, device=device)) + torch.eye(n_clusters, device=device)*c.diag()[None,:]).type(torch.float32) / self.temp,
+                c / self.temp,
+                self.labels
+            )
+            self.best_case_loss = self.CEL(
+                (torch.eye(n_clusters, device=device)*c.diag()[None,:]).type(torch.float32) / self.temp,
+                self.labels
+            )
+            self.worst_minus_best = self.worst_case_loss - self.best_case_loss
+
         def make_sigmoid_function(
             self,
             sig_slope=5,
@@ -844,8 +868,15 @@ class Constrained_rich_clustering:
         def __call__(self, c, m):
             mp = self.activation(m)  ## constrain to be 0-1
             cm = c * mp[None,:]  ## 'c masked'. Mask only applied to columns.
+            # cm = c * m[None,:]
+            cm[self.idx_diag, self.idx_diag] = c.diagonal()
             lv = self.CEL(cm/self.temp, self.labels)  ## 'loss vector' showing loss of each row (each cluster)
-            l = lv @ mp  ## 'loss'
+            # print(self.worst_minus_best)
+            lv_norm = (lv - self.best_case_loss) / self.worst_minus_best
+            # print(lv_norm @ mp)
+            # self.test = mp
+            l = (lv_norm @ mp) / mp.sum()  ## 'loss'
+            # l = ((lv/self.w) @ mp) / mp.sum()  ## 'loss'
             return l
 
     class _Loss_fracWeighted:
@@ -858,6 +889,7 @@ class Constrained_rich_clustering:
             sig_center=0.5,
         ):
             self.h_w = h.type(torch.float32) * w[None,:]
+            # self.h_w = h.type(torch.float32)
         
             self.goal_frac = goal_frac
             self.sigmoid = self.make_sigmoid_function(sig_slope, sig_center)
@@ -875,7 +907,7 @@ class Constrained_rich_clustering:
             return self.sigmoid(sampleWeights)
 
         def __call__(self, m):
-            return (self.activate_sampleWeights(self.generate_sampleWeights(m)) - self.goal_frac).mean()**2
+            return ((self.activate_sampleWeights(self.generate_sampleWeights(m))).mean() - self.goal_frac)**2
 
     class _Loss_sampleWeight:
         def __init__(
@@ -928,29 +960,26 @@ class Constrained_rich_clustering:
             
 
     def plot_loss(self):
-        import matplotlib.pyplot as plt
-
         plt.figure()
         plt.plot(self.losses_logger['loss'], linewidth=4)
         plt.plot(self.losses_logger['L_cs'])
         plt.plot(self.losses_logger['L_fracWeighted'])
         plt.plot(self.losses_logger['L_sampleWeight'])
+        plt.plot(self.losses_logger['L_maskL1'])
 
         plt.legend(self.losses_logger.keys())
         plt.xlabel('iteration')
         plt.ylabel('loss')
 
-    def plot_clusterWeights(self):
-        import matplotlib.pyplot as plt
-
+    def plot_clusterWeights(self, plot_raw_m=False):
         plt.figure()
+        if plot_raw_m:
+            plt.hist(self.m.detach().cpu().numpy(), bins=50)
         plt.hist(self.activate_m().detach().cpu().numpy(), bins=50)
         plt.xlabel('cluster weight')
         plt.ylabel('count')
 
     def plot_sampleWeights(self):
-        import matplotlib.pyplot as plt
-
         sampleWeights = self._loss_sampleWeight.generate_sampleWeights(self.h, self.activate_m()).detach().cpu().numpy()
 
         plt.figure()
@@ -959,12 +988,13 @@ class Constrained_rich_clustering:
         plt.ylabel('count')
 
     def plot_labelCounts(self):
-        import matplotlib.pyplot as plt
-
         if hasattr(self, 'preds'):
             preds = self.preds
         else:
             preds, confidence = self.predict()
+            if preds is None:
+                print('Skipping plot_labelCounts: preds is None.')
+                return None
             
         labels_unique, label_counts = np.unique(preds, return_counts=True)
 
@@ -972,3 +1002,15 @@ class Constrained_rich_clustering:
         plt.bar(labels_unique, label_counts)
         plt.xlabel('label')
         plt.ylabel('count')
+
+    def plot_c_threshold_matrix(self, m_threshold=0.5):
+        mt = self.activate_m() > m_threshold
+        plt.figure()
+        plt.imshow(self.c[mt, mt].detach().cpu(), aspect='auto')
+
+    def plot_c_masked_matrix(self, m_threshold=0.5, **kwargs_imshow):
+        ma = self.activate_m()
+        cm = self.c * ma[None,:]
+        cm[self._dmCEL.idx_diag, self._dmCEL.idx_diag] = self.c.diag()
+        plt.figure()
+        plt.imshow((cm * ma[:,None]).detach().cpu(), aspect='auto')
