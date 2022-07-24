@@ -296,8 +296,8 @@ def cluster_silhouette_score(
     else:
         raise ValueError('method_out must be one of "mean", "max", "min".')
         
-    cs_in  = torch.as_tensor([fn_mi(s_tu[h[:,ii]][:, h[:,ii]]) for ii in range(h.shape[1])], device=DEVICE)
-    cs_out = torch.as_tensor([fn_mo(s_tu[h[:,ii]][:,~h[:,ii]]) for ii in range(h.shape[1])], device=DEVICE)
+    cs_in  = torch.as_tensor([fn_mi(s_tu[h_tu[:,ii]][:, h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
+    cs_out = torch.as_tensor([fn_mo(s_tu[h_tu[:,ii]][:,~h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
     
     cs = cs_in / cs_out
 
@@ -426,7 +426,7 @@ class Constrained_rich_clustering:
         fracWeighted_sigSlope=2,
         fracWeighted_sigCenter=0.5,
         fracWeight_penalty=1e0,
-        maskL1_penalty=1e-3,
+        maskL1_penalty=0e-3,
         tol_convergence=1e-2,
         window_convergence=100,
         freqCheck_convergence=100,
