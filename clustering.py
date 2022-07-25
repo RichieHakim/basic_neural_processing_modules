@@ -181,7 +181,7 @@ def cluster_silhouette_score(
         return cs
 
 
-def cluster_dispersion_score(
+def cluster_similarity_score(
     s,
     h,
     locality=1,
@@ -189,7 +189,8 @@ def cluster_dispersion_score(
     method_out='max',
 ):
     """
-    Function to compute the aggregated dispersion score of clusters.
+    Function to compute the aggregated similarity / dispersion score 
+     of clusters.
     Here, the score measures the similarity between samples within
      a cluster and between samples within a cluster and all other samples.
     To compute a true silhouette score, use:
@@ -219,8 +220,6 @@ def cluster_dispersion_score(
             Must be one of "mean", "max", "min".
     """
 
-    if h.dtype != torch.bool:
-        raise ValueError('h must be a boolean tensor.')
 
     n_clusters = h.shape[1]
     n_samples = h.shape[0]
@@ -233,17 +232,22 @@ def cluster_dispersion_score(
     ii_normFactor = lambda i   : i * (i-1)
     ij_normFactor = lambda i,j : i * j
 
-    if method_in=='mean' and method_out=='mean':
-        s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = 0
-        c = torch.einsum('ab, ac, bd -> cd', s_tu, h_tu, h_tu)  /  \
-            ( (torch.eye(n_clusters).to(DEVICE) * ii_normFactor(h.sum(0))) + ((1-torch.eye(n_clusters).to(DEVICE)) * ij_normFactor(*torch.meshgrid((n_samples, n_samples), indexing='ij'))) )
-        return c
-
-    s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
-    
     yy, xx = torch.meshgrid(torch.arange(n_clusters), torch.arange(n_clusters), indexing='ij')
     yyf, xxf = yy.reshape(-1), xx.reshape(-1)
 
+    sizes_clusters = h_tu.sum(0)
+
+    if method_in=='mean' and method_out=='mean':
+        s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = 0
+        c = torch.einsum('ab, ac, bd -> cd', s_tu, h_tu, h_tu)  /  \
+            ( (torch.eye(n_clusters).to(DEVICE) * ii_normFactor(sizes_clusters)) + ((1-torch.eye(n_clusters).to(DEVICE)) * (sizes_clusters[None,:] * sizes_clusters[:,None])) )
+        return c
+
+    if h.dtype != torch.bool:
+        raise ValueError('h must be a boolean tensor.')
+
+    s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
+    
     if method_in == 'mean':
         fn_mi = torch.nanmean
     elif method_in == 'max':

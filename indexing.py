@@ -236,7 +236,7 @@ def get_nth_True_idx(input_array, n):
     return output
 
 
-def make_batches(iterable, batch_size=None, num_batches=5, min_batch_size=0, return_idx=False):
+def make_batches(iterable, batch_size=None, num_batches=None, min_batch_size=0, return_idx=False, length=None):
     """
     Make batches of data or any other iterable.
     RH 2021
@@ -254,12 +254,21 @@ def make_batches(iterable, batch_size=None, num_batches=5, min_batch_size=0, ret
         return_idx (bool):
             whether to return the indices of the batches.
             output will be [start, end] idx
+        length (int):
+            length of the iterable.
+            if None, then length is len(iterable)
+            This is useful if you want to make batches of 
+             something that doesn't have a __len__ method.
     
     Returns:
         output (iterable):
             batches of iterable
     """
-    l = len(iterable)
+
+    if length is None:
+        l = len(iterable)
+    else:
+        l = length
     
     if batch_size is None:
         batch_size = np.int64(np.ceil(l / num_batches))
