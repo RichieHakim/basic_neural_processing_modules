@@ -282,6 +282,15 @@ def permute_sparse(input, dims):
     return torch.sparse_coo_tensor(indices=input._indices()[dims], values=input._values(), size=torch.Size(torch.tensor(input.size())[dims]))
 
 def roll_sparse(X, shifts, dims):
+    """
+    Roll a sparse tensor along the specified dimensions.
+    RH 2022
+    """
+    if type(shifts) is not tuple:
+        shifts = (shifts,)
+    if type(dims) is not tuple:
+        dims = (dims,)
+
     X_out = copy.copy(X)
     for shift, dim in zip(shifts, dims):
         idx = X_out._indices()
