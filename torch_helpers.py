@@ -271,6 +271,14 @@ def multiply_elementwise_sparse_dense(s, d):
     RH 2022
     """
     return torch.mul(d.expand(s.shape).sparse_mask(s.coalesce()), s)
+
+def permute_sparse(input, dims):
+    """
+    Permute the dimensions of a sparse tensor.
+    found here: https://github.com/pytorch/pytorch/issues/78422
+    """
+    dims = torch.LongTensor(dims)
+    return torch.sparse_coo_tensor(indices=input._indices()[dims], values=input._values(), size=torch.Size(torch.tensor(input.size())[dims]))
       
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
