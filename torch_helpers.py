@@ -4,6 +4,7 @@ import numpy as np
 
 import sys
 import gc
+import copy
 
 
 ############################################
@@ -279,6 +280,14 @@ def permute_sparse(input, dims):
     """
     dims = torch.LongTensor(dims)
     return torch.sparse_coo_tensor(indices=input._indices()[dims], values=input._values(), size=torch.Size(torch.tensor(input.size())[dims]))
+
+def roll_sparse(X, shifts, dims):
+    X_out = copy.copy(X)
+    for shift, dim in zip(shifts, dims):
+        idx = X_out._indices()
+        idx[dim] = (idx[dim] + shift) % X_out.shape[dim]
+        X_out = torch.sparse_coo_tensor(indices=idx, values=X.coalesce().values(), size=X_out.shape)
+    return X_out
       
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
