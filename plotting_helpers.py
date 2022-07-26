@@ -225,9 +225,9 @@ def rand_cmap(
         cb = colorbar.ColorbarBase(ax, cmap=random_colormap, norm=norm, spacing='proportional', ticks=None,
                                    boundaries=bounds, format='%1i', orientation=u'horizontal')
 
-    random_colormap.set_bad(colorConverter.to_rgb(bad))
-    random_colormap.set_over(colorConverter.to_rgb(over))
-    random_colormap.set_under(colorConverter.to_rgb(under))
+    random_colormap.set_bad(bad)
+    random_colormap.set_over(over)
+    random_colormap.set_under(under)
 
     return random_colormap
 
@@ -288,9 +288,11 @@ def simple_cmap(
         cdict['blue'].append((idx, b, b))
 
     cmap = LinearSegmentedColormap(name, {k: tuple(v) for k, v in cdict.items()})
-    cmap.set_bad(colorConverter.to_rgb(bad))
-    cmap.set_over(colorConverter.to_rgb(over))
-    cmap.set_under(colorConverter.to_rgb(under))
+                                   
+    cmap.set_bad(bad)
+    cmap.set_over(over)
+    cmap.set_under(under)
+
     return cmap
 
 

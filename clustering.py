@@ -552,7 +552,7 @@ class Constrained_rich_clustering:
                 (torch.eye(n_clusters, device=device)*c.diag()[None,:]).type(torch.float32) / self.temp,
                 self.labels
             )
-            self.worst_minus_best = self.worst_case_loss - self.best_case_loss
+            self.worst_minus_best = self.worst_case_loss - self.best_case_loss  + 1e-7
 
         def make_sigmoid_function(
             self,
