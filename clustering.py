@@ -293,6 +293,7 @@ class Constrained_rich_clustering:
         h,
         w=None,
         m_init=None,
+        device='cpu',
         optimizer_partial=None,
         dmCEL_temp=1,
         dmCEL_sigSlope=2,
@@ -328,6 +329,8 @@ class Constrained_rich_clustering:
                 The initial cluster inclusion vector.
                 shape: (n_clusters)
                 If None, then vector is initialized as small random values.
+            device (str):
+                The device to use for the computation. ('cpu', 'cuda', etc.)
             optimizer_partial (torch.optim.Optimizer):
                 A torch optimizer with all but the parameters initialized.
                 If None, then the optimizer is initialized with Adam and 
@@ -388,12 +391,13 @@ class Constrained_rich_clustering:
         self._n_samples = c.shape[0]
         self._n_clusters = h.shape[1]
 
-        self._DEVICE = c.device
+        self._DEVICE = device
         # self.c = c.to_sparse()
-        self.c = c
-        self.h = h.to(self._DEVICE)
-        self.w = w if w is not None else torch.ones(self._n_samples).type(torch.float32).to(self._DEVICE)
-        self.m = m_init if m_init is not None else (torch.ones(self._n_clusters)*0.1 + torch.rand(self._n_clusters)*0.05).type(torch.float32).to(self._DEVICE)
+        self.c = c.to_sparse().type(torch.float32).to(self._DEVICE)
+        self.h = h.to_sparse().type(torch.float32).to(self._DEVICE)
+        # self.w = w.to_sparse().to(self._DEVICE) if w is not None else torch.ones(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
+        self.w = (torch.eye(len(w)) * w[None,:]).to_sparse().to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
+        self.m = m_init.to(self._DEVICE) if m_init is not None else (torch.ones(self._n_clusters)*0.1 + torch.rand(self._n_clusters)*0.05).type(torch.float32).to(self._DEVICE)
         self.m.requires_grad=True
 
         self._optimizer = optimizer_partial(params=[self.m]) if optimizer_partial is not None else torch.optim.Adam(params=[self.m], lr=1e-2, betas=(0.9, 0.900))
@@ -584,7 +588,8 @@ class Constrained_rich_clustering:
             sig_slope=5,
             sig_center=0.5,
         ):
-            self.h_w = h.type(torch.float32) * w[None,:]
+            # self.h_w = h.type(torch.float32) * w[None,:]
+            self.h_w = h.type(torch.float32) @ w
             # self.h_w = h.type(torch.float32)
         
             self.goal_frac = goal_frac

@@ -297,7 +297,16 @@ def roll_sparse(X, shifts, dims):
         idx[dim] = (idx[dim] + shift) % X_out.shape[dim]
         X_out = torch.sparse_coo_tensor(indices=idx, values=X.coalesce().values(), size=X_out.shape)
     return X_out
-      
+
+def diag_sparse(x):
+    """
+    Get the diagonal of a sparse tensor.
+    RH 2022
+    """
+    row, col = x.indices()
+    values = x.values()
+    return values[row == col]
+
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################
