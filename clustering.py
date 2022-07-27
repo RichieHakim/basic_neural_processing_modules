@@ -399,7 +399,7 @@ class Constrained_rich_clustering:
         self.c = ts.tensor.SparseTensor(row=c_sparse_tmp.indices()[0], col=c_sparse_tmp.indices()[1], value=c_sparse_tmp.values()).to(self._DEVICE)
         self.h = h.to_sparse().type(torch.float32).to(self._DEVICE)
         # self.w = w.to_sparse().to(self._DEVICE) if w is not None else torch.ones(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
-        self.w = (torch.eye(len(w)) * w[None,:]).to_sparse().to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
+        self.w = (torch.eye(len(w)) * w[None,:]).to_sparse().type(torch.float32).to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
         self.m = m_init.to(self._DEVICE) if m_init is not None else (torch.ones(self._n_clusters)*0.1 + torch.rand(self._n_clusters)*0.05).type(torch.float32).to(self._DEVICE)
         self.m.requires_grad=True
 
