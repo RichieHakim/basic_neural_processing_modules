@@ -8,7 +8,7 @@ import copy
 
 from tqdm import tqdm
 
-from . import torch_helpers
+from . import torch_helpers, indexing
 
 
 class cDBSCAN():
@@ -504,18 +504,21 @@ class Constrained_rich_clustering:
         self,
         m_threshold=0.5
     ):   
+        h_ts = indexing.torch_to_torchSparse(self.h)
+
         m_bool = self.activate_m() > m_threshold
-        h_preds = (self.h[:, m_bool] * (torch.arange(m_bool.sum(), device=self._DEVICE)[None,:]+1)).detach().cpu()
-        h_preds[h_preds==0] = -1
+        h_preds = (h_ts[:, m_bool] * (torch.arange(m_bool.sum(), device=self._DEVICE)[None,:]+1)).detach().cpu()
+        # h_preds[h_preds==0] = -1
 
         if h_preds.numel() == 0:
             print(f'WARNING: No predictions made.  m_threshold: {m_threshold}')
             return None, None
 
-        preds = torch.max(h_preds, dim=1)[0]
+        # preds = torch.max(h_preds, dim=1)[0]
+        preds = h_preds.max(dim=1)
         preds[torch.isinf(preds)] = -1
         
-        h_m = (self.h * self.activate_m()[None,:]).detach().cpu()
+        h_m = (h_ts * self.activate_m()[None,:]).detach().cpu().to_dense()
         confidence = h_m.var(1) / h_m.mean(1)
         
         self.preds = preds
