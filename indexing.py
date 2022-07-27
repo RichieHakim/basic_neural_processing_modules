@@ -505,8 +505,8 @@ def sparse_convert_spconv_to_scipy(sp_arr):
     return coo.reshape((coo.shape[0], -1)).to_scipy_sparse().tocsr()
 
 def torch_to_torchSparse(s):
-    import torch
     import torch_sparse
+    
     return torch_sparse.tensor.SparseTensor(
         row=s.indices()[0],
         col=s.indices()[1],

@@ -515,7 +515,7 @@ class Constrained_rich_clustering:
             return None, None
 
         # preds = torch.max(h_preds, dim=1)[0]
-        preds = h_preds.max(dim=1)
+        preds = h_preds.max(dim=1) - 1
         preds[torch.isinf(preds)] = -1
         
         h_m = (h_ts * self.activate_m()[None,:]).detach().cpu().to_dense()
@@ -524,7 +524,7 @@ class Constrained_rich_clustering:
         self.preds = preds
         self.confidence = confidence
         
-        return preds, confidence
+        return self.preds, self.confidence
 
     def activate_m(self):
         return self._dmCEL.activation(self.m)
@@ -601,6 +601,7 @@ class Constrained_rich_clustering:
             ###### cm[self.idx_diag, self.idx_diag] = c.diagonal()
             # cm = c * mp.sum()
             cm = c * mp[None,:]
+            cm = cm.set_diag(c.get_diag())
             lv = self.CEL(cm.to_torch_sparse_coo_tensor())
             # lv = self.CEL(
             #     cm/self.temp, 
@@ -734,10 +735,15 @@ class Constrained_rich_clustering:
             
         labels_unique, label_counts = np.unique(preds, return_counts=True)
 
-        plt.figure()
-        plt.bar(labels_unique, label_counts)
-        plt.xlabel('label')
-        plt.ylabel('count')
+        fig, axs = plt.subplots(1, 2, figsize=(10,5))
+        axs[0].bar(labels_unique, label_counts)
+        axs[0].set_xlabel('label')
+        axs[0].set_ylabel('count')
+        axs[1].hist(label_counts[labels_unique>=0], bins=25)
+        axs[0].set_xlabel('n_roi per cluster')
+        axs[0].set_ylabel('counts')
+
+        return fig, axs
 
     def plot_c_threshold_matrix(self, m_threshold=0.5):
         mt = self.activate_m() > m_threshold
