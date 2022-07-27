@@ -541,7 +541,7 @@ class Constrained_rich_clustering:
             self.labels = torch.arange(n_clusters, device=device, dtype=torch.int64)
             # self.CEL = torch.nn.CrossEntropyLoss(reduction='none')
             # self.CEL = lambda x : torch_helpers.diag_sparse(torch.sparse.log_softmax(x, dim=1).coalesce())
-            self.CEL = lambda x : torch_helpers.diag_sparse(torch.sparse.log_softmax(x/self.temp, dim=1).coalesce())
+            self.CEL = lambda x : -torch_helpers.diag_sparse(torch.sparse.log_softmax(x/self.temp, dim=1).coalesce())
             self.temp = temp
             self.activation = self.make_sigmoid_function(sig_slope, sig_center)
             self.device=device
