@@ -269,6 +269,8 @@ def nanmin(arr, dim=None, keepdim=False):
 def multiply_elementwise_sparse_dense(s, d):
     """
     Multiply a sparse tensor (s) with a dense tensor (d).
+    Warning: This creates an intermediate dense tensor with the
+     same shape as s.
     RH 2022
     """
     return torch.mul(d.expand(s.shape).sparse_mask(s.coalesce()), s)
@@ -306,6 +308,28 @@ def diag_sparse(x):
     row, col = x.indices()
     values = x.values()
     return values[row == col]
+class Diag_sparse:
+    """
+    Get the diagonal of a sparse tensor.
+    Class version. The  indices are kept as a property
+     of the class for faster access.
+    RH 2022
+    """
+    def __init__(self, x):
+        """
+        Args:
+            x (torch.sparse.Tensor):
+                Sparse tensor to get diagonal of.
+                For the __init__, only the indices of the
+                 diagonal are kept as a property. Subsequent
+                 calls of the class can use any x with the
+                 same indices.
+        """
+        row, col = x.indices()
+        self.idx = (row == col)
+    def __call__(self, x):
+        values = x.values()
+        return values[self.idx]
 
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############

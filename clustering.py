@@ -387,13 +387,16 @@ class Constrained_rich_clustering:
             verbose (bool):
                 Whether to print progress.
         """
+        import torch_sparse as ts
 
         self._n_samples = c.shape[0]
         self._n_clusters = h.shape[1]
 
         self._DEVICE = device
-        # self.c = c.to_sparse()
-        self.c = c.to_sparse().type(torch.float32).to(self._DEVICE)
+        # self.c = c.type(torch.float32).to(self._DEVICE)
+        # self.c = c.to_sparse().type(torch.float32).to(self._DEVICE)
+        c_sparse_tmp = c.to_sparse().type(torch.float32)
+        self.c = ts.tensor.SparseTensor(row=c_sparse_tmp.indices()[0], col=c_sparse_tmp.indices()[1], value=c_sparse_tmp.values()).to(self._DEVICE)
         self.h = h.to_sparse().type(torch.float32).to(self._DEVICE)
         # self.w = w.to_sparse().to(self._DEVICE) if w is not None else torch.ones(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
         self.w = (torch.eye(len(w)) * w[None,:]).to_sparse().to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
@@ -478,9 +481,6 @@ class Constrained_rich_clustering:
             self._optimizer.step()
 
             self.m.data = torch.maximum(self.m.data , torch.as_tensor(-14, device=self._DEVICE))
-            # if torch.isnan(self.m).sum() > 0:
-            #     print('fuck')
-            #     break
 
             self.losses_logger['loss'].append(self._loss.item())
             self.losses_logger['L_cs'].append(L_cs.item())
@@ -539,22 +539,41 @@ class Constrained_rich_clustering:
             sig_center=0.5,
         ):
             self.labels = torch.arange(n_clusters, device=device, dtype=torch.int64)
-            self.CEL = torch.nn.CrossEntropyLoss(reduction='none')
+            # self.CEL = torch.nn.CrossEntropyLoss(reduction='none')
+            # self.CEL = lambda x : torch_helpers.diag_sparse(torch.sparse.log_softmax(x, dim=1).coalesce())
+            self.CEL = lambda x : torch_helpers.diag_sparse(torch.sparse.log_softmax(x/self.temp, dim=1).coalesce())
             self.temp = temp
             self.activation = self.make_sigmoid_function(sig_slope, sig_center)
+            self.device=device
             
             # self.w = w
             
             self.idx_diag = torch.arange(n_clusters, device=device, dtype=torch.int64)
 
+            # self.m_eye = torch.sparse_coo_tensor(
+            #     indices=torch.vstack((torch.arange(n_clusters), torch.arange(n_clusters))).to(device),
+            #     values=torch.ones(n_clusters).to(device),
+            #     size=(n_clusters, n_clusters)
+            # ).coalesce()
+            # self.m_eye = torch.eye(n_clusters, device=device).to(device)
+
             self.worst_case_loss = self.CEL(
                 # (torch.logical_not(torch.eye(n_clusters, device=device)) + torch.eye(n_clusters, device=device)*c.diag()[None,:]).type(torch.float32) / self.temp,
-                c / self.temp,
-                self.labels
+                # c / self.temp,
+                # self.labels
+                c.to_torch_sparse_coo_tensor(),
             )
             self.best_case_loss = self.CEL(
-                (torch.eye(n_clusters, device=device)*c.diag()[None,:]).type(torch.float32) / self.temp,
-                self.labels
+                # (torch.eye(n_clusters, device=device)*c.diag()[None,:]).type(torch.float32) / self.temp,
+                (torch.sparse_coo_tensor(
+                    indices=torch.vstack((torch.arange(n_clusters), torch.arange(n_clusters))).to(device),
+                    # values=torch_helpers.diag_sparse(c), 
+                    values=c.get_diag(), 
+                    size=(n_clusters, n_clusters)
+                    )
+                ).type(torch.float32),
+                # ).type(torch.float32) / self.temp,
+                # self.labels
             )
             self.worst_minus_best = self.worst_case_loss - self.best_case_loss  + 1e-7
 
@@ -567,10 +586,23 @@ class Constrained_rich_clustering:
             
         def __call__(self, c, m):
             mp = self.activation(m)  ## constrain to be 0-1
-            cm = c * mp[None,:]  ## 'c masked'. Mask only applied to columns.
+            ###### cm = c * mp[None,:]  ## 'c masked'. Mask only applied to columns.
+            # cm = c @ torch.sparse_coo_tensor(
+            #     indices=torch.vstack((torch.arange(c.shape[0]), torch.arange(c.shape[0]))).to(self.device),
+            #     values=mp,
+            #     size=(c.shape[0], c.shape[0])
+            # )  ## 'c masked'. Mask only applied to columns.
+            # cm = c @ (self.m_eye*mp[None,:])  ## 'c masked'. Mask only applied to columns.
             # cm = c * m[None,:]
-            cm[self.idx_diag, self.idx_diag] = c.diagonal()
-            lv = self.CEL(cm/self.temp, self.labels)  ## 'loss vector' showing loss of each row (each cluster)
+            # cm = c
+            ###### cm[self.idx_diag, self.idx_diag] = c.diagonal()
+            # cm = c * mp.sum()
+            cm = c * mp[None,:]
+            lv = self.CEL(cm.to_torch_sparse_coo_tensor())
+            # lv = self.CEL(
+            #     cm/self.temp, 
+            #     # self.labels
+            #     )  ## 'loss vector' showing loss of each row (each cluster)
             # print(self.worst_minus_best)
             lv_norm = (lv - self.best_case_loss) / self.worst_minus_best
             # print(lv_norm @ mp)
