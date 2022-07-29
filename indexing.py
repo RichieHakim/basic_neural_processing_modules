@@ -506,11 +506,12 @@ def sparse_convert_spconv_to_scipy(sp_arr):
 
 def torch_to_torchSparse(s):
     import torch_sparse
-    
+
     return torch_sparse.tensor.SparseTensor(
         row=s.indices()[0],
         col=s.indices()[1],
         value=s.values(),
+        sparse_sizes=s.shape,
     )
 
 def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):

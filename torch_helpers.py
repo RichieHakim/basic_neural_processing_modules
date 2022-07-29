@@ -6,6 +6,8 @@ import sys
 import gc
 import copy
 
+from . import indexing
+
 
 ############################################
 ############ VARIABLE HELPERS ##############
@@ -300,14 +302,19 @@ def roll_sparse(X, shifts, dims):
         X_out = torch.sparse_coo_tensor(indices=idx, values=X.coalesce().values(), size=X_out.shape)
     return X_out
 
-def diag_sparse(x):
+def diag_sparse(x, return_sparse_vals=True):
     """
     Get the diagonal of a sparse tensor.
     RH 2022
     """
-    row, col = x.indices()
-    values = x.values()
-    return values[row == col]
+    if return_sparse_vals is False:
+        row, col = x.indices()
+        values = x.values()
+        return values[row == col]
+    else:
+        x_ts = indexing.torch_to_torchSparse(x)
+        return x_ts.get_diag()
+
 class Diag_sparse:
     """
     Get the diagonal of a sparse tensor.

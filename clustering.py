@@ -283,7 +283,7 @@ class Constrained_rich_clustering:
     The cluster similarity matrix and score vector can be made using 
      the cluster_dispersion_score and cluster_silhouette_score functions
      respectively. The cluster membership matrix showing putative clusters
-     can be made by doing something like sweeping over linkage distances.
+     can be madeby 17 by doing something like sweeping over linkage distances.
 
     RH 2022
     """
@@ -295,6 +295,7 @@ class Constrained_rich_clustering:
         m_init=None,
         device='cpu',
         optimizer_partial=None,
+        scheduler_partial=None,
         dmCEL_temp=1,
         dmCEL_sigSlope=2,
         dmCEL_sigCenter=0.5,
@@ -337,6 +338,8 @@ class Constrained_rich_clustering:
                  some default parameters.
                 This can be made using:
                  functools.partial(torch.optim.Adam, lr=x, betas=(x,x)).
+            scheduler (torch.optim.lr_scheduler):
+                A torch learning rate scheduler.
             dmCEL_temp (float):
                 The temperature used in the cross entropy loss of the
                  interaction matrix.
@@ -404,6 +407,7 @@ class Constrained_rich_clustering:
         self.m.requires_grad=True
 
         self._optimizer = optimizer_partial(params=[self.m]) if optimizer_partial is not None else torch.optim.Adam(params=[self.m], lr=1e-2, betas=(0.9, 0.900))
+        self._scheduler = scheduler_partial(optimizer=self._optimizer) if scheduler_partial is not None else torch.optim.lr_scheduler.LambdaLR(optimizer=self._optimizer, lr_lambda=lambda x : x, last_epoch=-1, verbose=True)
         
         self._dmCEL_penalty = dmCEL_penalty
         self._sampleWeight_penalty = sampleWeight_penalty
@@ -479,6 +483,7 @@ class Constrained_rich_clustering:
 
             self._loss.backward()
             self._optimizer.step()
+            self._scheduler.step()
 
             self.m.data = torch.maximum(self.m.data , torch.as_tensor(-14, device=self._DEVICE))
 
@@ -495,7 +500,7 @@ class Constrained_rich_clustering:
                     break
 
             if verbose and self._i_iter % verbose_interval == 0:
-                print(f'iter: {self._i_iter}:  loss_total: {self._loss.item():.4f}   loss_cs: {L_cs.item():.4f}  loss_fracWeighted: {L_fracWeighted.item():.4f}  loss_sampleWeight: {L_sampleWeight.item():.4f}  loss_maskL1: {L_maskL1.item():.4f}  diff_loss: {diff_window_convergence:.4f}  loss_smooth: {loss_smooth:.4f}')
+                print(f'iter: {self._i_iter}:  loss_total: {self._loss.item():.4f}  lr: {self._scheduler.get_last_lr()[0]:.5f}   loss_cs: {L_cs.item():.4f}  loss_fracWeighted: {L_fracWeighted.item():.4f}  loss_sampleWeight: {L_sampleWeight.item():.4f}  loss_maskL1: {L_maskL1.item():.4f}  diff_loss: {diff_window_convergence:.4f}  loss_smooth: {loss_smooth:.4f}')
                 # print(torch.isnan(self.m).sum())
             self._i_iter += 1
 
@@ -508,6 +513,7 @@ class Constrained_rich_clustering:
 
         m_bool = self.activate_m() > m_threshold
         h_preds = (h_ts[:, m_bool] * (torch.arange(m_bool.sum(), device=self._DEVICE)[None,:]+1)).detach().cpu()
+        print(h_preds.sizes())
         # h_preds[h_preds==0] = -1
 
         if h_preds.numel() == 0:
@@ -524,7 +530,7 @@ class Constrained_rich_clustering:
         self.preds = preds
         self.confidence = confidence
         
-        return self.preds, self.confidence
+        return self.preds, self.confidence, m_bool.nonzero().squeeze().cpu()
 
     def activate_m(self):
         return self._dmCEL.activation(self.m)
@@ -714,6 +720,21 @@ class Constrained_rich_clustering:
             plt.hist(self.m.detach().cpu().numpy(), bins=50)
         plt.hist(self.activate_m().detach().cpu().numpy(), bins=50)
         plt.xlabel('cluster weight')
+        plt.ylabel('count')
+
+    def plot_clusterScores(self, bins=100):
+        if hasattr(self, 'preds'):
+            preds = self.preds
+        else:
+            preds, confidence = self.predict()
+            if preds is None:
+                print('Skipping plot_labelCounts: preds is None.')
+                return None
+        print(self.w.shape)
+        scores = torch_helpers.diag_sparse(self.w).cpu()[preds.type(torch.int64).cpu() >= 0]
+        plt.figure()
+        plt.hist(scores, bins=bins, log=True)
+        plt.xlabel('cluster w score')
         plt.ylabel('count')
 
     def plot_sampleWeights(self):
