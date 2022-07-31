@@ -170,6 +170,12 @@ def hash_file(path, type_hash='MD5', buffer_size=65536):
         hasher = hashlib.md5()
     elif type_hash == 'SHA1':
         hasher = hashlib.sha1()
+    elif type_hash == 'SHA256':
+        hasher = hashlib.sha256()
+    elif type_hash == 'SHA512':
+        hasher = hashlib.sha512()
+    else:
+        raise ValueError(f'{type_hash} is not a valid hash type.')
 
     with open(path, 'rb') as f:
         while True:
