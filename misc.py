@@ -3,6 +3,9 @@ from numba import njit
 import sys
 import re
 import hashlib
+from pathlib import Path
+
+from . import path_helpers
 
 def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64, units='GB'):
     '''
@@ -145,6 +148,7 @@ def get_nums_from_str(str_in, dtype_out=np.float64):
 
 def hash_file(path, type_hash='MD5', buffer_size=65536):
     """
+    Gets hash of a file.
     Based on: https://stackoverflow.com/questions/22058048/hashing-a-file-in-python
     RH 2022
 
@@ -188,6 +192,64 @@ def hash_file(path, type_hash='MD5', buffer_size=65536):
         
     return hash
 
+
+def compare_file_hashes(
+    hash_dict_true,
+    dir_files_test=None,
+    paths_files_test=None,
+    verbose=True,
+):
+    """
+    Compares hashes of files in a directory or list of paths
+     to user provided hashes.
+    RH 2022
+
+    Args:
+        hash_dict_true (dict):
+            Dictionary of hashes to compare to.
+            Each entry should be:
+                {'key': ('filename', 'hash')}
+        dir_files_test (str):
+            Path to directory to compare hashes of files in.
+            Unused if paths_files_test is not None.
+        paths_files_test (list of str):
+            List of paths to files to compare hashes of.
+            Optional. dir_files_test is used if None.
+        verbose (bool):
+            Whether or not to print out failed comparisons.
+
+    Returns:
+        total_result (bool):
+            Whether or not all hashes were matched.
+        individual_results (list of bool):
+            Whether or not each hash was matched.
+        paths_matching (dict):
+            Dictionary of paths that matched.
+            Each entry is:
+                {'key': 'path'}
+    """
+    if paths_files_test is None:
+        if dir_files_test is None:
+            raise ValueError('Must provide either dir_files_test or path_files_test.')
+        
+        ## make a dict of {filename: path} for each file in dir_files_test
+        files_test = {filename: (Path(dir_files_test).resolve() / filename).as_posix() for filename in path_helpers.get_dir_contents(dir_files_test)[1]} 
+    
+    paths_matching = {}
+    results_matching = {}
+    for key, (filename, hash) in hash_dict_true.items():
+        match = True
+        if filename not in files_test:
+            print(f'{filename} not found in test directory: {dir_files_test}.') if verbose else None
+            match = False
+        elif hash != hash_file(files_test[filename]):
+            print(f'{filename} hash mismatch with {key, filename}.') if verbose else None
+            match = False
+        if match:
+            paths_matching[key] = files_test[filename]
+        results_matching[key] = match
+
+    return all(results_matching.values()), results_matching, paths_matching
 
 
 #########################################################
