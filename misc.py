@@ -2,6 +2,7 @@ import numpy as np
 from numba import njit
 import sys
 import re
+import hashlib
 
 def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64, units='GB'):
     '''
@@ -140,6 +141,47 @@ def get_nums_from_str(str_in, dtype_out=np.float64):
 
     """
     return np.array([float(i) for i in re.findall(r'\-?\d+\.?\d*', str_in)], dtype=dtype_out)
+
+
+def hash_file(path, type_hash='MD5', buffer_size=65536):
+    """
+    Based on: https://stackoverflow.com/questions/22058048/hashing-a-file-in-python
+    RH 2022
+
+    Args:
+        path (str):
+            Path to file to be hashed.
+        type_hash (str):
+            Type of hash to use. Can be:
+                'MD5'
+                'SHA1'
+                'SHA256'
+                'SHA512'
+        buffer_size (int):
+            Buffer size for reading file.
+            65536 corresponds to 64KB.
+
+    Returns:
+        hash (str):
+            Hash of file.
+    """
+
+    if type_hash == 'MD5':
+        hasher = hashlib.md5()
+    elif type_hash == 'SHA1':
+        hasher = hashlib.sha1()
+
+    with open(path, 'rb') as f:
+        while True:
+            data = f.read(buffer_size)
+            if not data:
+                break
+            hasher.update(data)
+
+    hash = hasher.hexdigest()
+        
+    return hash
+
 
 
 #########################################################

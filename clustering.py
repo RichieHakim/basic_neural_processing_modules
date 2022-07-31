@@ -195,6 +195,8 @@ def cluster_similarity_score(
      a cluster and between samples within a cluster and all other samples.
     To compute a true silhouette score, use:
      method_in='mean' and method_out='max'.
+    For a score similar to complete linkage, use:
+     method_in='min' and method_out='max'.
 
     RH 2022
 
@@ -511,8 +513,8 @@ class Constrained_rich_clustering:
     ):   
         h_ts = indexing.torch_to_torchSparse(self.h)
 
-        m_bool = self.activate_m() > m_threshold
-        h_preds = (h_ts[:, m_bool] * (torch.arange(m_bool.sum(), device=self._DEVICE)[None,:]+1)).detach().cpu()
+        self.m_bool = (self.activate_m() > m_threshold).squeeze().cpu()
+        h_preds = (h_ts[:, self.m_bool] * (torch.arange(self.m_bool.sum(), device=self._DEVICE)[None,:]+1)).detach().cpu()
         print(h_preds.sizes())
         # h_preds[h_preds==0] = -1
 
@@ -526,11 +528,14 @@ class Constrained_rich_clustering:
         
         h_m = (h_ts * self.activate_m()[None,:]).detach().cpu().to_dense()
         confidence = h_m.var(1) / h_m.mean(1)
+
+        self.scores_clusters = torch_helpers.diag_sparse(self.w).cpu()[self.m_bool]
+        self.scores_samples = (h_preds * self.scores_clusters[None,:]).max(1)
         
         self.preds = preds
         self.confidence = confidence
         
-        return self.preds, self.confidence, m_bool.nonzero().squeeze().cpu()
+        return self.preds, self.confidence, self.scores_samples, self.m_bool
 
     def activate_m(self):
         return self._dmCEL.activation(self.m)
@@ -723,15 +728,14 @@ class Constrained_rich_clustering:
         plt.ylabel('count')
 
     def plot_clusterScores(self, bins=100):
-        if hasattr(self, 'preds'):
-            preds = self.preds
+        if hasattr(self, 'm_bool'):
+            m_bool = self.m_bool
         else:
-            preds, confidence = self.predict()
+            preds, confidence, scores_samples, m_bool = self.predict()
             if preds is None:
-                print('Skipping plot_labelCounts: preds is None.')
+                print('Plot failed: preds is None.')
                 return None
-        print(self.w.shape)
-        scores = torch_helpers.diag_sparse(self.w).cpu()[preds.type(torch.int64).cpu() >= 0]
+        scores = torch_helpers.diag_sparse(self.w).cpu()[m_bool.cpu()]
         plt.figure()
         plt.hist(scores, bins=bins, log=True)
         plt.xlabel('cluster w score')
@@ -749,7 +753,7 @@ class Constrained_rich_clustering:
         if hasattr(self, 'preds'):
             preds = self.preds
         else:
-            preds, confidence = self.predict()
+            preds, confidence, scores_samples, m_bool = self.predict()
             if preds is None:
                 print('Skipping plot_labelCounts: preds is None.')
                 return None
