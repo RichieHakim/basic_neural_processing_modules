@@ -399,10 +399,18 @@ class Constrained_rich_clustering:
         self._n_clusters = h.shape[1]
 
         self._DEVICE = device
-        # self.c = c.type(torch.float32).to(self._DEVICE)
-        # self.c = c.to_sparse().type(torch.float32).to(self._DEVICE)
-        c_sparse_tmp = c.to_sparse().type(torch.float32).coalesce()
-        self.c = ts.tensor.SparseTensor(row=c_sparse_tmp.indices()[0], col=c_sparse_tmp.indices()[1], value=c_sparse_tmp.values()).to(self._DEVICE)
+
+        if c.layout == torch.sparse_coo:
+            c_tmp = c.coalesce()
+        elif c.layout == torch.strided:
+            c_tmp = c.to_sparse().coalesce()
+        self.c = ts.SparseTensor(
+            row=c_tmp.indices()[0], 
+            col=c_tmp.indices()[1], 
+            value=c_tmp.values(),
+            sparse_sizes=c_tmp.shape,
+        ).to(self._DEVICE)
+
         self.h = h.to_sparse().type(torch.float32).to(self._DEVICE)
         # self.w = w.to_sparse().to(self._DEVICE) if w is not None else torch.ones(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
         self.w = (torch.eye(len(w)) * (w / w.max())[None,:]).to_sparse().type(torch.float32).to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
