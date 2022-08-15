@@ -245,6 +245,7 @@ def cluster_similarity_score(
             ( (torch.eye(n_clusters).to(DEVICE) * ii_normFactor(sizes_clusters)) + ((1-torch.eye(n_clusters).to(DEVICE)) * (sizes_clusters[None,:] * sizes_clusters[:,None])) )
         return c
 
+
     if h.dtype != torch.bool:
         raise ValueError('h must be a boolean tensor.')
 
@@ -400,11 +401,11 @@ class Constrained_rich_clustering:
         self._DEVICE = device
         # self.c = c.type(torch.float32).to(self._DEVICE)
         # self.c = c.to_sparse().type(torch.float32).to(self._DEVICE)
-        c_sparse_tmp = c.to_sparse().type(torch.float32)
+        c_sparse_tmp = c.to_sparse().type(torch.float32).coalesce()
         self.c = ts.tensor.SparseTensor(row=c_sparse_tmp.indices()[0], col=c_sparse_tmp.indices()[1], value=c_sparse_tmp.values()).to(self._DEVICE)
         self.h = h.to_sparse().type(torch.float32).to(self._DEVICE)
         # self.w = w.to_sparse().to(self._DEVICE) if w is not None else torch.ones(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
-        self.w = (torch.eye(len(w)) * w[None,:]).to_sparse().type(torch.float32).to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
+        self.w = (torch.eye(len(w)) * (w / w.max())[None,:]).to_sparse().type(torch.float32).to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
         self.m = m_init.to(self._DEVICE) if m_init is not None else (torch.ones(self._n_clusters)*0.1 + torch.rand(self._n_clusters)*0.05).type(torch.float32).to(self._DEVICE)
         self.m.requires_grad=True
 
@@ -765,8 +766,8 @@ class Constrained_rich_clustering:
         axs[0].set_xlabel('label')
         axs[0].set_ylabel('count')
         axs[1].hist(label_counts[labels_unique>=0], bins=25)
-        axs[0].set_xlabel('n_roi per cluster')
-        axs[0].set_ylabel('counts')
+        axs[1].set_xlabel('n_roi per cluster')
+        axs[1].set_ylabel('counts')
 
         return fig, axs
 

@@ -24,6 +24,7 @@ class lazy_repeat_item():
             pseudo_length (int):
                 length of the iterator.
         """
+        super().__init__()
         self.item = item
         self.pseudo_length = pseudo_length
 
