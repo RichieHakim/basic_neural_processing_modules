@@ -277,7 +277,7 @@ def cluster_similarity_score(
 
 class Constrained_rich_clustering:
     """
-    Class to perform constrained clustering.
+    Class to perform constrained cluster assignment.
     This method takes in putative clusters, a cluster similarity matrix,
      and a vector of cluster 'scores' describing how valuable each
      cluster is. It then attempts to find an optimal combination of
@@ -286,7 +286,7 @@ class Constrained_rich_clustering:
     The cluster similarity matrix and score vector can be made using 
      the cluster_dispersion_score and cluster_silhouette_score functions
      respectively. The cluster membership matrix showing putative clusters
-     can be madeby 17 by doing something like sweeping over linkage distances.
+     can be made by by doing something like sweeping over linkage distances.
 
     RH 2022
     """
@@ -317,10 +317,10 @@ class Constrained_rich_clustering:
     ):
         """
         Args:
-            c (torch.Tensor, dtype float):
+            c (scipy.sparse.csr_matrix, dtype float):
                 The cluster similarity matrix.
                 shape: (n_clusters, n_clusters)
-            h (torch.Tensor, dtype bool):
+            h (scipy.sparse.csr_matrix, dtype bool):
                 The cluster membership matrix.
                 shape: (n_samples, n_clusters)
             w (torch.Tensor, dtype float):
@@ -400,10 +400,7 @@ class Constrained_rich_clustering:
 
         self._DEVICE = device
 
-        if c.layout == torch.sparse_coo:
-            c_tmp = c.coalesce()
-        elif c.layout == torch.strided:
-            c_tmp = c.to_sparse().coalesce()
+        c_tmp = indexing.scipy_sparse_to_torch_coo(c).coalesce().type(torch.float32).to(self._DEVICE)
         self.c = ts.SparseTensor(
             row=c_tmp.indices()[0], 
             col=c_tmp.indices()[1], 
@@ -411,9 +408,9 @@ class Constrained_rich_clustering:
             sparse_sizes=c_tmp.shape,
         ).to(self._DEVICE)
 
-        self.h = h.to_sparse().type(torch.float32).to(self._DEVICE)
-        # self.w = w.to_sparse().to(self._DEVICE) if w is not None else torch.ones(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
+        self.h = indexing.scipy_sparse_to_torch_coo(h).coalesce().type(torch.float32).to(self._DEVICE)
         self.w = (torch.eye(len(w)) * (w / w.max())[None,:]).to_sparse().type(torch.float32).to(self._DEVICE) if w is not None else torch.eye(self._n_samples).type(torch.float32).to_sparse().to(self._DEVICE)
+
         self.m = m_init.to(self._DEVICE) if m_init is not None else (torch.ones(self._n_clusters)*0.1 + torch.rand(self._n_clusters)*0.05).type(torch.float32).to(self._DEVICE)
         self.m.requires_grad=True
 

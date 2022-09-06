@@ -306,6 +306,13 @@ def diag_sparse(x, return_sparse_vals=True):
     """
     Get the diagonal of a sparse tensor.
     RH 2022
+
+    Args:
+        x (torch.sparse.FloatTensor):
+            Pytorch sparse tensor.
+        return_sparse_vals (bool):
+            If True, returns 'sparse' (zeroed) values as well.
+            If False, returns only specified (non-sparsed out) values.
     """
     if return_sparse_vals is False:
         row, col = x.indices()

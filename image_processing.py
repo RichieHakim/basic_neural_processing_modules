@@ -144,6 +144,89 @@ def apply_warp_transform(
     )
     return im_out
 
+
+def phase_correlation(im_template, im_moving, mask_fft=None):
+    """
+    Perform phase correlation on two images.
+    RH 2022
+    
+    Args:
+        im_template (np.ndarray):
+            Template image
+        im_moving (np.ndarray):
+            Moving image
+        mask_fft (np.ndarray):
+            Mask for the FFT.
+            If None, no mask is used.
+    
+    Returns:
+        cc (np.ndarray):
+            Phase correlation coefficient.
+            Middle of image is zero-shift.
+    """
+    
+    if mask_fft is None:
+        mask_fft = np.ones(im_template.shape)
+    else:
+        mask_fft = np.fft.fftshift(mask_fft/mask_fft.sum())
+
+    fft_template = np.fft.fft2(im_template) * mask_fft
+    fft_moving   = np.fft.fft2(im_moving) * mask_fft
+    R = np.conj(fft_template) * fft_moving
+    R[mask_fft != 0] /= np.abs(R)[mask_fft != 0]
+    cc = np.fft.fftshift(np.fft.ifft2(R)).real
+    return cc
+
+
+
+def phaseCorrelationImage_to_shift(cc_im):
+    """
+    Convert phase correlation image to pixel shift values.
+    RH 2022
+
+    Args:
+        cc_im (np.ndarray):
+            Phase correlation image.
+            Middle of image is zero-shift.
+
+    Returns:
+        shifts (np.ndarray):
+            Pixel shift values (y, x).
+    """
+    height, width = cc_im.shape
+    shift_y_raw, shift_x_raw = np.unravel_index(cc_im.argmax(), cc_im.shape)
+    return int(np.floor(height/2) - shift_y_raw) , int(np.ceil(width/2) - shift_x_raw)
+
+
+def clahe(im, grid_size=50, clipLimit=0, normalize=True):
+    """
+    Perform Contrast Limited Adaptive Histogram Equalization (CLAHE)
+     on an image.
+    RH 2022
+
+    Args:
+        im (np.ndarray):
+            Input image
+        grid_size (int):
+            Grid size.
+            See cv2.createCLAHE for more info.
+        clipLimit (int):
+            Clip limit.
+            See cv2.createCLAHE for more info.
+        normalize (bool):
+            Whether to normalize the output image.
+        
+    Returns:
+        im_out (np.ndarray):
+            Output image
+    """
+    im_tu = (im / im.max())*(2**16) if normalize else im
+    im_tu = im_tu/10
+    clahe = cv2.createCLAHE(clipLimit=clipLimit, tileGridSize=(grid_size, grid_size))
+    im_c = clahe.apply(im_tu.astype(np.uint16))
+    return im_c
+
+
 def stack_to_RGB(images):
     """
     Convert a stack of images to RGB.

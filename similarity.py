@@ -477,8 +477,8 @@ def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='
     Returns:
         X1_X2 (np.ndarray or torch.Tensor):
     """
-    X1_dl = list(indexing.make_batches(np.arange(X1.shape[1]), batch_size=batch_size1, return_idx=True))
-    X2_dl = list(indexing.make_batches(np.arange(X2.shape[1]), batch_size=batch_size2, return_idx=True))
+    X1_dl = indexing.make_batches(np.arange(X1.shape[1]), batch_size=batch_size1, return_idx=True)
+    X2_dl = indexing.make_batches(np.arange(X2.shape[1]), batch_size=batch_size2, return_idx=True)
 
     if torch.is_tensor(X1):
         Y = torch.zeros(X1.shape[1], X2.shape[1], device=device)
@@ -488,7 +488,7 @@ def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='
     n_batches1 = X1.shape[1] // batch_size1
     n_batches2 = X2.shape[1] // batch_size2
     for ii, (X_batch_i, idx_batch_i) in enumerate(tqdm(X1_dl, total=n_batches1, leave=False, desc='outer loop')):
-        for jj, (X_batch_j, idx_batch_j) in enumerate(tqdm(X2_dl, total=n_batches2, leave=False, desc='inner loop')):
+        for jj, (X_batch_j, idx_batch_j) in enumerate(X2_dl):
             x1_t = X1[:,idx_batch_i[0]:idx_batch_i[-1]].T
             x2   = X2[:,idx_batch_j[0]:idx_batch_j[-1]]
             if device != 'cpu':

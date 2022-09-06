@@ -252,19 +252,19 @@ def make_cosine_taurus(offset, width):
     taurus = cosine[np.searchsorted(np.arange(len(cosine)), dist_im, side='left')-1]
     return taurus
 
-def shift(X, lag, fill_val):
+def helper_shift(X, shift, fill_val=0):
     X_shift = np.empty_like(X)
-    if lag>0:
-        X_shift[:lag] = fill_val
-        X_shift[lag:] = X[:-lag]
-    elif lag<0:
-        X_shift[lag:] = fill_val
-        X_shift[:lag] = X[-lag:]
+    if shift>0:
+        X_shift[:shift] = fill_val
+        X_shift[shift:] = X[:-shift]
+    elif shift<0:
+        X_shift[shift:] = fill_val
+        X_shift[:shift] = X[-shift:]
     else:
         X_shift[:] = X
     return X_shift
-def shift_along_axis(X, lag, fill_val, axis):
-    return np.apply_along_axis(shift, axis, X, lag, fill_val)
+def shift_along_axis(X, shift, fill_val=0, axis=0):
+    return np.apply_along_axis(helper_shift, axis, X, shift, fill_val)
 
 
 def mspline_grid(order, num_basis_funcs, nt):
