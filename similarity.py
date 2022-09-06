@@ -497,6 +497,20 @@ def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='
 
             Y[idx_batch_i[0]:idx_batch_i[-1], idx_batch_j[0]:idx_batch_j[-1]] = x1_t @ x2
     return Y
+    # X1_dl = indexing.make_batches(X1.T, batch_size=batch_size1, return_idx=True)
+    # X2_dl = indexing.make_batches(X2.T, batch_size=batch_size2, return_idx=True)
+
+    # if torch.is_tensor(X1):
+    #     Y = torch.zeros(X1.shape[1], X2.shape[1], device=device)
+    # else:
+    #     Y = np.zeros((X1.shape[1], X2.shape[1]))
+    
+    # n_batches1 = X1.shape[1] // batch_size1
+    # n_batches2 = X2.shape[1] // batch_size2
+    # for ii, (X_batch_i, idx_batch_i) in enumerate(tqdm(X1_dl, total=n_batches1, leave=False, desc='outer loop')):
+    #     for jj, (X_batch_j, idx_batch_j) in enumerate(X2_dl):
+    #         Y[idx_batch_i[0]:idx_batch_i[-1], idx_batch_j[0]:idx_batch_j[-1]] = X_batch_i @ X_batch_j.T
+    # return Y
 
 
 def similarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
