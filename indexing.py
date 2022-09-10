@@ -448,27 +448,31 @@ def off_diagonal(x):
 ############ SPARSE STUFF #############
 #######################################
 
-def sparse_mask(x_sparse, mask_sparse, do_safety_steps=True):
+def sparse_mask(x, mask_sparse, do_safety_steps=True):
     """
     Masks a sparse matrix with the non-zero elements of another
      sparse matrix.
     RH 2022
 
     Args:
-        x_sparse (scipy.sparse.csr_matrix):
+        x (scipy.sparse.csr_matrix):
             sparse matrix to mask
         mask_sparse (scipy.sparse.csr_matrix):
             sparse matrix to mask with
         do_safety_steps (bool):
             whether to do safety steps to ensure that things
              are working as expected.
+
+    Returns:
+        output (scipy.sparse.csr_matrix):
+            masked sparse matrix
     """
     if do_safety_steps:
         m = mask_sparse.copy()
         m.eliminate_zeros()
     else:
         m = mask_sparse
-    return (m!=0).multiply(x_sparse)
+    return (m!=0).multiply(x)
 
 def scipy_sparse_to_torch_coo(sp_array):
     import torch
