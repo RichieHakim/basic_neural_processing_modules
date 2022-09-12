@@ -1,6 +1,7 @@
 #  basic_neural_processing_modules 
 Personal library of functions used in analyzing neural data.
-If you find a bug or just want to reach out: RichHakim@gmail.com
+If you find a bug or just want to reach out: RichHakim@gmail.com\
+
 
 My favorites:
     - **`featurization.Toeplitz_convolution2d`**
@@ -10,6 +11,7 @@ My favorites:
     - **`spectral.VQT`**
         - Variable-Q transform. Generates spectrograms with variable frequency resolution.
         - Comparable to librosa's VQT, but faster, more flexible, without approximations, with GPU support, and pytorch autograd compatible.
+
 
 Other useful functions:
 - Signal Processing:
