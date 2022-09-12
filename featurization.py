@@ -354,7 +354,9 @@ def mspline(x, k, i, T):
 class Toeplitz_convolution2d:
     """
     Convolve a 2D array with a 2D kernel using the Toeplitz matrix method.
-    Allows for SPARSE x inputs, but not sparse k inputs.
+    Allows for SPARSE 'x' inputs. 'k' should remain dense.
+    Generally faster than scipy.signal.convolve2d when convolving mutliple
+     arrays with the same kernel.
     Test with: tests.test_toeplitz_convolution2d()
     RH 2022
     """
@@ -363,6 +365,7 @@ class Toeplitz_convolution2d:
         x_shape,
         k,
         mode='same',
+        dtype=np.float32,
     ):
         """
         Initialize the convolution object.
@@ -380,6 +383,7 @@ class Toeplitz_convolution2d:
         self.k = k = np.flipud(k.copy())
         self.mode = mode
         self.x_shape = x_shape
+        self.dtype = k.dtype if dtype is None else dtype
 
         if mode == 'valid':
             assert x_shape[0] >= k.shape[0] and x_shape[1] >= k.shape[1], "x must be larger than k in both dimensions for mode='valid'"
@@ -388,14 +392,18 @@ class Toeplitz_convolution2d:
 
         ## make the toeplitz matrices
         t = toeplitz_matrices = [scipy.sparse.diags(
-            diagonals=np.ones((k.shape[1], x_shape[1])) * k_i[::-1][:,None], 
+            diagonals=np.ones((k.shape[1], x_shape[1]), dtype=self.dtype) * k_i[::-1][:,None], 
             offsets=np.arange(-k.shape[1]+1, 1), 
-            shape=(so[1], x_shape[1])
+            shape=(so[1], x_shape[1]),
+            dtype=self.dtype,
         ) for k_i in k[::-1]]  ## make the toeplitz matrices for the rows of the kernel
-        tc = toeplitz_concatenated = scipy.sparse.vstack(t + [scipy.sparse.dia_matrix((t[0].shape))]*(x_shape[0]-1))  ## add empty matrices to the bottom of the block due to padding, then concatenate
+        tc = toeplitz_concatenated = scipy.sparse.vstack(t + [scipy.sparse.dia_matrix((t[0].shape), dtype=self.dtype)]*(x_shape[0]-1))  ## add empty matrices to the bottom of the block due to padding, then concatenate
 
         ## make the double block toeplitz matrix
-        self.dt = double_toeplitz = scipy.sparse.hstack([self._roll_sparse(x=tc, shift=(ii>0)*ii*(so[1])) for ii in range(x_shape[0])]).tocsr()
+        self.dt = double_toeplitz = scipy.sparse.hstack([self._roll_sparse(
+            x=tc, 
+            shift=(ii>0)*ii*(so[1])  ## shift the blocks by the size of the output array
+        ) for ii in range(x_shape[0])]).tocsr()
     
     def __call__(
         self,
@@ -408,13 +416,14 @@ class Toeplitz_convolution2d:
 
         Args:
             x (np.ndarray or scipy.sparse.csr_matrix):
-                2D array(s) (i.e. images) to convolve with the kernel
+                Input array(s) (i.e. image(s)) to convolve with the kernel
                 If batching=='none': Single 2D array to convolve with the kernel.
                     shape: (self.x_shape[0], self.x_shape[1])
-                    dtype: np.ndarray
+                    dtype: np.ndarray or scipy.sparse.csr_matrix
                 If batching=='rows': Multiple 2D arrays that have been flattened
                  into row vectors (with order='C').
                     shape: (n_arrays, self.x_shape[0]*self.x_shape[1])
+                    dtype: np.ndarray or scipy.sparse.csr_matrix
             batching (str):
                 'none' or 'rows'
                 If 'none', x is a single 2D array.
