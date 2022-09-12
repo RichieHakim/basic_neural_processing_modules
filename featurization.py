@@ -357,7 +357,16 @@ class Toeplitz_convolution2d:
      multiplication method.
     Allows for SPARSE 'x' inputs. 'k' should remain dense.
     Generally faster than scipy.signal.convolve2d when convolving mutliple
-     arrays with the same kernel.
+     arrays with the same kernel. Maintains low memory footprint by
+     storing the toeplitz matrix as a sparse matrix.
+
+    See: https://stackoverflow.com/a/51865516 and https://github.com/alisaaalehi/convolution_as_multiplication
+     for a nice illustration.
+    See: https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.convolution_matrix.html 
+     for 1D version.
+    See: https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.matmul_toeplitz.html#scipy.linalg.matmul_toeplitz 
+     for potential ways to make this implementation faster.
+
     Test with: tests.test_toeplitz_convolution2d()
     RH 2022
     """
