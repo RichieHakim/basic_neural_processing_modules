@@ -369,8 +369,8 @@ class Toeplitz_convolution2d:
         Makes the Toeplitz matrix and stores it.
 
         Args:
-            x (np.ndarray or scipy.sparse.csr_matrix):
-                2D array to convolve
+            x_shape (tuple):
+                The shape of the 2D array to be convolved.
             k (np.ndarray):
                 2D kernel to convolve with
             mode (str):
@@ -403,6 +403,32 @@ class Toeplitz_convolution2d:
         batching='none',
         mode=None,
     ):
+        """
+        Convolve the input array with the kernel.
+
+        Args:
+            x (np.ndarray or scipy.sparse.csr_matrix):
+                2D array(s) (i.e. images) to convolve with the kernel
+                If batching=='none': Single 2D array to convolve with the kernel.
+                    shape: (self.x_shape[0], self.x_shape[1])
+                    dtype: np.ndarray
+                If batching=='rows': Multiple 2D arrays that have been flattened
+                 into row vectors (with order='C').
+                    shape: (n_arrays, self.x_shape[0]*self.x_shape[1])
+            batching (str):
+                'none' or 'rows'
+                If 'none', x is a single 2D array.
+                If 'rows', x is a 2D array where each row is a flattened 2D array.
+            mode (str):
+                'full', 'same' or 'valid'
+                see scipy.signal.convolve2d for details
+                Overrides the mode set in __init__.
+
+        Returns:
+            out (np.ndarray or sparse.COO):
+                2D array(s) (i.e. images) that have been convolved with the kernel.
+                If batching=='none': Single 2D array.
+        """
         if mode is None:
             mode = self.mode  ## use the mode that was set in the init if not specified
         issparse = scipy.sparse.issparse(x)
@@ -447,7 +473,10 @@ class Toeplitz_convolution2d:
             out = sparse.COO(out_v.T).reshape((x.shape[0], self.so[0], self.so[1]))[:, p_t:p_b, p_l:p_r]  ## reshape into 3D array and crop the 2D array dimensions
             
         else:
-            out = out_v.reshape((self.so))[p_t:p_b, p_l:p_r]  ## reshape back into 2D array and crop
+            if issparse:
+                out = out_v.reshape((self.so)).tocsr()[p_t:p_b, p_l:p_r]
+            else:
+                out = out_v.reshape((self.so))[p_t:p_b, p_l:p_r]  ## reshape back into 2D array and crop
 
         return out
     
