@@ -3,14 +3,16 @@ Personal library of functions used in analyzing neural data.
 If you find a bug or just want to reach out: RichHakim@gmail.com
 
 My favorites:
-(**) indicates that it is a 
-- Signal Processing:
     - **`featurization.Toeplitz_convolution2d`**
-        - Fast 1D and 2D convolution using sparse Toeplitz matrices.
-        - **Allows for sparse convolution.** Orders of magnitude faster than scipy.signal.convolve2d.
+        - 1D and 2D convolution. Uses sparse Toeplitz matrix multiplication to speed up computation.
+        - **Allows for sparse convolution.**
+        - Same options as scipy.signal.convolve2d, but orders of magnitude faster in most cases.
     - **`spectral.VQT`**
-        - Variable-Q transform.
-        - Fast, accurate, and flexible. GPU method available.
+        - Variable-Q transform. Generates spectrograms with variable frequency resolution.
+        - Comparable to librosa's VQT, but faster, more flexible, without approximations, with GPU support, and pytorch autograd compatible.
+
+Other useful functions:
+- Signal Processing:
     - `timeSeries.rolling_percentile_rq_multicore`
         - Fast rolling percentile calculation
     -  `timeSeries.event_triggered_traces`
