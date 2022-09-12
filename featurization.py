@@ -356,6 +356,9 @@ class Toeplitz_convolution2d:
     Convolve a 2D array with a 2D kernel using the Toeplitz matrix 
      multiplication method.
     Allows for SPARSE 'x' inputs. 'k' should remain dense.
+    Ideal when 'x' is very sparse (density<0.01), 'x' is small
+     (shape <(1000,1000)), 'k' is small (shape <(100,100)), and
+     the batch size is large (e.g. 1000+).
     Generally faster than scipy.signal.convolve2d when convolving mutliple
      arrays with the same kernel. Maintains low memory footprint by
      storing the toeplitz matrix as a sparse matrix.
