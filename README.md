@@ -4,13 +4,13 @@ If you find a bug or just want to reach out: RichHakim@gmail.com\
 
 
 My favorites:
-    - **`featurization.Toeplitz_convolution2d`**
-        - 1D and 2D convolution. Uses sparse Toeplitz matrix multiplication to speed up computation.
-        - **Allows for sparse convolution.**
-        - Same options as scipy.signal.convolve2d, but orders of magnitude faster in most cases.
-    - **`spectral.VQT`**
-        - Variable-Q transform. Generates spectrograms with variable frequency resolution.
-        - Comparable to librosa's VQT, but faster, more flexible, without approximations, with GPU support, and pytorch autograd compatible.
+- **`featurization.Toeplitz_convolution2d`**
+    - 1D and 2D convolution. Uses sparse Toeplitz matrix multiplication to speed up computation.
+    - **Allows for sparse convolution.**
+    - Same options as scipy.signal.convolve2d, but orders of magnitude faster in most cases.
+- **`spectral.VQT`**
+    - Variable-Q transform. Generates spectrograms with variable frequency resolution.
+    - Comparable to librosa's VQT, but faster, more flexible, without approximations, with GPU support, and pytorch autograd compatible.
 
 
 Other useful functions:
