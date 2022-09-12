@@ -429,15 +429,15 @@ class Toeplitz_convolution2d:
         Convolve the input array with the kernel.
 
         Args:
-            x (np.ndarray or scipy.sparse.csr_matrix):
+            x (np.ndarray or scipy.sparse.csc_matrix or scipy.sparse.csr_matrix):
                 Input array(s) (i.e. image(s)) to convolve with the kernel
                 If batching==False: Single 2D array to convolve with the kernel.
                     shape: (self.x_shape[0], self.x_shape[1])
-                    type: np.ndarray or scipy.sparse.csr_matrix
+                    type: np.ndarray or scipy.sparse.csc_matrix or scipy.sparse.csr_matrix
                 If batching==True: Multiple 2D arrays that have been flattened
                  into row vectors (with order='C').
                     shape: (n_arrays, self.x_shape[0]*self.x_shape[1])
-                    type: np.ndarray or scipy.sparse.csr_matrix
+                    type: np.ndarray or scipy.sparse.csc_matrix or scipy.sparse.csr_matrix
             batching (bool):
                 If False, x is a single 2D array.
                 If True, x is a 2D array where each row is a flattened 2D array.
@@ -451,6 +451,9 @@ class Toeplitz_convolution2d:
                 2D array(s) (i.e. images) that have been convolved with the kernel.
                 If batching==False: Single 2D array.
         """
+        # if batching:
+        #     if x.shape[0] > 9999:
+        #         print("RH WARNING: scipy.sparse.lil_matrix doesn't seem to work well with arrays with large numbers of rows. Consider breaking your job into smaller batches.")
         if mode is None:
             mode = self.mode  ## use the mode that was set in the init if not specified
         issparse = scipy.sparse.issparse(x)
@@ -459,14 +462,14 @@ class Toeplitz_convolution2d:
             x_v = x.T  ## transpose into column vectors
         else:
             x_v = x.reshape(-1, 1)  ## reshape 2D array into a column vector
-
+        
         if issparse:
-            x_v = x_v.tocsr()  ## try csc?
+            x_v = x_v.tocsc()
         
         out_v = self.dt @ x_v
 
         if issparse:
-            out_v = out_v.tocsr()
+            out_v = out_v.tocsc()
             
         ## crop the output to the correct size
         if mode == 'full':
@@ -495,7 +498,7 @@ class Toeplitz_convolution2d:
             out = sparse.COO(out_v.T).reshape((x.shape[0], self.so[0], self.so[1]))[:, p_t:p_b, p_l:p_r]  ## reshape into 3D array and crop the 2D array dimensions
         else:
             if issparse:
-                out = out_v.reshape((self.so)).tocsr()[p_t:p_b, p_l:p_r]
+                out = out_v.reshape((self.so)).tocsc()[p_t:p_b, p_l:p_r]
             else:
                 out = out_v.reshape((self.so))[p_t:p_b, p_l:p_r]  ## reshape back into 2D array and crop
 
