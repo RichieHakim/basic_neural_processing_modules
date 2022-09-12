@@ -1,6 +1,6 @@
 #  basic_neural_processing_modules 
 Personal library of functions used in analyzing neural data.
-If you find a bug or just want to reach out: RichHakim@gmail.com\
+If you find a bug or just want to reach out: RichHakim@gmail.com
 
 
 My favorites:
