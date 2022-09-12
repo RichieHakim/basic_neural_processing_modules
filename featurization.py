@@ -422,7 +422,7 @@ class Toeplitz_convolution2d:
     def __call__(
         self,
         x,
-        batching='none',
+        batching=False,
         mode=None,
     ):
         """
@@ -431,17 +431,16 @@ class Toeplitz_convolution2d:
         Args:
             x (np.ndarray or scipy.sparse.csr_matrix):
                 Input array(s) (i.e. image(s)) to convolve with the kernel
-                If batching=='none': Single 2D array to convolve with the kernel.
+                If batching==True: Single 2D array to convolve with the kernel.
                     shape: (self.x_shape[0], self.x_shape[1])
                     dtype: np.ndarray or scipy.sparse.csr_matrix
-                If batching=='rows': Multiple 2D arrays that have been flattened
+                If batching==False: Multiple 2D arrays that have been flattened
                  into row vectors (with order='C').
                     shape: (n_arrays, self.x_shape[0]*self.x_shape[1])
                     dtype: np.ndarray or scipy.sparse.csr_matrix
-            batching (str):
-                'none' or 'rows'
-                If 'none', x is a single 2D array.
-                If 'rows', x is a 2D array where each row is a flattened 2D array.
+            batching (bool):
+                If False, x is a single 2D array.
+                If True, x is a 2D array where each row is a flattened 2D array.
             mode (str):
                 'full', 'same' or 'valid'
                 see scipy.signal.convolve2d for details
@@ -450,19 +449,19 @@ class Toeplitz_convolution2d:
         Returns:
             out (np.ndarray or sparse.COO):
                 2D array(s) (i.e. images) that have been convolved with the kernel.
-                If batching=='none': Single 2D array.
+                If batching==False: Single 2D array.
         """
         if mode is None:
             mode = self.mode  ## use the mode that was set in the init if not specified
         issparse = scipy.sparse.issparse(x)
         
-        if batching == 'rows':
+        if batching:
             x_v = x.T  ## transpose into column vectors
-        if batching == 'none':
+        else:
             x_v = x.reshape(-1, 1)  ## reshape 2D array into a column vector
 
         if issparse:
-            x_v = x_v.tocsr()
+            x_v = x_v.tocsr()  ## try csc?
         
         out_v = self.dt @ x_v
 
@@ -472,29 +471,28 @@ class Toeplitz_convolution2d:
         ## crop the output to the correct size
         if mode == 'full':
             p_t = 0
-            p_b = x.shape[0]+1
+            p_b = self.so[0]+1
             p_l = 0
-            p_r = x.shape[1]+1
+            p_r = self.so[1]+1
         if mode == 'same':
             p_t = (self.k.shape[0]-1)//2
             p_b = -(self.k.shape[0]-1)//2
             p_l = (self.k.shape[1]-1)//2
             p_r = -(self.k.shape[1]-1)//2
 
-            p_b = x.shape[0]+1 if p_b==0 else p_b
-            p_r = x.shape[1]+1 if p_r==0 else p_r
+            p_b = self.x_shape[0]+1 if p_b==0 else p_b
+            p_r = self.x_shape[1]+1 if p_r==0 else p_r
         if mode == 'valid':
             p_t = (self.k.shape[0]-1)
             p_b = -(self.k.shape[0]-1)
             p_l = (self.k.shape[1]-1)
             p_r = -(self.k.shape[1]-1)
 
-            p_b = x.shape[0]+1 if p_b==0 else p_b
-            p_r = x.shape[1]+1 if p_r==0 else p_r
+            p_b = self.x_shape[0]+1 if p_b==0 else p_b
+            p_r = self.x_shape[1]+1 if p_r==0 else p_r
         
-        if batching == 'rows':
+        if batching:
             out = sparse.COO(out_v.T).reshape((x.shape[0], self.so[0], self.so[1]))[:, p_t:p_b, p_l:p_r]  ## reshape into 3D array and crop the 2D array dimensions
-            
         else:
             if issparse:
                 out = out_v.reshape((self.so)).tocsr()[p_t:p_b, p_l:p_r]
