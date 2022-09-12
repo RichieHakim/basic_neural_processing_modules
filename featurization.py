@@ -387,46 +387,45 @@ class Toeplitz_convolution2d:
         self.so = so = size_output_array = ( (k.shape[0] + x_shape[0] -1), (k.shape[1] + x_shape[1] -1))  ## 'size out' is the size of the output array
 
         ## make the toeplitz matrices
-        t_k_r = [scipy.sparse.diags(
+        t = toeplitz_matrices = [scipy.sparse.diags(
             diagonals=np.ones((k.shape[1], x_shape[1])) * k_i[::-1][:,None], 
             offsets=np.arange(-k.shape[1]+1, 1), 
             shape=(so[1], x_shape[1])
         ) for k_i in k[::-1]]  ## make the toeplitz matrices for the rows of the kernel
-        t_k_r_big = t_k_r + [scipy.sparse.dia_matrix((t_k_r[0].shape))]*(x_shape[0]-1)  ## add empty matrices to the bottom of the block due to padding
-        tkrbc = scipy.sparse.vstack(t_k_r_big)  ## vstack the block to make a big matrix
+        tc = toeplitz_concatenated = scipy.sparse.vstack(t + [scipy.sparse.dia_matrix((t[0].shape))]*(x_shape[0]-1))  ## add empty matrices to the bottom of the block due to padding, then concatenate
 
         ## make the double block toeplitz matrix
-        self.dbtr = scipy.sparse.hstack([self._roll_sparse(tkrbc, (ii>0)*ii*(so[1])) for ii in range(x_shape[0])]).tocsr()
+        self.dt = double_toeplitz = scipy.sparse.hstack([self._roll_sparse(x=tc, shift=(ii>0)*ii*(so[1])) for ii in range(x_shape[0])]).tocsr()
     
-    def conv(
+    def __call__(
         self,
         x,
         batching='none',
         mode=None,
     ):
         if mode is None:
-            mode = self.mode
+            mode = self.mode  ## use the mode that was set in the init if not specified
         issparse = scipy.sparse.issparse(x)
         
         if batching == 'rows':
-            x_v = x.T
+            x_v = x.T  ## transpose into column vectors
         if batching == 'none':
-            x_v = x.reshape(-1, 1)
+            x_v = x.reshape(-1, 1)  ## reshape 2D array into a column vector
 
         if issparse:
             x_v = x_v.tocsr()
         
-        out_v = self.dbtr @ x_v
+        out_v = self.dt @ x_v
 
         if issparse:
             out_v = out_v.tocsr()
             
+        ## crop the output to the correct size
         if mode == 'full':
             p_t = 0
             p_b = x.shape[0]+1
             p_l = 0
             p_r = x.shape[1]+1
-
         if mode == 'same':
             p_t = (self.k.shape[0]-1)//2
             p_b = -(self.k.shape[0]-1)//2
@@ -435,7 +434,6 @@ class Toeplitz_convolution2d:
 
             p_b = x.shape[0]+1 if p_b==0 else p_b
             p_r = x.shape[1]+1 if p_r==0 else p_r
-
         if mode == 'valid':
             p_t = (self.k.shape[0]-1)
             p_b = -(self.k.shape[0]-1)
@@ -444,20 +442,23 @@ class Toeplitz_convolution2d:
 
             p_b = x.shape[0]+1 if p_b==0 else p_b
             p_r = x.shape[1]+1 if p_r==0 else p_r
-
+        
         if batching == 'rows':
-            out = sparse.COO(out_v.T).reshape((x.shape[0], self.so[0], self.so[1]))[:, p_t:p_b, p_l:p_r]
+            out = sparse.COO(out_v.T).reshape((x.shape[0], self.so[0], self.so[1]))[:, p_t:p_b, p_l:p_r]  ## reshape into 3D array and crop the 2D array dimensions
             
         else:
-            out = out_v.reshape((self.so))[p_t:p_b, p_l:p_r]
+            out = out_v.reshape((self.so))[p_t:p_b, p_l:p_r]  ## reshape back into 2D array and crop
 
         return out
     
     def _roll_sparse(
         self,
         x,
-        shift=8
+        shift,
     ):
+        """
+        Roll columns of a sparse matrix.
+        """
         out = x.copy()
         out.row += shift
         return out
