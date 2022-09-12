@@ -54,6 +54,7 @@ def generalised_logistic_function(
         v: > 0, affects near which asymptote maximum growth occurs
         q: is related to the value Y (0). Center positions
         c: typically takes a value of 1
+        mu: the center position of the function
 
     Returns:
         output:

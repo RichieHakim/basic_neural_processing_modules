@@ -347,3 +347,77 @@ def mspline(x, k, i, T):
             (x - T[i]) * mspline(x, k - 1, i, T)
             + (T[i + k] - x) * mspline(x, k - 1, i + 1, T)
         ) / ((k-1) * (T[i + k] - T[i]))
+
+
+def toeplitz_convolution2d(x, k, mode='full'):
+    """
+    Convolve a 2D array with a 2D kernel using the Toeplitz matrix method.
+    Allows for SPARSE x inputs, but not sparse k inputs.
+    Test with: tests.test_toeplitz_convolution2d()
+    RH 2022
+    
+    Args:
+        x (np.ndarray or scipy.sparse.csr_matrix):
+            2D array to convolve
+        k (np.ndarray):
+            2D kernel to convolve with
+        mode (str):
+            'full', 'same' or 'valid'
+            see scipy.signal.convolve2d for details
+    """
+    if mode == 'valid':
+        assert x.shape[0] >= k.shape[0] and x.shape[1] >= k.shape[1], "x must be larger than k in both dimensions for mode='valid'"
+
+    so = size_output_array = ( (k.shape[0] + x.shape[0] -1), (k.shape[1] + x.shape[1] -1))
+
+    k_pad = np.zeros((so))
+    k_pad[-k.shape[0]:][:, :k.shape[1]] = k
+
+    # t_k = toeplitz_k = np.stack([scipy.linalg.toeplitz(k_i, r=np.r_[k_i[0], np.zeros(x.shape[1]-1)]) for k_i in k_pad])[::-1,...]
+    # idx_dbt = scipy.linalg.toeplitz(range(1, k_pad.shape[0]+1), r=np.r_[1, np.zeros(x.shape[0]-1, dtype=np.int64)])
+        
+    t_k = toeplitz_k = np.stack([scipy.linalg.toeplitz(k_i, r=np.r_[np.zeros(x.shape[1])]) for k_i in k_pad])[::-1,...]
+    idx_dbt = scipy.linalg.toeplitz(range(1, k_pad.shape[0]+1), r=np.r_[np.zeros(x.shape[0], dtype=np.int64)])
+
+    t_h, t_w = t_k[0].shape
+    dbt = np.zeros((t_h*idx_dbt.shape[0] , t_w*idx_dbt.shape[1]))
+    for i in range(idx_dbt.shape[0]):
+        for j in range(idx_dbt.shape[1]):
+            start_i = i * t_h
+            start_j = j * t_w
+            end_i = start_i + t_h
+            end_j = start_j + t_w
+            dbt[start_i: end_i, start_j:end_j] = t_k[idx_dbt[i,j]-1]
+        
+    x_v = x[::-1].reshape(-1, 1)
+    if scipy.sparse.issparse(x):
+        out_v = scipy.sparse.csr_matrix(dbt) @ x_v
+        out = out_v.reshape((so)).tocsr()[::-1]
+    else:
+        out_v = dbt @ x_v
+        out = out_v.reshape((so))[::-1]
+            
+    if mode == 'full':
+        out = out
+    if mode == 'same':
+        p_t = (k.shape[0]-1)//2
+        p_b = -(k.shape[0]-1)//2
+        p_l = (k.shape[1]-1)//2
+        p_r = -(k.shape[1]-1)//2
+        
+        p_b = x.shape[0]+1 if p_b==0 else p_b
+        p_r = x.shape[1]+1 if p_r==0 else p_r
+        
+        out = out[p_t:p_b, p_l:p_r]
+    if mode == 'valid':
+        p_t = (k.shape[0]-1)
+        p_b = -(k.shape[0]-1)
+        p_l = (k.shape[1]-1)
+        p_r = -(k.shape[1]-1)
+        
+        p_b = x.shape[0]+1 if p_b==0 else p_b
+        p_r = x.shape[1]+1 if p_r==0 else p_r
+        
+        out = out[p_t:p_b, p_l:p_r]
+
+    return out
