@@ -353,7 +353,8 @@ def mspline(x, k, i, T):
 
 class Toeplitz_convolution2d:
     """
-    Convolve a 2D array with a 2D kernel using the Toeplitz matrix method.
+    Convolve a 2D array with a 2D kernel using the Toeplitz matrix 
+     multiplication method.
     Allows for SPARSE 'x' inputs. 'k' should remain dense.
     Generally faster than scipy.signal.convolve2d when convolving mutliple
      arrays with the same kernel.
@@ -365,7 +366,7 @@ class Toeplitz_convolution2d:
         x_shape,
         k,
         mode='same',
-        dtype=np.float32,
+        dtype=None,
     ):
         """
         Initialize the convolution object.
@@ -379,6 +380,10 @@ class Toeplitz_convolution2d:
             mode (str):
                 'full', 'same' or 'valid'
                 see scipy.signal.convolve2d for details
+            dtype (np.dtype):
+                The data type to use for the Toeplitz matrix.
+                Ideally, this matches the data type of the input array.
+                If None, then the data type of the kernel is used.
         """
         self.k = k = np.flipud(k.copy())
         self.mode = mode
