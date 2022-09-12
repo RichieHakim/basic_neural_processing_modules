@@ -9,6 +9,8 @@ Functions and Interdependencies:
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
+import sparse
+
 import time
 
 def make_cosine_kernels(y=None,
@@ -349,75 +351,113 @@ def mspline(x, k, i, T):
         ) / ((k-1) * (T[i + k] - T[i]))
 
 
-def toeplitz_convolution2d(x, k, mode='full'):
+class Toeplitz_convolution2d:
     """
     Convolve a 2D array with a 2D kernel using the Toeplitz matrix method.
     Allows for SPARSE x inputs, but not sparse k inputs.
     Test with: tests.test_toeplitz_convolution2d()
     RH 2022
-    
-    Args:
-        x (np.ndarray or scipy.sparse.csr_matrix):
-            2D array to convolve
-        k (np.ndarray):
-            2D kernel to convolve with
-        mode (str):
-            'full', 'same' or 'valid'
-            see scipy.signal.convolve2d for details
     """
-    if mode == 'valid':
-        assert x.shape[0] >= k.shape[0] and x.shape[1] >= k.shape[1], "x must be larger than k in both dimensions for mode='valid'"
+    def __init__(
+        self,
+        x_shape,
+        k,
+        mode='same',
+    ):
+        """
+        Initialize the convolution object.
+        Makes the Toeplitz matrix and stores it.
 
-    so = size_output_array = ( (k.shape[0] + x.shape[0] -1), (k.shape[1] + x.shape[1] -1))
+        Args:
+            x (np.ndarray or scipy.sparse.csr_matrix):
+                2D array to convolve
+            k (np.ndarray):
+                2D kernel to convolve with
+            mode (str):
+                'full', 'same' or 'valid'
+                see scipy.signal.convolve2d for details
+        """
+        self.k = k = np.flipud(k.copy())
+        self.mode = mode
+        self.x_shape = x_shape
 
-    k_pad = np.zeros((so))
-    k_pad[-k.shape[0]:][:, :k.shape[1]] = k
+        if mode == 'valid':
+            assert x_shape[0] >= k.shape[0] and x_shape[1] >= k.shape[1], "x must be larger than k in both dimensions for mode='valid'"
 
-    # t_k = toeplitz_k = np.stack([scipy.linalg.toeplitz(k_i, r=np.r_[k_i[0], np.zeros(x.shape[1]-1)]) for k_i in k_pad])[::-1,...]
-    # idx_dbt = scipy.linalg.toeplitz(range(1, k_pad.shape[0]+1), r=np.r_[1, np.zeros(x.shape[0]-1, dtype=np.int64)])
+        self.so = so = size_output_array = ( (k.shape[0] + x_shape[0] -1), (k.shape[1] + x_shape[1] -1))  ## 'size out' is the size of the output array
+
+        ## make the toeplitz matrices
+        t_k_r = [scipy.sparse.diags(
+            diagonals=np.ones((k.shape[1], x_shape[1])) * k_i[::-1][:,None], 
+            offsets=np.arange(-k.shape[1]+1, 1), 
+            shape=(so[1], x_shape[1])
+        ) for k_i in k[::-1]]  ## make the toeplitz matrices for the rows of the kernel
+        t_k_r_big = t_k_r + [scipy.sparse.dia_matrix((t_k_r[0].shape))]*(x_shape[0]-1)  ## add empty matrices to the bottom of the block due to padding
+        tkrbc = scipy.sparse.vstack(t_k_r_big)  ## vstack the block to make a big matrix
+
+        ## make the double block toeplitz matrix
+        self.dbtr = scipy.sparse.hstack([self._roll_sparse(tkrbc, (ii>0)*ii*(so[1])) for ii in range(x_shape[0])]).tocsr()
+    
+    def conv(
+        self,
+        x,
+        batching='none',
+        mode=None,
+    ):
+        if mode is None:
+            mode = self.mode
+        issparse = scipy.sparse.issparse(x)
         
-    t_k = toeplitz_k = np.stack([scipy.linalg.toeplitz(k_i, r=np.r_[np.zeros(x.shape[1])]) for k_i in k_pad])[::-1,...]
-    idx_dbt = scipy.linalg.toeplitz(range(1, k_pad.shape[0]+1), r=np.r_[np.zeros(x.shape[0], dtype=np.int64)])
+        if batching == 'rows':
+            x_v = x.T
+        if batching == 'none':
+            x_v = x.reshape(-1, 1)
 
-    t_h, t_w = t_k[0].shape
-    dbt = np.zeros((t_h*idx_dbt.shape[0] , t_w*idx_dbt.shape[1]))
-    for i in range(idx_dbt.shape[0]):
-        for j in range(idx_dbt.shape[1]):
-            start_i = i * t_h
-            start_j = j * t_w
-            end_i = start_i + t_h
-            end_j = start_j + t_w
-            dbt[start_i: end_i, start_j:end_j] = t_k[idx_dbt[i,j]-1]
+        if issparse:
+            x_v = x_v.tocsr()
         
-    x_v = x[::-1].reshape(-1, 1)
-    if scipy.sparse.issparse(x):
-        out_v = scipy.sparse.csr_matrix(dbt) @ x_v
-        out = out_v.reshape((so)).tocsr()[::-1]
-    else:
-        out_v = dbt @ x_v
-        out = out_v.reshape((so))[::-1]
+        out_v = self.dbtr @ x_v
+
+        if issparse:
+            out_v = out_v.tocsr()
             
-    if mode == 'full':
-        out = out
-    if mode == 'same':
-        p_t = (k.shape[0]-1)//2
-        p_b = -(k.shape[0]-1)//2
-        p_l = (k.shape[1]-1)//2
-        p_r = -(k.shape[1]-1)//2
-        
-        p_b = x.shape[0]+1 if p_b==0 else p_b
-        p_r = x.shape[1]+1 if p_r==0 else p_r
-        
-        out = out[p_t:p_b, p_l:p_r]
-    if mode == 'valid':
-        p_t = (k.shape[0]-1)
-        p_b = -(k.shape[0]-1)
-        p_l = (k.shape[1]-1)
-        p_r = -(k.shape[1]-1)
-        
-        p_b = x.shape[0]+1 if p_b==0 else p_b
-        p_r = x.shape[1]+1 if p_r==0 else p_r
-        
-        out = out[p_t:p_b, p_l:p_r]
+        if mode == 'full':
+            p_t = 0
+            p_b = x.shape[0]+1
+            p_l = 0
+            p_r = x.shape[1]+1
 
-    return out
+        if mode == 'same':
+            p_t = (self.k.shape[0]-1)//2
+            p_b = -(self.k.shape[0]-1)//2
+            p_l = (self.k.shape[1]-1)//2
+            p_r = -(self.k.shape[1]-1)//2
+
+            p_b = x.shape[0]+1 if p_b==0 else p_b
+            p_r = x.shape[1]+1 if p_r==0 else p_r
+
+        if mode == 'valid':
+            p_t = (self.k.shape[0]-1)
+            p_b = -(self.k.shape[0]-1)
+            p_l = (self.k.shape[1]-1)
+            p_r = -(self.k.shape[1]-1)
+
+            p_b = x.shape[0]+1 if p_b==0 else p_b
+            p_r = x.shape[1]+1 if p_r==0 else p_r
+
+        if batching == 'rows':
+            out = sparse.COO(out_v.T).reshape((x.shape[0], self.so[0], self.so[1]))[:, p_t:p_b, p_l:p_r]
+            
+        else:
+            out = out_v.reshape((self.so))[p_t:p_b, p_l:p_r]
+
+        return out
+    
+    def _roll_sparse(
+        self,
+        x,
+        shift=8
+    ):
+        out = x.copy()
+        out.row += shift
+        return out
