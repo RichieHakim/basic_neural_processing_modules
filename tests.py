@@ -24,6 +24,7 @@ def test_toeplitz_convolution2d():
         for ii in range(len(stt[0])):
             x = np.random.rand(stt[0][ii], stt[1][ii])
             k = np.random.rand(stt[2][ii], stt[3][ii])
+    #         print(stt[0][ii], stt[1][ii], stt[2][ii], stt[3][ii])
 
             try:
                 t = Toeplitz_convolution2d(x_shape=x.shape, k=k, mode=mode, dtype=None)
@@ -51,14 +52,13 @@ def test_toeplitz_convolution2d():
                 success = False
                 break       
 
-
-
     print(f'testing with batching=True')
-                
+
     for mode in ['full', 'same', 'valid']:
         for ii in range(len(stt[0])):
             x = np.stack([np.random.rand(stt[0][ii], stt[1][ii]).reshape(-1) for jj in range(3)], axis=0)
             k = np.random.rand(stt[2][ii], stt[3][ii])
+    #         print(stt[0][ii], stt[1][ii], stt[2][ii], stt[3][ii])
 
             try:
                 t = Toeplitz_convolution2d(x_shape=(stt[0][ii], stt[1][ii]), k=k, mode=mode, dtype=None)

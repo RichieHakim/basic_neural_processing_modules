@@ -431,10 +431,10 @@ class Toeplitz_convolution2d:
         Args:
             x (np.ndarray or scipy.sparse.csr_matrix):
                 Input array(s) (i.e. image(s)) to convolve with the kernel
-                If batching==True: Single 2D array to convolve with the kernel.
+                If batching==False: Single 2D array to convolve with the kernel.
                     shape: (self.x_shape[0], self.x_shape[1])
                     dtype: np.ndarray or scipy.sparse.csr_matrix
-                If batching==False: Multiple 2D arrays that have been flattened
+                If batching==True: Multiple 2D arrays that have been flattened
                  into row vectors (with order='C').
                     shape: (n_arrays, self.x_shape[0]*self.x_shape[1])
                     dtype: np.ndarray or scipy.sparse.csr_matrix
