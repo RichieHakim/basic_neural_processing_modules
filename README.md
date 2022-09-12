@@ -2,12 +2,13 @@
 Personal library of functions used in analyzing neural data.
 If you find a bug or just want to reach out: RichHakim@gmail.com
 
-My favorite and most used functions:
+My favorites:
+(**) indicates that it is a 
 - Signal Processing:
-    - `featurization.Toeplitz_convolution2d`
+    - **`featurization.Toeplitz_convolution2d`**
         - Fast 1D and 2D convolution using sparse Toeplitz matrices.
-        - Allows for sparse convolution.
-    - `spectral.VQT`
+        - **Allows for sparse convolution.** Orders of magnitude faster than scipy.signal.convolve2d.
+    - **`spectral.VQT`**
         - Variable-Q transform.
         - Fast, accurate, and flexible. GPU method available.
     - `timeSeries.rolling_percentile_rq_multicore`
@@ -21,7 +22,7 @@ My favorite and most used functions:
     - `linear_regression.LinearRegression_sweep`
         - Performs linear regression with a variety of hyperparameters and methods (L1, L2, Logistic, optional GPU methods using cuml)
     - `misc.make_batches`
-        - Creates batches of data for training or loading
+        - Creates batches of data or any other iterable
     - `similarity.orthogonalize` and `similarity.pairwise_orthogonalization`
         - Orthogonalize a matrix relative to a set of vectors using a Gram-Schmidt related process
 
