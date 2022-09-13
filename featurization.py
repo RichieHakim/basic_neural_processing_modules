@@ -9,7 +9,6 @@ Functions and Interdependencies:
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
-import sparse
 
 import time
 
@@ -425,7 +424,7 @@ class Toeplitz_convolution2d:
     def __call__(
         self,
         x,
-        batching=False,
+        batching=True,
         mode=None,
     ):
         """
@@ -450,9 +449,12 @@ class Toeplitz_convolution2d:
                 Overrides the mode set in __init__.
 
         Returns:
-            out (np.ndarray or sparse.COO):
-                2D array(s) (i.e. images) that have been convolved with the kernel.
-                If batching==False: Single 2D array.
+            out (np.ndarray or scipy.sparse.csr_matrix):
+                If batching==True: Multiple convolved 2D arrays that have been flattened
+                 into row vectors (with order='C').
+                    shape: (n_arrays, height*width)
+                    type: np.ndarray or scipy.sparse.csc_matrix
+                If batching==False: Single convolved 2D array of shape (height, width)
         """
         # if batching:
         #     if x.shape[0] > 9999:
@@ -469,10 +471,7 @@ class Toeplitz_convolution2d:
         if issparse:
             x_v = x_v.tocsc()
         
-        out_v = self.dt @ x_v
-
-        if issparse:
-            out_v = out_v.tocsc()
+        out_v = self.dt @ x_v  ## if sparse, then 'out_v' will be a csc matrix
             
         ## crop the output to the correct size
         if mode == 'full':
@@ -498,13 +497,15 @@ class Toeplitz_convolution2d:
             p_r = self.x_shape[1]+1 if p_r==0 else p_r
         
         if batching:
-            out = sparse.COO(out_v.T).reshape((x.shape[0], self.so[0], self.so[1]))[:, p_t:p_b, p_l:p_r]  ## reshape into 3D array and crop the 2D array dimensions
+            idx_crop = np.zeros((self.so), dtype=np.bool8)
+            idx_crop[p_t:p_b, p_l:p_r] = True
+            idx_crop = idx_crop.reshape(-1)
+            out = out_v[idx_crop,:].T
         else:
             if issparse:
                 out = out_v.reshape((self.so)).tocsc()[p_t:p_b, p_l:p_r]
             else:
                 out = out_v.reshape((self.so))[p_t:p_b, p_l:p_r]  ## reshape back into 2D array and crop
-
         return out
     
     def _roll_sparse(
