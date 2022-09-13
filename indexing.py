@@ -586,3 +586,18 @@ def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
     kl_bool = np.stack([idx2bool(k_l, length=X.shape[1]) for k_l in k_lowest])
     X[~kl_bool] = 0
     return scipy.sparse.csr_matrix(X), kl_bool
+
+
+class scipy_sparse_csr_with_length(scipy.sparse.csr_matrix):
+    """
+    A scipy sparse matrix with a length attribute.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.length = self.shape[0]
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, key):
+        return self.__class__(super().__getitem__(key))
