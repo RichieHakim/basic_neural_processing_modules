@@ -60,22 +60,22 @@ benchmarks
 ### Toeplitz_convolution2d:
 
 ```
-- init_time: 0.001s,  call_time: 0.001s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((1, 1000), (1, 5))
-- init_time: 0.019s,  call_time: 0.054s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((1, 100000), (1, 5))
-- init_time: 0.234s,  call_time: 0.512s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((1, 1000000), (1, 5))
-- init_time: 0.001s,  call_time: 0.003s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((1, 10000), (1, 2))
-- init_time: 0.009s,  call_time: 0.013s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((1, 10000), (1, 20))
-- init_time: 0.101s,  call_time: 0.157s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((1, 10000), (1, 200))
-- init_time: 0.003s,  call_time: 0.001s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((2, 2), (10, 10))
-- init_time: 0.005s,  call_time: 0.001s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((16, 16), (10, 10))
-- init_time: 0.015s,  call_time: 0.002s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((64, 64), (10, 10))
-- init_time: 0.151s,  call_time: 0.497s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (10, 10))
-- init_time: 2.775s,  call_time: 8.743s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((1024, 1024), (10, 10))
-- init_time: 0.061s,  call_time: 0.126s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (5, 5))
-- init_time: 0.144s,  call_time: 0.499s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (5, 20))
-- init_time: 0.596s,  call_time: 1.921s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (5, 80))
-- init_time: 0.035s,  call_time: 0.021s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (2, 2))
-- init_time: 0.046s,  call_time: 0.073s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (4, 4))
-- init_time: 0.424s,  call_time: 1.256s,  density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (16, 16))
-- init_time: 10.359s, call_time: 36.875s, density: 0.0001, batch_size: 100000  conv_mode: 'full', shapes x, k: ((256, 256), (64, 64))
+- shapes x, k: ((1, 1000), (1, 5)),       init_time: 0.001s,  call_time: 0.001s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((1, 100000), (1, 5)),     init_time: 0.019s,  call_time: 0.054s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((1, 1000000), (1, 5)),    init_time: 0.234s,  call_time: 0.512s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((1, 10000), (1, 2)),      init_time: 0.001s,  call_time: 0.003s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((1, 10000), (1, 20)),     init_time: 0.009s,  call_time: 0.013s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((1, 10000), (1, 200)),    init_time: 0.101s,  call_time: 0.157s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((2, 2), (10, 10)),        init_time: 0.003s,  call_time: 0.001s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((16, 16), (10, 10)),      init_time: 0.005s,  call_time: 0.001s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((64, 64), (10, 10)),      init_time: 0.015s,  call_time: 0.002s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (10, 10)),    init_time: 0.151s,  call_time: 0.497s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((1024, 1024), (10, 10)),  init_time: 2.775s,  call_time: 8.743s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (5, 5)),      init_time: 0.061s,  call_time: 0.126s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (5, 20)),     init_time: 0.144s,  call_time: 0.499s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (5, 80)),     init_time: 0.596s,  call_time: 1.921s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (2, 2)),      init_time: 0.035s,  call_time: 0.021s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (4, 4)),      init_time: 0.046s,  call_time: 0.073s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (16, 16)),    init_time: 0.424s,  call_time: 1.256s,  density: 0.0001, batch_size: 100000  conv_mode: 'full'
+- shapes x, k: ((256, 256), (64, 64)),    init_time: 10.359s, call_time: 36.875s, density: 0.0001, batch_size: 100000  conv_mode: 'full'
 ```
