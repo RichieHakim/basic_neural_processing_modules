@@ -456,9 +456,6 @@ class Toeplitz_convolution2d:
                     type: np.ndarray or scipy.sparse.csc_matrix
                 If batching==False: Single convolved 2D array of shape (height, width)
         """
-        # if batching:
-        #     if x.shape[0] > 9999:
-        #         print("RH WARNING: scipy.sparse.lil_matrix doesn't seem to work well with arrays with large numbers of rows. Consider breaking your job into smaller batches.")
         if mode is None:
             mode = self.mode  ## use the mode that was set in the init if not specified
         issparse = scipy.sparse.issparse(x)
