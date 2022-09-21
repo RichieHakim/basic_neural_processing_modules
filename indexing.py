@@ -601,3 +601,52 @@ class scipy_sparse_csr_with_length(scipy.sparse.csr_matrix):
 
     def __getitem__(self, key):
         return self.__class__(super().__getitem__(key))
+
+
+def find_nonredundant_idx(s):
+    """
+    Finds the indices of the nonredundant entries in a sparse matrix.
+    Useful when you are manually populating a spare matrix and want to
+     know which entries you have already populated.
+    RH 2022
+
+    Args:
+        s (scipy.sparse.coo_matrix):
+            Sparse matrix. Should be in coo format.
+
+    Returns:
+        idx_unique (np.ndarray):
+            Indices of the nonredundant entries
+    """
+    if s.getformat() != 'coo':
+        s = s.coo()
+    idx_rowCol = np.vstack((s.row, s.col)).T
+    u, idx_u = np.unique(idx_rowCol, axis=0, return_index=True)
+    return idx_u
+def remove_redundant_elements(s, inPlace=False):
+    """
+    Removes redundant entries from a sparse matrix.
+    Useful when you are manually populating a spare matrix and want to
+     remove redundant entries.
+    RH 2022
+
+    Args:
+        s (scipy.sparse.coo_matrix):
+            Sparse matrix. Should be in coo format.
+        inPlace (bool):
+            If True, the input matrix is modified in place.
+            If False, a new matrix is returned.
+
+    Returns:
+        s (scipy.sparse.coo_matrix):
+            Sparse matrix with redundant entries removed.
+    """
+    idx_nonRed = find_nonredundant_idx(s)
+    if inPlace:
+        s_out = s
+    else:
+        s_out = scipy.sparse.coo_matrix(s.shape)
+    s_out.row = s.row[idx_nonRed]
+    s_out.col = s.col[idx_nonRed]
+    s_out.data = s.data[idx_nonRed]
+    return s_out
