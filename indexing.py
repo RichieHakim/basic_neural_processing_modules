@@ -591,6 +591,9 @@ def denseDistances_to_knnDistances(denseDistanceMatrix, k=1023, epsilon=1e-9):
 class scipy_sparse_csr_with_length(scipy.sparse.csr_matrix):
     """
     A scipy sparse matrix with a length attribute.
+    Useful when needing to iterate over the rows of a sparse matrix.
+    This class gives a length attribute to the sparse matrix.
+    RH 2022
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
