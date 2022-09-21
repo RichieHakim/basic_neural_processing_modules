@@ -653,3 +653,39 @@ def remove_redundant_elements(s, inPlace=False):
     s_out.col = s.col[idx_nonRed]
     s_out.data = s.data[idx_nonRed]
     return s_out
+
+def merge_sparse_arrays(s_list, idx_list, shape_full, remove_redundant=True):
+    """
+    Merges a list of square sparse arrays into a single square sparse array.
+    Note that no selection is performed for removing redundant entries;
+     just whatever is selected by np.unique is kept.
+
+    Args:
+        s_list (list of scipy.sparse.csr_matrix):
+            List of sparse arrays to merge.
+            Each array can be of any shape.
+        idx_list (list of np.ndarray int):
+            List of arrays of integers. Each array should be of the same
+             length as the corresponding array in s_list and should contain
+             integers in the range [0, shape_full[0]). These integers
+             represent the row/col indices in the full array.
+        shape_full (tuple of int):
+            Shape of the full array.
+        remove_redundant (bool):
+            If True, redundant entries are removed from the output array.
+            If False, redundant entries are kept.
+
+    Returns:
+        s_full (scipy.sparse.csr_matrix):
+    """
+    row, col, data = np.array([]), np.array([]), np.array([])
+    for s, idx in zip(s_list, idx_list):
+        s_i = s.tocsr() if s.getformat() != 'csr' else s
+        idx_grid = np.meshgrid(idx, idx)
+        row = np.concatenate([row, (s_i != 0).multiply(idx_grid[0]).data])
+        col = np.concatenate([col, (s_i != 0).multiply(idx_grid[1]).data])
+        data = np.concatenate([data, s_i.data])
+    s_full = scipy.sparse.coo_matrix((data, (row, col)), shape=shape_full)
+    if remove_redundant:
+        remove_redundant_elements(s_full, inPlace=True)
+    return s_full
