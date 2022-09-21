@@ -1,6 +1,5 @@
 """
 Functions for path manipulation and retrieval of files.
-Some functions are stolen from https://github.com/MartinThoma/mpu/blob/master/mpu/path.py
 """
 
 # Core Library
@@ -104,7 +103,7 @@ def get_numeric_contents(directory, sort=True, contains_string=None):
     return paths_output, contents_output, numerics_output
 
 
-def get_paths(directory, reMatch=None, natsorted=True, followlinks=False) -> List:
+def get_paths(directory, reMatch=None, natsorted=True, alg_ns=None, followlinks=False):
     """
     Get all files in a directory matching some regular expression.
     
@@ -121,6 +120,13 @@ def get_paths(directory, reMatch=None, natsorted=True, followlinks=False) -> Lis
         natsorted (bool):
             Whether to sort the output using natural sorting
              with the natsort package.
+        alg_ns (str):
+            Algorithm to use for natural sorting.
+            See natsort.ns or 
+             https://natsort.readthedocs.io/en/4.0.4/ns_class.html
+             for options.
+            Default is PATH.
+            Other commons are INT, FLOAT, VERSION.
         followlinks (bool):
             Whether to follow symbolic links
 
@@ -138,25 +144,10 @@ def get_paths(directory, reMatch=None, natsorted=True, followlinks=False) -> Lis
 
     if natsorted:
         import natsort
-        paths = natsort.natsorted(paths)
+        if alg_ns is None:
+            alg_ns = natsort.ns.PATH
+        paths = natsort.natsorted(paths, alg=alg_ns)
     return paths
-
-
-# def get_from_package(package_name: str, path: str) -> str:
-#     """
-#     Get the absolute path to a file in a package.
-#     Parameters
-#     ----------
-#     package_name : str
-#         e.g. 'mpu'
-#     path : str
-#         Path within a package
-#     Returns
-#     -------
-#     filepath : str
-#     """
-#     filepath = pkg_resources.resource_filename(package_name, path)
-#     return os.path.abspath(filepath)
 
 
 def get_nums_from_string(string_with_nums):
