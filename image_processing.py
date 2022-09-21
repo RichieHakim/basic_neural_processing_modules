@@ -1,7 +1,5 @@
-from matplotlib.pyplot import flag
 import numpy as np
 import cv2
-import scipy as sp 
 
 
 ###############################################################################
@@ -145,7 +143,7 @@ def apply_warp_transform(
     return im_out
 
 
-def phase_correlation(im_template, im_moving, mask_fft=None):
+def phase_correlation(im_template, im_moving, mask_fft=None, template_precomputed=False):
     """
     Perform phase correlation on two images.
     RH 2022
@@ -158,6 +156,9 @@ def phase_correlation(im_template, im_moving, mask_fft=None):
         mask_fft (np.ndarray):
             Mask for the FFT.
             If None, no mask is used.
+        template_precomputed (bool):
+            If True, im_template is assumed to be:
+             np.conj(np.fft.fft2(im_template) * mask_fft)
     
     Returns:
         cc (np.ndarray):
@@ -165,14 +166,12 @@ def phase_correlation(im_template, im_moving, mask_fft=None):
             Middle of image is zero-shift.
     """
     
-    if mask_fft is None:
-        mask_fft = np.ones(im_template.shape)
-    else:
-        mask_fft = np.fft.fftshift(mask_fft/mask_fft.sum())
+    
+    mask_fft = np.fft.fftshift(mask_fft/mask_fft.sum()) if mask_fft is not None else 1
 
-    fft_template = np.fft.fft2(im_template) * mask_fft
+    fft_template = np.conj(np.fft.fft2(im_template) * mask_fft) if not template_precomputed else im_template
     fft_moving   = np.fft.fft2(im_moving) * mask_fft
-    R = np.conj(fft_template) * fft_moving
+    R = fft_template * fft_moving
     R[mask_fft != 0] /= np.abs(R)[mask_fft != 0]
     cc = np.fft.fftshift(np.fft.ifft2(R)).real
     return cc

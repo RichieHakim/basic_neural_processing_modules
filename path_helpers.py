@@ -8,6 +8,7 @@ import os
 from typing import List
 import numpy as np
 from pathlib import Path
+import re
 
 # Third party
 # import pkg_resources
@@ -103,25 +104,42 @@ def get_numeric_contents(directory, sort=True, contains_string=None):
     return paths_output, contents_output, numerics_output
 
 
-def get_all_files(root: str, followlinks: bool = False) -> List:
+def get_paths(directory, reMatch=None, natsorted=True, followlinks=False) -> List:
     """
-    Get all files within the given root directory.
-    Note that this list is not ordered.
-    Parameters
-    ----------
-    root : str
-        Path to a directory
-    followlinks : bool, optional (default: False)
-    Returns
-    -------
-    filepaths : List
-        List of absolute paths to files
+    Get all files in a directory matching some regular expression.
+    
+    RH 2022
+
+    Args:
+        directory (str):
+            Path to directory
+        reMatch (str):
+            Regular expression to match
+            Each file name will be compared using
+             re.search(reMatch, filename). If the output is not None,
+             the file will be included in the output.
+        natsorted (bool):
+            Whether to sort the output using natural sorting
+             with the natsort package.
+        followlinks (bool):
+            Whether to follow symbolic links
+
+    Returns:
+        paths (List of str):
+            Paths to matched files in the directory
     """
-    filepaths = []
-    for path, _, files in os.walk(root, followlinks=followlinks):
+    paths = []
+    for path, _, files in os.walk(directory, followlinks=followlinks):
         for name in files:
-            filepaths.append(os.path.abspath(os.path.join(path, name)))
-    return filepaths
+            paths.append(os.path.abspath(os.path.join(path, name)))
+
+    if reMatch is not None:
+        paths = [path for path in paths if re.search(reMatch, path)]
+
+    if natsorted:
+        import natsort
+        paths = natsort.natsorted(paths)
+    return paths
 
 
 # def get_from_package(package_name: str, path: str) -> str:
