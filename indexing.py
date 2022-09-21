@@ -654,7 +654,7 @@ def remove_redundant_elements(s, inPlace=False):
     s_out.data = s.data[idx_nonRed]
     return s_out
 
-def merge_sparse_arrays(s_list, idx_list, shape_full, remove_redundant=True):
+def merge_sparse_arrays(s_list, idx_list, shape_full, remove_redundant=True, elim_zeros=True):
     """
     Merges a list of square sparse arrays into a single square sparse array.
     Note that no selection is performed for removing redundant entries;
@@ -681,6 +681,7 @@ def merge_sparse_arrays(s_list, idx_list, shape_full, remove_redundant=True):
     row, col, data = np.array([]), np.array([]), np.array([])
     for s, idx in zip(s_list, idx_list):
         s_i = s.tocsr() if s.getformat() != 'csr' else s
+        s_i.eliminate_zeros() if elim_zeros else s_i
         idx_grid = np.meshgrid(idx, idx)
         row = np.concatenate([row, (s_i != 0).multiply(idx_grid[0]).data])
         col = np.concatenate([col, (s_i != 0).multiply(idx_grid[1]).data])
