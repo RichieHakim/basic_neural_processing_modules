@@ -56,6 +56,9 @@ def idx_to_oneHot(arr, n_classes=None):
     Args:
         arr (np.ndarray):
             1-D array of class indices.
+            Values should be integers >= 0.
+            Values will be used as indices in the
+             output array.
         n_classes (int):
             Number of classes.
     
@@ -65,19 +68,18 @@ def idx_to_oneHot(arr, n_classes=None):
     """
     if type(arr) is np.ndarray:
         max = np.max
-        min = np.min
         zeros = np.zeros
         arange = np.arange
         dtype = np.bool8
     elif type(arr) is torch.Tensor:
         max = torch.max
-        min = torch.min
         zeros = torch.zeros
         arange = torch.arange
         dtype = torch.bool
+    assert arr.ndim == 1
 
     if n_classes is None:
-        n_classes = (max(arr) - min(arr)) + 1
+        n_classes = max(arr)+1
     oneHot = zeros((len(arr), n_classes), dtype=dtype)
     oneHot[arange(len(arr)), arr] = True
     return oneHot
