@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 def squeeze_integers(intVec):
     """
@@ -62,8 +63,21 @@ def idx_to_oneHot(arr, n_classes=None):
         oneHot (np.ndarray):
             2-D array of one-hot vectors.
     """
+    if type(arr) is np.ndarray:
+        max = np.max
+        min = np.min
+        zeros = np.zeros
+        arange = np.arange
+        dtype = np.bool8
+    elif type(arr) is torch.Tensor:
+        max = torch.max
+        min = torch.min
+        zeros = torch.zeros
+        arange = torch.arange
+        dtype = torch.bool
+
     if n_classes is None:
-        n_classes = np.max(arr)+1
-    oneHot = np.zeros((arr.size, n_classes))
-    oneHot[np.arange(arr.size), arr] = 1
+        n_classes = (max(arr) - min(arr)) + 1
+    oneHot = zeros((len(arr), n_classes), dtype=dtype)
+    oneHot[arange(len(arr)), arr] = True
     return oneHot

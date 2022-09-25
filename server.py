@@ -614,6 +614,7 @@ class sftp_interface():
         self, 
         path='.', 
         search_pattern_re='', 
+        max_depth=2,
         verbose=True
     ):
         """
@@ -625,6 +626,8 @@ class sftp_interface():
                 Current working directory.
             search_pattern_re (str):
                 Regular expression to search for.
+            max_depth (int):
+                Maximum depth (number of hierarchical subdirectories) to search.
             verbose (bool):
                 Whether or not to print the paths of the files found.
 
@@ -634,7 +637,9 @@ class sftp_interface():
         """
         search_results = []
 
-        def _recursive_search(search_results, sftp, cwd='.', search_pattern_re='', verbose=True):
+        def _recursive_search(search_results, sftp, cwd='.', search_pattern_re='', depth=0, verbose=True):
+            if depth > max_depth:
+                return search_results
             contents = {name: stat.S_ISDIR(attr.st_mode)  for name, attr in zip(sftp.listdir(cwd), sftp.listdir_attr(cwd))}
             for name, isdir  in contents.items():
                 if isdir:
@@ -643,6 +648,7 @@ class sftp_interface():
                         sftp=sftp, 
                         cwd=str(Path(cwd) / name), 
                         search_pattern_re=search_pattern_re, 
+                        depth=depth+1,
                         verbose=verbose
                     )
                 elif re.search(search_pattern_re, name):
@@ -652,7 +658,7 @@ class sftp_interface():
                         print(path_found)
             return search_results
 
-        return _recursive_search(search_results, self.sftp, cwd=path, search_pattern_re=search_pattern_re, verbose=verbose)
+        return _recursive_search(search_results, self.sftp, cwd=path, search_pattern_re=search_pattern_re, depth=0, verbose=verbose)
         
     def list_fileSizes_recursive(self, directory='.'):
         """
