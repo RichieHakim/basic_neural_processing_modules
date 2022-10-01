@@ -359,10 +359,10 @@ def index_with_nans(values, indices):
             array of values indexed by indices
     """
     values = np.concatenate((np.array([np.nan]), values))
-    indices += 1
-    indices[np.isnan(indices)] = 0
+    idx = indices.copy() + 1
+    idx[np.isnan(idx)] = 0
     
-    return values[indices.astype(np.int64)]
+    return values[idx.astype(np.int64)]
 
 
 def shift_pad(array, shift=1, axis=-1, pad_val=0, in_place=False):
