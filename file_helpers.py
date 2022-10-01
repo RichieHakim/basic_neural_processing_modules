@@ -1,4 +1,44 @@
 
+import pickle
+import json
+import yaml
+from pathlib import Path
+
+def pickle_save(obj, path_save, mode='wb', mkdir=False, allow_overwrite=True):
+    Path(path_save).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
+    assert allow_overwrite or not Path(path_save).exists(), f'{path_save} already exists.'
+    assert Path(path_save).parent.exists(), f'{Path(path_save).parent} does not exist.'
+    assert Path(path_save).parent.is_dir(), f'{Path(path_save).parent} is not a directory.'
+    with open(path_save, mode) as f:
+        pickle.dump(obj, f,)
+def pickle_load(filename, mode='rb'):
+    with open(filename, mode) as f:
+        return pickle.load(f)
+
+def json_save(obj, path_save, mode='w', mkdir=False, allow_overwrite=True):
+    Path(path_save).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
+    assert allow_overwrite or not Path(path_save).exists(), f'{path_save} already exists.'
+    assert Path(path_save).parent.exists(), f'{Path(path_save).parent} does not exist.'
+    assert Path(path_save).parent.is_dir(), f'{Path(path_save).parent} is not a directory.'
+    with open(path_save, mode) as f:
+        json.dump(obj, f, indent=4)
+def json_load(filename, mode='r'):
+    with open(filename, mode) as f:
+        return json.load(f)
+
+def yaml_save(obj, path_save, mode='w', mkdir=False, allow_overwrite=True):
+    Path(path_save).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
+    assert allow_overwrite or not Path(path_save).exists(), f'{path_save} already exists.'
+    assert Path(path_save).parent.exists(), f'{Path(path_save).parent} does not exist.'
+    assert Path(path_save).parent.is_dir(), f'{Path(path_save).parent} is not a directory.'
+    with open(path_save, mode) as f:
+        yaml.dump(obj, f, indent=4)
+def yaml_load(filename, mode='r'):
+    with open(filename, mode) as f:
+        return yaml.load(f, Loader=yaml.FullLoader)
+        
+
+
 def hash_file(path, type_hash='MD5', buffer_size=65536):
     """
     Gets hash of a file.
