@@ -7,7 +7,6 @@ from tqdm.notebook import tqdm
 
 from ipywidgets import widgets
 import IPython.display as Disp
-import matplotlib
 
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
 

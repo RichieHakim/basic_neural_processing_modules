@@ -1,15 +1,3 @@
-'''
-Table of Contents
-
-Functions and Interdependencies:
-    make_dFoF
-        - timeSeries.percentile_numba
-    calculate_noise_levels
-    trace_quality_metrics
-        - calculate_noise_levels
-        - make_dFoF (outputs used as inputs to trace_quality_metrics)
-'''
-
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt

@@ -1,5 +1,4 @@
 import numpy as np
-from numba import njit
 import sys
 import re
 import hashlib
