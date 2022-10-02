@@ -93,7 +93,7 @@ def download_file(
     check_local_first=True, 
     check_hash=False, 
     hash_type='MD5', 
-    hash_output=None,
+    hash_hex=None,
     verbose=True,
     chunk_size=1024,
 ):
@@ -114,13 +114,14 @@ def download_file(
             If True and check_hash is True, checks hash of local file.
         check_hash (bool):
             If True, checks hash of local or downloaded file against
-             hash_output.
+             hash_hex.
         hash_type (str):
             Type of hash to use. Can be:
                 'MD5', 'SHA1', 'SHA256', 'SHA512'
-        hash_output (str):
-            Hash to compare to.
-            If check_hash is True, hash_output must be provided.
+        hash_hex (str):
+            Hash to compare to. In hex format (e.g. 'a1b2c3d4e5f6...').
+            Can be generated using hash_file() or hashlib and .hexdigest().
+            If check_hash is True, hash_hex must be provided.
         verbose (bool):
             If True, prints status messages.
         chunk_size (int):
@@ -136,16 +137,18 @@ def download_file(
             # Check hash of local file
             if check_hash:
                 hash_local = hash_file(path_save, type_hash=hash_type)
-                if hash_local == hash_output:
-                    print('Hash of local file matches hash of output file.') if verbose else None
+                if hash_local == hash_hex:
+                    print('Hash of local file matches provided hash_hex.') if verbose else None
                     return True
                 else:
-                    print('Hash of local file does not match hash of output file.') if verbose else None
+                    print('Hash of local file does not match provided hash_hex.') if verbose else None
                     print(f'Hash of local file: {hash_local}') if verbose else None
-                    print(f'Hash of output file: {hash_output}') if verbose else None
+                    print(f'Hash provided in hash_hex: {hash_hex}') if verbose else None
                     print('Downloading file...') if verbose else None
             else:
                 return True
+        else:
+            print(f'File does not exist locally: {path_save}. Will attempt download from {url}') if verbose else None
 
     # Download file
     try:
@@ -166,13 +169,13 @@ def download_file(
     # Check hash
     if check_hash:
         hash_local = hash_file(path_save, type_hash=hash_type)
-        if hash_local == hash_output:
-            print('Hash of downloaded file matches hash_output.') if verbose else None
+        if hash_local == hash_hex:
+            print('Hash of downloaded file matches hash_hex.') if verbose else None
             return True
         else:
-            print('Hash of downloaded file does not match hash_output.') if verbose else None
+            print('Hash of downloaded file does not match hash_hex.') if verbose else None
             print(f'Hash of downloaded file: {hash_local}') if verbose else None
-            print(f'Hash of output file: {hash_output}') if verbose else None
+            print(f'Hash provided in hash_hex: {hash_hex}') if verbose else None
             return False
     else:
         return True
