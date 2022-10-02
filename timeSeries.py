@@ -1,22 +1,5 @@
-'''
-Table of Contents
-
-Functions and Interdependencies:
-    convolve_along_axis
-        - parallel_helpers.multithreading
-    threshold
-    scale_between
-
-    percentile_numba
-    zscore_numba
-    convolve_numba
-'''
-
-from logging import warn
 from this import d
 import numpy as np
-import scipy.stats
-import scipy.signal
 import time
 from matplotlib import pyplot as plt
 import copy
