@@ -2,12 +2,9 @@ import gc
 import numpy as np
 import sklearn
 import sklearn.linear_model
-import time
-from numba import njit, jit, prange
 import torch
 
 
-# @njit
 def OLS(X,y, add_bias_terms=False):
     '''
     Ordinary Least Squares regression.

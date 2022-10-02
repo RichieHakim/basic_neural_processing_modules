@@ -196,7 +196,7 @@ def make_correlated_distributions_2D(means, stds, corrs, n_points_per_mode):
     return dist
 
 
-def Linex(x, mu=1, a=1, b=1, c=1, d=1, e=1, f=1, g=1):
+def linex(x, mu=1, a=1, b=1, c=1, d=1, e=1, f=1, g=1):
     """
     Linex (loss) function. 'Linear - exponential'.
     The curve below mu is linear, and the curve

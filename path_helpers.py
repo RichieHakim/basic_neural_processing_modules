@@ -2,15 +2,10 @@
 Functions for path manipulation and retrieval of files.
 """
 
-# Core Library
 import os
-from typing import List
 import numpy as np
 from pathlib import Path
 import re
-
-# Third party
-# import pkg_resources
 
 def mkdir(directory, parents=True, exist_ok=True):
     '''

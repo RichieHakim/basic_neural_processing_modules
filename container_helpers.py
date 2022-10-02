@@ -1,7 +1,6 @@
 import numpy as np
 import copy
 from collections.abc import MutableMapping
-import itertools
 
 """
 This module is intended to have minimal dependencies.
