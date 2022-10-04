@@ -94,6 +94,7 @@ def download_file(
     check_hash=False, 
     hash_type='MD5', 
     hash_hex=None,
+    mkdir=False,
     verbose=True,
     chunk_size=1024,
 ):
@@ -122,6 +123,8 @@ def download_file(
             Hash to compare to. In hex format (e.g. 'a1b2c3d4e5f6...').
             Can be generated using hash_file() or hashlib and .hexdigest().
             If check_hash is True, hash_hex must be provided.
+        mkdir (bool):
+            If True, creates parent directory of path_save if it does not exist.
         verbose (bool):
             If True, prints status messages.
         chunk_size (int):
@@ -160,6 +163,9 @@ def download_file(
     if response.status_code != 200:
         print(f'Response status code: {response.status_code}')
         return False
+    # Create parent directory if it does not exist
+    if mkdir:
+        os.makedirs(os.path.dirname(path_save), exist_ok=True)
     # Save file
     with open(path_save, 'wb') as f:
         print(f'Downloading file to: {path_save}') if verbose else None
