@@ -614,7 +614,7 @@ class sftp_interface():
         self, 
         path='.', 
         search_pattern_re='', 
-        max_depth=2,
+        max_depth=6,
         verbose=True
     ):
         """
