@@ -83,3 +83,37 @@ def idx_to_oneHot(arr, n_classes=None, dtype=None):
     oneHot = zeros((len(arr), n_classes), dtype=dtype)
     oneHot[arange(len(arr)), arr] = True
     return oneHot
+
+
+def convert_stringArray_to_oneHot(seq, strs=['A','C','G','T'], safe=False):
+    """
+    Convert a sequence of string elements to a one-hot matrix.
+    RH 2022
+
+    Args:
+        seq (str):
+            Sequence of string elements.
+            example ['A','C','G','T','A','C','G','T']
+        strs (list):
+            List of string elements to use.
+            Number of output columns will be len(strs).
+            example: ['A','C','G','T','N','R','Y','S','W','K','M','B','D','H','V']
+        safe (bool):
+            If True, will check that all string elements in seq
+             are in strs.
+
+    Returns:
+        oneHot (np.ndarray):
+            2-D array of one-hot vectors.
+            Columns correspond to string elements, rows to
+             positions in seq.
+    """
+    seq_arr = np.char.upper(np.array(seq, dtype='U1'))
+    
+    assert np.all(np.isin(seq_arr, strs)), "Some characters in sequence are not in allowable_chars" if safe else None
+    
+    nuc_ints = np.array(strs).view(np.uint32)
+    seq_ints = seq_arr.view(np.uint32)
+    oneHot = np.vstack([seq_ints==n for n in nuc_ints]).T
+    return oneHot
+
