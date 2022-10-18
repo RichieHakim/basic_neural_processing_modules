@@ -288,8 +288,8 @@ class ssh_interface():
         verbose=None,
     ):
         """
-        Send a command to the remote server,
-         and receive the response.
+        Send a command to the remote server, wait for 
+         some time, and then receive the output.
         Args:
             cmd (str):
                 Command to send.
@@ -316,7 +316,7 @@ class ssh_interface():
         partial_match=True,
         recv_timeout=0.3,
         total_timeout=60,
-        sleep_time = 0.1,
+        sleep_time=0.1,
         verbose=None,
     ):
         """
@@ -379,6 +379,53 @@ class ssh_interface():
             else:
                 print(f'expect failed')
                 
+        return out, success
+
+    def send_expect(
+        self,
+        cmd='ls',
+        str_success='(base) [rh183',
+        partial_match=True,
+        recv_timeout=0.3,
+        total_timeout=60,
+        sleep_time=0.1,
+        verbose=None,
+    ):
+        """
+        Send a command to the remote server, wait for 
+         a string to appear in the output, and then 
+         receive the output.
+        Args:
+            cmd (str):
+                Command to send.
+            str_success (str):
+                String to wait for.
+            partial_match (bool):
+                Whether or not to allow a partial match.
+            recv_timeout (float):
+                Timeout for receiving data per 
+                 check iteration.
+            total_timeout (float):
+                Total time to wait for the string.
+            sleep_time (float):
+                Time to sleep between checks.
+                Allows for keyboard interrupts.
+            verbose (bool):
+                Whether or not to print progress.
+                0/False: no printing
+                1/True: will print recv outputs.
+                2: will print expect progress.
+                None: will default to self.verbose (1 or 2).
+        """
+        self.send(cmd=cmd)
+        out, success = self.expect(
+            str_success=str_success,
+            partial_match=partial_match,
+            recv_timeout=recv_timeout,
+            total_timeout=total_timeout,
+            sleep_time = sleep_time,
+            verbose=verbose,
+        )
         return out, success
 
     def initialize_sftp(self):
@@ -615,10 +662,13 @@ class sftp_interface():
         path='.', 
         search_pattern_re='', 
         max_depth=6,
+        find_files=True,
+        find_folders=True,
         verbose=True
     ):
         """
-        Searches a remote directory recursively for files matching a pattern.
+        Searches a remote directory recursively for files or directories
+         matching a pattern.
         Args:
             sftp (paramiko.SFTPClient):
                 SFTPClient object.
@@ -628,8 +678,15 @@ class sftp_interface():
                 Regular expression to search for.
             max_depth (int):
                 Maximum depth (number of hierarchical subdirectories) to search.
+            find_files (bool):
+                Whether or not to search for files.
+            find_folders (bool):
+                Whether or not to search for folders.
             verbose (bool):
                 Whether or not to print the paths of the files found.
+                If False, no output is printed.
+                If True or 1, prints the paths of the files found.
+                If >1, prints the current search directory.
 
         Returns:
             list:
@@ -642,6 +699,12 @@ class sftp_interface():
                 return search_results
             contents = {name: stat.S_ISDIR(attr.st_mode)  for name, attr in zip(sftp.listdir(cwd), sftp.listdir_attr(cwd))}
             for name, isdir  in contents.items():
+                if (isdir and find_folders) or (not isdir and find_files):
+                    if re.search(search_pattern_re, name):
+                        path_found = str(Path(cwd) / name)
+                        search_results.append(path_found)
+                        print(path_found) if verbose else None
+
                 if isdir:
                     search_results = _recursive_search(
                         search_results=search_results,
@@ -651,13 +714,9 @@ class sftp_interface():
                         depth=depth+1,
                         verbose=verbose
                     )
-                elif re.search(search_pattern_re, name):
-                    path_found = str(Path(cwd) / name)
-                    search_results.append(path_found)
-                    if verbose:
-                        print(path_found)
-            return search_results
 
+                print(f'cwd: {cwd}, name: {name}, isdir: {isdir}, depth: {depth}') if verbose > 1 else None
+            return search_results
         return _recursive_search(search_results, self.sftp, cwd=path, search_pattern_re=search_pattern_re, depth=0, verbose=verbose)
         
     def list_fileSizes_recursive(self, directory='.'):
