@@ -177,6 +177,14 @@ def fix_spaces_in_unix_path(path):
      this is not recognized by python. This function
      replaces ' ' with r'\ ' in a path.
     RH 2022
+
+    Args:
+        path (str):
+            Unix path with spaces
+
+    Returns:
+        path (str):
+            Unix path with spaces replaced by r'\ '
     """
     from pathlib import Path
     return Path(path).as_posix().replace(' ', r'\ ')
