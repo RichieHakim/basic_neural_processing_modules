@@ -169,3 +169,14 @@ def get_nums_from_string(string_with_nums):
         return None
     nums = int(''.join(nums))
     return nums
+
+def fix_spaces_in_unix_path(path):
+    """
+    Fix spaces in a unix path.
+    Spaces in unix paths are represented by '\ ', but
+     this is not recognized by python. This function
+     replaces ' ' with r'\ ' in a path.
+    RH 2022
+    """
+    from pathlib import Path
+    return Path(path).as_posix().replace(' ', r'\ ')
