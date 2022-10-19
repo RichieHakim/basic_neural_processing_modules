@@ -185,3 +185,38 @@ def download_file(
             return False
     else:
         return True
+
+def is_valid_hash(hash_hex, hash_type='MD5'):
+    """
+    Checks if a hash is valid.
+    RH 2022
+
+    Args:
+        hash_hex (str):
+            Hash to check. In hex format (e.g. 'a1b2c3d4e5f6...').
+        hash_type (str):
+            Type of hash to use. Can be:
+                'MD5', 'SHA1', 'SHA256', 'SHA512'
+
+    Returns:
+        bool:
+            True if hash is valid, False if not.
+    """
+    import hashlib
+
+    if hash_type == 'MD5':
+        hasher = hashlib.md5()
+    elif hash_type == 'SHA1':
+        hasher = hashlib.sha1()
+    elif hash_type == 'SHA256':
+        hasher = hashlib.sha256()
+    elif hash_type == 'SHA512':
+        hasher = hashlib.sha512()
+    else:
+        raise ValueError(f'{hash_type} is not a valid hash type.')
+
+    try:
+        hasher.update(bytes.fromhex(hash_hex))
+    except ValueError:
+        return False
+    return True
