@@ -146,7 +146,7 @@ def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pr
             show_item_tree(hf)
 
 
-def simple_load(path=None, directory=None, fileName=None, verbose=False):
+def simple_load(path=None, verbose=False):
     """
     Returns a lazy dictionary object (specific
     to hdfdict package) containing the groups
@@ -157,13 +157,6 @@ def simple_load(path=None, directory=None, fileName=None, verbose=False):
     Args:
         path (string or Path): 
             Full path name of file to read.
-            If None, then directory and fileName must be specified.
-        directory (string): 
-            Directory of file to read.
-            Used if path is None.
-        fileName (string):
-            Name of file to read.
-            Used if path is None.
         verbose (bool):
             Whether or not to print out the h5 file hierarchy.
     
@@ -173,11 +166,6 @@ def simple_load(path=None, directory=None, fileName=None, verbose=False):
     """
     import hdfdict
     
-    if path is None:
-        directory = Path(directory).resolve()
-        fileName_load = fileName
-        path = directory / fileName_load
-
     h5Obj = hdfdict.load(str(path), **{'mode': 'r'})
     
     if verbose:
@@ -186,7 +174,7 @@ def simple_load(path=None, directory=None, fileName=None, verbose=False):
     return h5Obj
 
 
-def simple_save(dict_to_save, path=None, directory=None, fileName=None, write_mode='w-', verbose=False):
+def simple_save(dict_to_save, path=None, write_mode='w-', verbose=False):
     """
     Saves a python dict to an hdf file.
     Also allows for adding new data to
@@ -198,13 +186,6 @@ def simple_save(dict_to_save, path=None, directory=None, fileName=None, write_mo
             Python dict to save to hdf file.
         path (string or Path):
             Full path name of file to write.
-            If None, then directory and fileName must be specified.
-        directory (string):
-            Directory of file to write.
-            Used if path is None.
-        fileName (string):
-            Name of file to write.
-            Used if path is None.
         write_mode ('w', 'w-', 'a'):
             The priveleges of the h5 file object.
             'w' will overwrite.
@@ -213,11 +194,6 @@ def simple_save(dict_to_save, path=None, directory=None, fileName=None, write_mo
         verbose (bool):
             Whether or not to print out the h5 file hierarchy.
     """
-
-    if path is None:
-        directory = Path(directory).resolve()
-        fileName_load = fileName
-        path = directory / fileName_load
 
     write_dict_to_h5(path, dict_to_save, write_mode=write_mode, show_item_tree_pref=verbose)
 
