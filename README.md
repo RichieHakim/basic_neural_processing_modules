@@ -31,6 +31,8 @@ Other useful functions:
         - Orthogonalize a matrix relative to a set of vectors using a Gram-Schmidt related process
 
 - Miscellaneous
+    - `path_helpers.get_paths`
+        - Get a paths to files and/or folders in a directory. Searches recursively using regex.
     - `misc.estimate_size_of_float_array`
         - Estimates the size of a float array in bytes
     - `image_processing.play_video_cv2`
