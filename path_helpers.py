@@ -98,7 +98,7 @@ def get_numeric_contents(directory, sort=True, contains_string=None):
     return paths_output, contents_output, numerics_output
 
 
-def get_paths(
+def find_paths(
     dir_outer, 
     reMatch='filename', 
     find_files=True, 
