@@ -98,52 +98,76 @@ def get_numeric_contents(directory, sort=True, contains_string=None):
     return paths_output, contents_output, numerics_output
 
 
-def get_paths(directory, reMatch=None, natsorted=True, alg_ns=None, followlinks=False):
+def get_paths(
+    dir_outer, 
+    reMatch='filename', 
+    find_files=True, 
+    find_folders=False, 
+    depth=0, 
+    natsorted=True, 
+    alg_ns=None, 
+):
     """
-    Get all files in a directory matching some regular expression.
-    
+    Search for files and/or folders recursively in a directory.
     RH 2022
 
     Args:
-        directory (str):
-            Path to directory
+        dir_outer (str):
+            Path to directory to search
         reMatch (str):
             Regular expression to match
-            Each file name will be compared using
+            Each path name encountered will be compared using
              re.search(reMatch, filename). If the output is not None,
              the file will be included in the output.
+        find_files (bool):
+            Whether to find files
+        find_folders (bool):
+            Whether to find folders
+        depth (int):
+            Maximum folder depth to search.
+            depth=0 means only search the outer directory.
+            depth=2 means search the outer directory and two levels
+             of subdirectories below it.
         natsorted (bool):
             Whether to sort the output using natural sorting
              with the natsort package.
         alg_ns (str):
             Algorithm to use for natural sorting.
-            See natsort.ns or 
+            See natsort.ns or
              https://natsort.readthedocs.io/en/4.0.4/ns_class.html
              for options.
             Default is PATH.
             Other commons are INT, FLOAT, VERSION.
-        followlinks (bool):
-            Whether to follow symbolic links
 
     Returns:
         paths (List of str):
-            Paths to matched files in the directory
+            Paths to matched files and/or folders in the directory
     """
-    paths = []
-    for path, _, files in os.walk(directory, followlinks=followlinks):
-        for name in files:
-            paths.append(os.path.abspath(os.path.join(path, name)))
+    import natsort
+    if alg_ns is None:
+        alg_ns = natsort.ns.PATH
 
-    if reMatch is not None:
-        paths = [path for path in paths if re.search(reMatch, path)]
+    def get_paths_recursive_inner(dir_inner, depth_end, depth=0):
+        paths = []
+        for path in os.listdir(dir_inner):
+            path = os.path.join(dir_inner, path)
+            if os.path.isdir(path):
+                if find_folders:
+                    if re.search(reMatch, path) is not None:
+                        paths.append(path)
+                if depth < depth_end:
+                    paths += get_paths_recursive_inner(path, depth_end, depth=depth+1)
+            else:
+                if find_files:
+                    if re.search(reMatch, path) is not None:
+                        paths.append(path)
+        return paths
 
+    paths = get_paths_recursive_inner(dir_outer, depth, depth=0)
     if natsorted:
-        import natsort
-        if alg_ns is None:
-            alg_ns = natsort.ns.PATH
         paths = natsort.natsorted(paths, alg=alg_ns)
     return paths
-
+        
 
 def get_nums_from_string(string_with_nums):
     """
