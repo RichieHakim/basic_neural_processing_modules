@@ -26,7 +26,7 @@ def squeeze_integers(intVec):
 def confusion_matrix(y_hat, y_true):
     """
     Compute the confusion matrix from y_hat and y_true.
-    y_hat should be either predictions ().
+    y_hat should be either predictions or probabilities.
     RH 2021
 
     Args:
@@ -40,6 +40,13 @@ def confusion_matrix(y_hat, y_true):
         y_true (np.ndarray):
             Either 1-D array of true class indices OR a
              precomputed onehot matrix.
+
+    Returns:
+        conf_mat (np.ndarray):
+            2-D array of confusion matrix.
+            Columns are true classes, rows are predicted.
+            Note that this is the transpose of the
+             sklearn convention.
     """
     n_classes = max(np.max(y_true)+1, np.max(y_hat)+1)
     if y_hat.ndim == 1:
@@ -65,6 +72,7 @@ def idx_to_oneHot(arr, n_classes=None, dtype=None):
     Returns:
         oneHot (np.ndarray):
             2-D array of one-hot vectors.
+            Shape is (len(arr), n_classes).
     """
     if type(arr) is np.ndarray:
         max = np.max
