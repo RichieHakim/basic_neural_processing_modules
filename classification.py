@@ -51,7 +51,9 @@ def confusion_matrix(y_hat, y_true):
     n_classes = max(np.max(y_true)+1, np.max(y_hat)+1)
     if y_hat.ndim == 1:
         y_hat = idx_to_oneHot(y_hat, n_classes)
-    cmat = y_hat.T @ idx_to_oneHot(y_true, n_classes)
+    if y_true.ndim == 1:
+        y_true = idx_to_oneHot(y_true, n_classes)
+    cmat = np.dot(y_hat.T, y_true)
     return cmat / np.sum(cmat, axis=0)[None,:]
     
 def idx_to_oneHot(arr, n_classes=None, dtype=None):
