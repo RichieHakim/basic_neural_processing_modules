@@ -238,7 +238,7 @@ def trace_quality_metrics(
     
     dFoF_clip = np.clip(dFoF, clip_range[0], clip_range[1])
 
-    peter_noise = peter_noise_levels(dFoF_clip, Fs)
+    peter_noise = peter_noise_levels(np.ascontiguousarray(dFoF_clip), Fs)
     # peter_noise = np.median(np.abs(np.diff(dFoF, axis=1)), axis=1) # Use this line of code if numba is acting up
     peter_noise[np.abs(peter_noise) > 1e3] = np.nan
 
