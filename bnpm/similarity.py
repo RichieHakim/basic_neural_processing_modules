@@ -13,11 +13,6 @@ Functions and Interdependencies:
     self_similarity_pairwise
         - best_permutation
 '''
-import hogwash
-
-def test():
-    print(hogwash.test())
-
 import numpy as np
 from numpy.linalg import norm, qr
 from scipy.stats import zscore
