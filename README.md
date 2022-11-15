@@ -2,6 +2,14 @@
 Personal library of functions used in analyzing neural data.
 If you find a bug or just want to reach out: RichHakim@gmail.com
 
+## Installation 
+```
+cd path/to/your/preferred/directory
+git clone https://github.com/RichieHakim/basic_neural_processing_modules
+cd path/to/basic_neural_processing_modules
+pip install -e .
+```
+
 
 My favorites:
 - **`featurization.Toeplitz_convolution2d`**
