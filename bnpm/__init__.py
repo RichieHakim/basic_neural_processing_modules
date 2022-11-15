@@ -26,3 +26,6 @@ __all__ = [
             'timeSeries',
             'torch_helpers',
         ]
+
+for pkg in __all__:
+    exec('from . import ' + pkg)

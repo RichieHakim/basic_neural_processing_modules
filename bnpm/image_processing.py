@@ -2,28 +2,28 @@ import numpy as np
 import cv2
 
 
-###############################################################################
-## This block of code is used to initialize cv2.imshow
-## This is necessary because importing av and decord 
-##  will cause cv2.imshow to fail unless it is initialized.
-## Obviously, this should be commented out when running on
-##  systems that do not support cv2.imshow like servers.
-## Also be sure to import BNPM before importing most other
-##  modules.
-test = np.zeros((1,300,400,3))
-for frame in test:
-    cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-    cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-    cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-    cv2.imshow('startup', frame)
-    cv2.waitKey(100)
-cv2.destroyWindow('startup')
-###############################################################################
+# ###############################################################################
+# ## This block of code is used to initialize cv2.imshow
+# ## This is necessary because importing av and decord 
+# ##  will cause cv2.imshow to fail unless it is initialized.
+# ## Obviously, this should be commented out when running on
+# ##  systems that do not support cv2.imshow like servers.
+# ## Also be sure to import BNPM before importing most other
+# ##  modules.
+# test = np.zeros((1,300,400,3))
+# for frame in test:
+#     cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+#     cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+#     cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+#     cv2.imshow('startup', frame)
+#     cv2.waitKey(100)
+# cv2.destroyWindow('startup')
+# ###############################################################################
 
 
-import av
-import decord
-# import cv2 
+# import av
+# import decord
+# # import cv2 
 
 import copy
 import torch
@@ -513,8 +513,10 @@ def make_tiled_video_array(
     """
     Creates a tiled video array from a list of paths to videos.
     NOTE: On my Ubuntu machine:
-        - importing 'av' after cv2 causes cv2.imshow to hang forever and
+        - importing 'av' after cv2 causes cv2.imshow to hang forever if
+         cv2.imshow is not called first
         - importing 'decord' after cv2 causes cv2.imshow to crash the kernel
+         if cv2.imshow is not called first
     RH 2022
 
     Args:
@@ -570,6 +572,8 @@ def make_tiled_video_array(
             Tiled video array.
             shape(frames, tiling_shape[0]*block_height_width[0], tiling_shape[1]*block_height_width[1], channels)
     """
+    import av
+    import decord
 
     ##  Example values
     ##  - frame_idx_list = [np.array([[703,843], [743,883], [799, 939], [744, 884]]*2).T, np.array([[39,89], [43,93], [99, 149], [44, 94]]*2).T]
@@ -849,6 +853,7 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
         kwargs_text:
             Keyword arguments for text
     """
+    import decord
     wait_frames = max(int((1/frameRate)*1000), 1)
     if save_path is not None:
         size = tuple((np.flip(array.shape[1:3])))
