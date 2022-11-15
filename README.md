@@ -9,8 +9,9 @@ git clone https://github.com/RichieHakim/basic_neural_processing_modules
 cd path/to/basic_neural_processing_modules
 pip install -e .
 ```
+you can now import with: `import bnpm`
 
-
+## Usage 
 My favorites:
 - **`featurization.Toeplitz_convolution2d`**
     - 1D and 2D convolution. Uses sparse Toeplitz matrix multiplication to speed up computation.
