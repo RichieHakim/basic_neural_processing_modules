@@ -13,6 +13,10 @@ Functions and Interdependencies:
     self_similarity_pairwise
         - best_permutation
 '''
+import hogwash
+
+def test():
+    print(hogwash.test())
 
 import numpy as np
 from numpy.linalg import norm, qr
@@ -20,7 +24,6 @@ from scipy.stats import zscore
 import scipy.optimize
 import copy
 import sklearn.decomposition
-from opt_einsum import contract
 from numba import njit, prange, jit
 import torch
 
@@ -52,6 +55,7 @@ def proj(v1, v2):
         proj_score (ndarray or scalar): 
             projection scores. shape: (v1.shape[1], v2.shape[1])
     '''
+    from opt_einsum import contract
     if v1.ndim < 2:
         v1 = v1[:,None]
     if v2.ndim < 2:

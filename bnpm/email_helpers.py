@@ -1,6 +1,3 @@
-import sendgrid
-from sendgrid.helpers.mail import To, From, Content, Mail
-
 
 class Sender():
     def __init__(
@@ -16,6 +13,8 @@ class Sender():
                 The SendGrid API key.
                 Get your API key at https://app.sendgrid.com/settings/api_keys.
         """
+        import sendgrid
+
         self.sg = sendgrid.SendGridAPIClient(api_key=api_key)
 
     def send(
@@ -45,6 +44,7 @@ class Sender():
         Returns:
             The response from SendGrid.
         """
+        from sendgrid.helpers.mail import To, From, Content, Mail
         self.from_email = From(from_email)
         self.to_emails = To(to_emails)
         self.subject = subject

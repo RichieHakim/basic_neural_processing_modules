@@ -1,0 +1,26 @@
+## requirements.txt
+
+opt-einsum
+rolling-quantiles
+
+pulp
+
+spconv
+torch-sparse
+
+av
+decord
+
+pynwb
+
+sendgrid
+
+pycuda
+cuml
+cupy
+cudf
+
+scanimage-tiff-reader
+
+#torch
+#torchvision
