@@ -14,7 +14,7 @@ are imported in specific functions. These are listed in requirements_advanced.tx
     - `cd basic_neural_processing_modules`
     - `pip install -r requirements.txt`
     - Install PyTorch. Visit this site to choose proper method for you: https://pytorch.org/get-started/locally/
-    - Install any other libraries in requirements_advanced.txt that you need for your project.
+    - Install any other libraries in `requirements_advanced.txt` that you need for your project.
 
 3. Install the package:
     - `cd path/to/basic_neural_processing_modules`
