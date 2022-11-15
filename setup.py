@@ -6,7 +6,7 @@ setup(
     name='bnpm',
     version='0.1.0',
     author='Richard Hakim',
-    keywords=['data analysis', 'machine learning', 'neurscience'],
+    keywords=['data analysis', 'machine learning', 'neuroscience'],
     packages=['bnpm'],
     license='LICENSE',
     description='A library of useful modules for data analysis.',
