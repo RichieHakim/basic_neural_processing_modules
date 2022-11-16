@@ -3,6 +3,9 @@ import pickle
 import json
 import yaml
 from pathlib import Path
+import math
+
+from tqdm import tqdm
 
 def pickle_save(obj, path_save, mode='wb', mkdir=False, allow_overwrite=True):
     Path(path_save).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
@@ -132,7 +135,9 @@ def download_file(
     """
     import os
     import requests
-    
+    import ssl
+    ssl._create_default_https_context = ssl._create_unverified_context
+
     # Check if file already exists locally
     if check_local_first:
         if os.path.isfile(path_save):
@@ -166,12 +171,18 @@ def download_file(
     # Create parent directory if it does not exist
     if mkdir:
         os.makedirs(os.path.dirname(path_save), exist_ok=True)
-    # Save file
+    # Download file with progress bar
+    total_size = int(response.headers.get('content-length', 0))
+    wrote = 0
     with open(path_save, 'wb') as f:
-        print(f'Downloading file to: {path_save}') if verbose else None
-        for chunk in response.iter_content(chunk_size=chunk_size):
-            if chunk:
-                f.write(chunk)
+        with tqdm(total=total_size, disable=(verbose==False), unit='B', unit_scale=True, unit_divisor=1024) as pbar:
+            for data in response.iter_content(chunk_size):
+                wrote = wrote + len(data)
+                f.write(data)
+                pbar.update(len(data))
+    if total_size != 0 and wrote != total_size:
+        print("ERROR, something went wrong")
+        return False
     # Check hash
     if check_hash:
         hash_local = hash_file(path_save, type_hash=hash_type)
@@ -220,3 +231,23 @@ def is_valid_hash(hash_hex, hash_type='MD5'):
     except ValueError:
         return False
     return True
+
+
+def extract_zip(path_zip, path_extract, verbose=True):
+    """
+    Extracts a zip file to a specified path.
+    RH 2022
+
+    Args:
+        path_zip (str):
+            Path to zip file.
+        path_extract (str):
+            Path to extract zip file to.
+        verbose (bool):
+            If True, prints status messages.
+    """
+    import zipfile
+
+    with zipfile.ZipFile(path_zip, 'r') as zip_ref:
+        print(f'Extracting {path_zip} to {path_extract}') if verbose else None
+        zip_ref.extractall(path_extract)
