@@ -88,5 +88,5 @@ class Convergence_checker:
 
         diff_window_convergence = (y_rec[0] - y_rec[-1])
         loss_smooth = loss_window.mean()
-        converged = self.fn_criterion(diff_window_convergence)
+        converged = self.fn_criterion(diff_window_convergence.item())
         return diff_window_convergence.item(), loss_smooth.item(), converged
