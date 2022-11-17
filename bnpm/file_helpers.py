@@ -98,6 +98,7 @@ def download_file(
     hash_type='MD5', 
     hash_hex=None,
     mkdir=False,
+    write_mode='wb',
     verbose=True,
     chunk_size=1024,
 ):
@@ -128,6 +129,11 @@ def download_file(
             If check_hash is True, hash_hex must be provided.
         mkdir (bool):
             If True, creates parent directory of path_save if it does not exist.
+        write_mode (str):
+            Write mode for saving file. Should be one of:
+                'wb' (write binary)
+                'ab' (append binary)
+                'xb' (write binary, fail if file exists)
         verbose (bool):
             If True, prints status messages.
         chunk_size (int):
@@ -135,8 +141,6 @@ def download_file(
     """
     import os
     import requests
-    import ssl
-    ssl._create_default_https_context = ssl._create_unverified_context
 
     # Check if file already exists locally
     if check_local_first:
@@ -174,7 +178,7 @@ def download_file(
     # Download file with progress bar
     total_size = int(response.headers.get('content-length', 0))
     wrote = 0
-    with open(path_save, 'wb') as f:
+    with open(path_save, write_mode) as f:
         with tqdm(total=total_size, disable=(verbose==False), unit='B', unit_scale=True, unit_divisor=1024) as pbar:
             for data in response.iter_content(chunk_size):
                 wrote = wrote + len(data)
