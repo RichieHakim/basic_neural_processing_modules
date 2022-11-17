@@ -1,6 +1,5 @@
 import torch
 
-
 class Convergence_checker:
     """
     Checks for convergence during an optimization process. Uses Ordinary Least Squares (OLS) to 
@@ -12,6 +11,7 @@ class Convergence_checker:
         self,
         tol_convergence=1e-2,
         window_convergence=100,
+        mode='less',
     ):
         """
         Initialize the convergence checker.
@@ -22,11 +22,26 @@ class Convergence_checker:
                 Corresponds to the slope of the line that is fit.
             window_convergence (int):
                 Number of iterations to use for fitting the line.
+            mode (str):
+                Mode for how criterion is defined.
+                'less': converged = deltaLoss < tol_convergence (default)
+                'abs_less': converged = abs(deltaLoss) < tol_convergence
+                'greater': converged = deltaLoss > tol_convergence
+                'abs_greater': converged = abs(deltaLoss) > tol_convergence
+                'between': converged = tol_convergence[0] < deltaLoss < tol_convergence[1]
+                    (tol_convergence must be a list or tuple, if mode='between')
         """
         self.window_convergence = window_convergence
         self.tol_convergence = tol_convergence
 
         self.line_regressor = torch.cat((torch.linspace(0,1,window_convergence)[:,None], torch.ones((window_convergence,1))), dim=1)
+
+        if mode=='less': self.fn_criterion = (lambda diff: diff < self.tol_convergence)
+        elif mode=='abs_less': self.fn_criterion = (lambda diff: abs(diff) < self.tol_convergence)
+        elif mode=='greater': self.fn_criterion = (lambda diff: diff > self.tol_convergence)
+        elif mode=='abs_greater': self.fn_criterion = (lambda diff: abs(diff) > self.tol_convergence)
+        elif mode=='between': self.fn_criterion = (lambda diff: self.tol_convergence[0] < diff < self.tol_convergence[1])
+        assert self.fn_criterion is not None, f"mode '{mode}' not recognized"
 
     def OLS(self, y):
         """
@@ -71,7 +86,7 @@ class Convergence_checker:
         loss_window = torch.as_tensor(loss_history[-self.window_convergence:], device='cpu', dtype=torch.float32)
         theta, y_rec, bias = self.OLS(y=loss_window)
 
-        diff_window_convergence = (y_rec[-1] - y_rec[0])
+        diff_window_convergence = (y_rec[0] - y_rec[-1])
         loss_smooth = loss_window.mean()
-        converged = True if torch.abs(diff_window_convergence) < self.tol_convergence else False
+        converged = self.fn_criterion(diff_window_convergence)
         return diff_window_convergence.item(), loss_smooth.item(), converged
