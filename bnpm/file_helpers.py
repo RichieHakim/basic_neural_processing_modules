@@ -26,7 +26,14 @@ def prepare_filepath_for_saving(path, mkdir=False, allow_overwrite=True):
     assert Path(path).parent.is_dir(), f'{Path(path).parent} is not a directory.'
 
 
-def pickle_save(obj, path_save, mode='wb', mkdir=False, allow_overwrite=True):
+def pickle_save(
+    obj, 
+    path_save, 
+    mode='wb', 
+    zipCompress=False, 
+    mkdir=False, 
+    allow_overwrite=True
+):
     """
     Saves an object to a pickle file.
     Uses pickle.dump.
@@ -43,16 +50,30 @@ def pickle_save(obj, path_save, mode='wb', mkdir=False, allow_overwrite=True):
                 'wb' (write binary)
                 'ab' (append binary)
                 'xb' (exclusive write binary. Raises FileExistsError if file already exists.)
+        zipCompress (bool):
+            If True, compresses pickle file using zipfile.ZIP_DEFLATED.
+            This is similar to savez_compressed in numpy, and is useful
+             for saving redundant and/or sparse arrays objects.
         mkdir (bool):
             If True, creates parent directory if it does not exist.
         allow_overwrite (bool):
             If True, allows overwriting of existing file.        
     """
     prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
-    with open(path_save, mode) as f:
-        pickle.dump(obj, f)
 
-def pickle_load(filename, mode='rb'):
+    if zipCompress:
+        import zipfile
+        with zipfile.ZipFile(path_save, 'w', compression=zipfile.ZIP_DEFLATED) as f:
+            f.writestr('data', pickle.dumps(obj))
+    else:
+        with open(path_save, mode) as f:
+            pickle.dump(obj, f)
+
+def pickle_load(
+    filename, 
+    zipCompressed=False,
+    mode='rb'
+):
     """
     Loads a pickle file.
     RH 2022
@@ -60,6 +81,10 @@ def pickle_load(filename, mode='rb'):
     Args:
         filename (str):
             Path to pickle file.
+        zipCompressed (bool):
+            If True, then file is assumed to be a .zip file compressed using
+             zipfile.ZIP_DEFLATED. This function will first unzip the file, then
+             load the object from the unzipped file.
         mode (str):
             Mode to open file in.
 
@@ -67,8 +92,13 @@ def pickle_load(filename, mode='rb'):
         obj (object):
             Object loaded from pickle file.
     """
-    with open(filename, mode) as f:
-        return pickle.load(f)
+    if zipCompressed:
+        import zipfile
+        with zipfile.ZipFile(filename, 'r') as f:
+            return pickle.loads(f.read('data'))
+    else:
+        with open(filename, mode) as f:
+            return pickle.load(f)
 
 
 def json_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=True):
@@ -295,11 +325,11 @@ def download_file(
     try:
         response = requests.get(url, stream=True)
     except requests.exceptions.RequestException as e:
-        print(e)
+        print(f'Error downloading file: {e}') if verbose else None
         return False
     # Check response
     if response.status_code != 200:
-        print(f'Response status code: {response.status_code}')
+        print(f'Error downloading file. Response status code: {response.status_code}') if verbose else None
         return False
     # Create parent directory if it does not exist
     prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
