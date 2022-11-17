@@ -36,11 +36,11 @@ class Convergence_checker:
 
         self.line_regressor = torch.cat((torch.linspace(0,1,window_convergence)[:,None], torch.ones((window_convergence,1))), dim=1)
 
-        if mode=='less': self.fn_criterion = (lambda diff: diff < self.tol_convergence)
-        elif mode=='abs_less': self.fn_criterion = (lambda diff: abs(diff) < self.tol_convergence)
-        elif mode=='greater': self.fn_criterion = (lambda diff: diff > self.tol_convergence)
+        if mode=='less':          self.fn_criterion = (lambda diff: diff < self.tol_convergence)
+        elif mode=='abs_less':    self.fn_criterion = (lambda diff: abs(diff) < self.tol_convergence)
+        elif mode=='greater':     self.fn_criterion = (lambda diff: diff > self.tol_convergence)
         elif mode=='abs_greater': self.fn_criterion = (lambda diff: abs(diff) > self.tol_convergence)
-        elif mode=='between': self.fn_criterion = (lambda diff: self.tol_convergence[0] < diff < self.tol_convergence[1])
+        elif mode=='between':     self.fn_criterion = (lambda diff: self.tol_convergence[0] < diff < self.tol_convergence[1])
         assert self.fn_criterion is not None, f"mode '{mode}' not recognized"
 
     def OLS(self, y):
