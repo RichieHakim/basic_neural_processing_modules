@@ -3,44 +3,170 @@ import pickle
 import json
 import yaml
 from pathlib import Path
-import math
 
 from tqdm import tqdm
 
+
+def prepare_filepath_for_saving(path, mkdir=False, allow_overwrite=True):
+    """
+    Checks if a file path is valid.
+    RH 2022
+
+    Args:
+        path (str):
+            Path to check.
+        mkdir (bool):
+            If True, creates parent directory if it does not exist.
+        allow_overwrite (bool):
+            If True, allows overwriting of existing file.
+    """
+    Path(path).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
+    assert allow_overwrite or not Path(path).exists(), f'{path} already exists.'
+    assert Path(path).parent.exists(), f'{Path(path).parent} does not exist.'
+    assert Path(path).parent.is_dir(), f'{Path(path).parent} is not a directory.'
+
+
 def pickle_save(obj, path_save, mode='wb', mkdir=False, allow_overwrite=True):
-    Path(path_save).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
-    assert allow_overwrite or not Path(path_save).exists(), f'{path_save} already exists.'
-    assert Path(path_save).parent.exists(), f'{Path(path_save).parent} does not exist.'
-    assert Path(path_save).parent.is_dir(), f'{Path(path_save).parent} is not a directory.'
+    """
+    Saves an object to a pickle file.
+    Uses pickle.dump.
+    RH 2022
+
+    Args:
+        obj (object):
+            Object to save.
+        path_save (str):
+            Path to save object to.
+        mode (str):
+            Mode to open file in.
+            Can be:
+                'wb' (write binary)
+                'ab' (append binary)
+                'xb' (exclusive write binary. Raises FileExistsError if file already exists.)
+        mkdir (bool):
+            If True, creates parent directory if it does not exist.
+        allow_overwrite (bool):
+            If True, allows overwriting of existing file.        
+    """
+    prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
     with open(path_save, mode) as f:
-        pickle.dump(obj, f,)
+        pickle.dump(obj, f)
+
 def pickle_load(filename, mode='rb'):
+    """
+    Loads a pickle file.
+    RH 2022
+
+    Args:
+        filename (str):
+            Path to pickle file.
+        mode (str):
+            Mode to open file in.
+
+    Returns:
+        obj (object):
+            Object loaded from pickle file.
+    """
     with open(filename, mode) as f:
         return pickle.load(f)
 
-def json_save(obj, path_save, mode='w', mkdir=False, allow_overwrite=True):
-    Path(path_save).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
-    assert allow_overwrite or not Path(path_save).exists(), f'{path_save} already exists.'
-    assert Path(path_save).parent.exists(), f'{Path(path_save).parent} does not exist.'
-    assert Path(path_save).parent.is_dir(), f'{Path(path_save).parent} is not a directory.'
+
+def json_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=True):
+    """
+    Saves an object to a json file.
+    Uses json.dump.
+    RH 2022
+
+    Args:
+        obj (object):
+            Object to save.
+        path_save (str):
+            Path to save object to.
+        mode (str):
+            Mode to open file in.
+            Can be:
+                'wb' (write binary)
+                'ab' (append binary)
+                'xb' (exclusive write binary. Raises FileExistsError if file already exists.)
+        mkdir (bool):
+            If True, creates parent directory if it does not exist.
+        allow_overwrite (bool):
+            If True, allows overwriting of existing file.        
+    """
+    prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
     with open(path_save, mode) as f:
-        json.dump(obj, f, indent=4)
+        json.dump(obj, f, indent=indent)
+
 def json_load(filename, mode='r'):
+    """
+    Loads a json file.
+    RH 2022
+
+    Args:
+        filename (str):
+            Path to pickle file.
+        mode (str):
+            Mode to open file in.
+
+    Returns:
+        obj (object):
+            Object loaded from pickle file.
+    """
     with open(filename, mode) as f:
         return json.load(f)
 
-def yaml_save(obj, path_save, mode='w', mkdir=False, allow_overwrite=True):
-    Path(path_save).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
-    assert allow_overwrite or not Path(path_save).exists(), f'{path_save} already exists.'
-    assert Path(path_save).parent.exists(), f'{Path(path_save).parent} does not exist.'
-    assert Path(path_save).parent.is_dir(), f'{Path(path_save).parent} is not a directory.'
-    with open(path_save, mode) as f:
-        yaml.dump(obj, f, indent=4)
-def yaml_load(filename, mode='r'):
-    with open(filename, mode) as f:
-        return yaml.load(f, Loader=yaml.FullLoader)
-        
 
+def yaml_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=True):
+    """
+    Saves an object to a yaml file.
+    Uses yaml.dump.
+    RH 2022
+
+    Args:
+        obj (object):
+            Object to save.
+        path_save (str):
+            Path to save object to.
+        mode (str):
+            Mode to open file in.
+            Can be:
+                'wb' (write binary)
+                'ab' (append binary)
+                'xb' (exclusive write binary. Raises FileExistsError if file already exists.)
+        mkdir (bool):
+            If True, creates parent directory if it does not exist.
+        allow_overwrite (bool):
+            If True, allows overwriting of existing file.        
+    """
+    prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
+    with open(path_save, mode) as f:
+        yaml.dump(obj, f, indent=indent)
+
+def yaml_load(filename, mode='r', loader=yaml.FullLoader):
+    """
+    Loads a yaml file.
+    RH 2022
+
+    Args:
+        filename (str):
+            Path to pickle file.
+        mode (str):
+            Mode to open file in.
+        loader (yaml.Loader):
+            Loader to use.
+            Can be:
+                yaml.FullLoader: Loads the full YAML language. Avoids arbitrary code execution. Default for PyYAML 5.1+.
+                yaml.SafeLoader: Loads a subset of the YAML language, safely. This is recommended for loading untrusted input.
+                yaml.UnsafeLoader: The original Loader code that could be easily exploitable by untrusted data input.
+                yaml.BaseLoader: Only loads the most basic YAML. All scalars are loaded as strings.
+
+    Returns:
+        obj (object):
+            Object loaded from pickle file.
+    """
+    with open(filename, mode) as f:
+        return yaml.load(f, Loader=loader)
+        
 
 def hash_file(path, type_hash='MD5', buffer_size=65536):
     """
@@ -98,6 +224,7 @@ def download_file(
     hash_type='MD5', 
     hash_hex=None,
     mkdir=False,
+    allow_overwrite=True,
     write_mode='wb',
     verbose=True,
     chunk_size=1024,
@@ -115,8 +242,10 @@ def download_file(
             Path to save file to.
         check_local_first (bool):
             If True, checks if file already exists locally.
-            If True and file exists locally, skips download.
+            If True and file exists locally, plans to skip download.
             If True and check_hash is True, checks hash of local file.
+             If hash matches, skips download. If hash does not match, 
+             downloads file.
         check_hash (bool):
             If True, checks hash of local or downloaded file against
              hash_hex.
@@ -173,8 +302,7 @@ def download_file(
         print(f'Response status code: {response.status_code}')
         return False
     # Create parent directory if it does not exist
-    if mkdir:
-        os.makedirs(os.path.dirname(path_save), exist_ok=True)
+    prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
     # Download file with progress bar
     total_size = int(response.headers.get('content-length', 0))
     wrote = 0
