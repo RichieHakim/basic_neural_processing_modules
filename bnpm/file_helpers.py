@@ -38,6 +38,7 @@ def pickle_save(
 ):
     """
     Saves an object to a pickle file.
+    Allows for zipping of file.
     Uses pickle.dump.
     RH 2022
 
@@ -91,6 +92,7 @@ def pickle_load(
 ):
     """
     Loads a pickle file.
+    Allows for loading of zipped pickle files.
     RH 2022
 
     Args:
