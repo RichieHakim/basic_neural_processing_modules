@@ -3,6 +3,7 @@ import pickle
 import json
 import yaml
 from pathlib import Path
+import zipfile
 
 from tqdm import tqdm
 
@@ -31,6 +32,7 @@ def pickle_save(
     path_save, 
     mode='wb', 
     zipCompress=False, 
+    kwargs_zipfile=None,
     mkdir=False, 
     allow_overwrite=True
 ):
@@ -51,9 +53,18 @@ def pickle_save(
                 'ab' (append binary)
                 'xb' (exclusive write binary. Raises FileExistsError if file already exists.)
         zipCompress (bool):
-            If True, compresses pickle file using zipfile.ZIP_DEFLATED.
-            This is similar to savez_compressed in numpy, and is useful
-             for saving redundant and/or sparse arrays objects.
+            If True, compresses pickle file using zipfileCompressionMethod.
+            This is similar to savez_compressed in numpy (with zipfile.ZIP_DEFLATED),
+             and is useful for saving redundant and/or sparse arrays objects.
+        kwargs_zipfile (dict):
+            Keyword arguments to pass to zipfile.ZipFile.
+            See https://docs.python.org/3/library/zipfile.html#zipfile-objects.
+            By default, uses compression=zipfile.ZIP_DEFLATED.
+            Other options for compression are:
+                zipfile.ZIP_STORED (no compression)
+                zipfile.ZIP_DEFLATED (usual zip compression)
+                zipfile.ZIP_BZIP2 (bzip2 compression) (usually not as good as ZIP_DEFLATED)
+                zipfile.ZIP_LZMA (lzma compression) (usually better than ZIP_DEFLATED but slower)
         mkdir (bool):
             If True, creates parent directory if it does not exist.
         allow_overwrite (bool):
@@ -61,9 +72,13 @@ def pickle_save(
     """
     prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
 
+    if kwargs_zipfile is None:
+        kwargs_zipfile = {
+            'compression': zipfile.ZIP_DEFLATED,
+        }
+
     if zipCompress:
-        import zipfile
-        with zipfile.ZipFile(path_save, 'w', compression=zipfile.ZIP_DEFLATED) as f:
+        with zipfile.ZipFile(path_save, 'w', **kwargs_zipfile) as f:
             f.writestr('data', pickle.dumps(obj))
     else:
         with open(path_save, mode) as f:
@@ -82,8 +97,8 @@ def pickle_load(
         filename (str):
             Path to pickle file.
         zipCompressed (bool):
-            If True, then file is assumed to be a .zip file compressed using
-             zipfile.ZIP_DEFLATED. This function will first unzip the file, then
+            If True, then file is assumed to be a .zip file.
+            This function will first unzip the file, then
              load the object from the unzipped file.
         mode (str):
             Mode to open file in.
@@ -93,7 +108,6 @@ def pickle_load(
             Object loaded from pickle file.
     """
     if zipCompressed:
-        import zipfile
         with zipfile.ZipFile(filename, 'r') as f:
             return pickle.loads(f.read('data'))
     else:
