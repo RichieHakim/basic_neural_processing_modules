@@ -65,11 +65,11 @@ def pickle_save(
             Keyword arguments that will be passed into zipfile.ZipFile.
             compression=zipfile.ZIP_DEFLATED by default.
             See https://docs.python.org/3/library/zipfile.html#zipfile-objects.
-            Other options for 'compression' are:
-                zipfile.ZIP_STORED (no compression)
-                zipfile.ZIP_DEFLATED (usual zip compression)
-                zipfile.ZIP_BZIP2 (bzip2 compression) (usually not as good as ZIP_DEFLATED)
-                zipfile.ZIP_LZMA (lzma compression) (usually better than ZIP_DEFLATED but slower)
+            Other options for 'compression' are (input can be either int or object):
+                0:  zipfile.ZIP_STORED (no compression)
+                8:  zipfile.ZIP_DEFLATED (usual zip compression)
+                12: zipfile.ZIP_BZIP2 (bzip2 compression) (usually not as good as ZIP_DEFLATED)
+                14: zipfile.ZIP_LZMA (lzma compression) (usually better than ZIP_DEFLATED but slower)
     """
     prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
 
