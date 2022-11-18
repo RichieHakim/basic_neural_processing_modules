@@ -32,6 +32,16 @@ from tqdm.notebook import tqdm
 
 from . import indexing
 
+def prepare_cv2_imshow():
+    test = np.zeros((1,300,400,3))
+    for frame in test:
+        cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+        cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+        cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+        cv2.imshow('startup', frame)
+        cv2.waitKey(100)
+    cv2.destroyWindow('startup')
+
 
 def find_registration_transformation(
     im_template, 
