@@ -32,9 +32,9 @@ def pickle_save(
     path_save, 
     mode='wb', 
     zipCompress=False, 
-    kwargs_zipfile=None,
     mkdir=False, 
-    allow_overwrite=True
+    allow_overwrite=True,
+    **kwargs_zipfile,
 ):
     """
     Saves an object to a pickle file.
@@ -57,23 +57,23 @@ def pickle_save(
             If True, compresses pickle file using zipfileCompressionMethod.
             This is similar to savez_compressed in numpy (with zipfile.ZIP_DEFLATED),
              and is useful for saving redundant and/or sparse arrays objects.
-        kwargs_zipfile (dict):
-            Keyword arguments to pass to zipfile.ZipFile.
-            See https://docs.python.org/3/library/zipfile.html#zipfile-objects.
-            By default, uses compression=zipfile.ZIP_DEFLATED.
-            Other options for compression are:
-                zipfile.ZIP_STORED (no compression)
-                zipfile.ZIP_DEFLATED (usual zip compression)
-                zipfile.ZIP_BZIP2 (bzip2 compression) (usually not as good as ZIP_DEFLATED)
-                zipfile.ZIP_LZMA (lzma compression) (usually better than ZIP_DEFLATED but slower)
         mkdir (bool):
             If True, creates parent directory if it does not exist.
         allow_overwrite (bool):
             If True, allows overwriting of existing file.        
+        kwargs_zipfile (dict):
+            Keyword arguments that will be passed into zipfile.ZipFile.
+            compression=zipfile.ZIP_DEFLATED by default.
+            See https://docs.python.org/3/library/zipfile.html#zipfile-objects.
+            Other options for 'compression' are:
+                zipfile.ZIP_STORED (no compression)
+                zipfile.ZIP_DEFLATED (usual zip compression)
+                zipfile.ZIP_BZIP2 (bzip2 compression) (usually not as good as ZIP_DEFLATED)
+                zipfile.ZIP_LZMA (lzma compression) (usually better than ZIP_DEFLATED but slower)
     """
     prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
 
-    if kwargs_zipfile is None:
+    if len(kwargs_zipfile)==0:
         kwargs_zipfile = {
             'compression': zipfile.ZIP_DEFLATED,
         }
