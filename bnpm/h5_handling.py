@@ -1,6 +1,5 @@
 import gc
 import h5py
-from pathlib import Path
 
 
 def close_all_h5():

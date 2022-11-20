@@ -325,6 +325,9 @@ def savefig(path, dpi=300, mkdir=True, **kwargs_savefig):
 
 class Select_ROI:
     """
+    A simple GUI to select ROIs from an image.
+    Uses matplotlib and ipywidgets.
+    Only works in a Jupyter notebook.
     Select regions of interest in an image using matplotlib.
     Use %matplotlib notebook or qt backend to use this.
     It currently uses cv2.polylines to draw the ROIs.
@@ -332,7 +335,7 @@ class Select_ROI:
     RH 2021
     """
 
-    def __init__(self, im, kwargs_subplots={}, kwargs_imshow={}):
+    def __init__(self, image, kwargs_subplots={}, kwargs_imshow={}):
         """
         Initialize the class
 
@@ -340,12 +343,29 @@ class Select_ROI:
             im:
                 Image to select the ROI from
         """
-        self._im = im
+        from ipywidgets import widgets
+        import IPython.display as Disp
+        import matplotlib.pyplot as plt
+        import matplotlib as mpl
+
+        ## set jupyter notebook to use interactive matplotlib.
+        ## equivalent to %matplotlib notebook
+        mpl.use("nbagg")        
+        plt.ion()
+
+        ## Set variables                
+        self._img_input = image.copy()
         self.selected_points = []
-        self._fig, self._ax = plt.subplots(**kwargs_subplots)
-        self._img = self._ax.imshow(self._im.copy(), **kwargs_imshow)
+        self._selected_points_last_ROI = []
         self._completed_status = False
-        self._ka = self._fig.canvas.mpl_connect('button_press_event', self._onclick)
+
+        ## Prepare figure
+        self._fig, self._ax = plt.subplots(**kwargs_subplots)
+        self._img_current = self._ax.imshow(self._img_input.copy(), **kwargs_imshow)
+
+        ## Connect the click event
+        self._buttonRelease = self._fig.canvas.mpl_connect('button_release_event', self._onclick)
+        ## Make and connect the buttons
         disconnect_button = widgets.Button(description="Confirm ROI")
         new_ROI_button = widgets.Button(description="New ROI")
         Disp.display(disconnect_button)
@@ -353,41 +373,54 @@ class Select_ROI:
         disconnect_button.on_click(self._disconnect_mpl)
         new_ROI_button.on_click(self._new_ROI)
 
-        self._selected_points_last_ROI = []
-
     def _poly_img(self, img, pts):
+        """
+        Draw a polygon on an image.
+        """
         pts = np.array(pts, np.int32)
         pts = pts.reshape((-1, 1, 2))
-        cv2.polylines(img, 
-                      [pts],
-                      True,
-                      (255,255,255),
-                      2)
+        cv2.polylines(
+            img=img, 
+            pts=[pts],
+            isClosed=True,
+            color=(255,255,255,),
+            thickness=2
+        )
         return img
 
     def _onclick(self, event):
+        """
+        When the mouse is clicked, add the point to the list.
+        """
+        ## If the click is outside the image, ignore it
+        if (event.xdata is None) or (event.ydata is None):
+            return None
         self._selected_points_last_ROI.append([event.xdata, event.ydata])
         if len(self._selected_points_last_ROI) > 1:
             self._fig
-            im = self._im.copy()
+            im = self._img_input.copy()
             for ii in range(len(self.selected_points)):
                 im = self._poly_img(im, self.selected_points[ii])
             im = self._poly_img(im, self._selected_points_last_ROI)
-            self._img.set_data(im)
+            self._img_current.set_data(im)
+        self._fig.canvas.draw()
 
 
     def _disconnect_mpl(self, _):
+        """
+        Disconnect the click event and collect the points.
+        """
         import skimage.draw
 
         self.selected_points.append(self._selected_points_last_ROI)
 
-        self._fig.canvas.mpl_disconnect(self._ka)
+        self._fig.canvas.mpl_disconnect(self._buttonRelease)
         self._completed_status = True
         
         self.mask_frames = []
         for ii, pts in enumerate(self.selected_points):
             pts = np.array(pts)
-            mask_frame = np.zeros((self._im.shape[0], self._im.shape[1]))
+            mask_frame = np.zeros((self._img_input.shape[0], self._img_input.shape[1]))
             pts_y, pts_x = skimage.draw.polygon(pts[:, 1], pts[:, 0])
             mask_frame[pts_y, pts_x] = 1
             mask_frame = mask_frame.astype(np.bool)
@@ -395,6 +428,9 @@ class Select_ROI:
         print(f'mask_frames computed')
 
     def _new_ROI(self, _):
+        """
+        Start a new ROI.
+        """
         self.selected_points.append(self._selected_points_last_ROI)
         self._selected_points_last_ROI = []
         
