@@ -10,7 +10,7 @@ It is called by server.py which is intended to run
 RH 2022
 """
 
-class lazy_repeat_item():
+class Lazy_repeat_item():
     """
     Makes a lazy iterator that repeats an item.
      RH 2021

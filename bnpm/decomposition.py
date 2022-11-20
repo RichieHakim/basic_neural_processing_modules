@@ -221,7 +221,7 @@ def unmix_pcs(pca_components, weight_vecs):
 ########## Incremental PCA ############
 #######################################
 
-class ipca_dataset(Dataset):
+class IPCA_Dataset(Dataset):
     """
     see incremental_pca for demo
     """
@@ -353,7 +353,7 @@ def incremental_pca(dataloader,
 
     cupy_helpers.set_device() # calls: cupy.cuda.Device(DEVICE_NUM).use()
 
-    dataset = decomposition.ipca_dataset(   X, 
+    dataset = decomposition.IPCA_Dataset(   X, 
                                             mean_sub=True,
                                             zscore=False,
                                             preprocess_sample_method='random',

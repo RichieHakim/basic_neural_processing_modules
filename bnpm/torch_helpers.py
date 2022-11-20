@@ -154,10 +154,10 @@ def set_device(use_GPU=True, device_num=0, verbose=True):
 ######################################
 
 
-class basic_dataset(Dataset):
+class Basic_dataset(Dataset):
     """
     demo:
-    ds = basic_dataset(X, device='cuda:0')
+    ds = Basic_dataset(X, device='cuda:0')
     dl = DataLoader(ds, batch_size=32, shuffle=True)
     """
     def __init__(self, 

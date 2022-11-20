@@ -323,7 +323,7 @@ def savefig(path, dpi=300, mkdir=True, **kwargs_savefig):
 #############################################
 
 
-class select_ROI:
+class Select_ROI:
     """
     Select regions of interest in an image using matplotlib.
     Use %matplotlib notebook or qt backend to use this.
