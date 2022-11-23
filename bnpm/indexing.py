@@ -236,7 +236,14 @@ def get_nth_True_idx(input_array, n):
     return output
 
 
-def make_batches(iterable, batch_size=None, num_batches=None, min_batch_size=0, return_idx=False, length=None):
+def make_batches(
+    iterable, 
+    batch_size=None, 
+    num_batches=None, 
+    min_batch_size=0, 
+    return_idx=False, 
+    length=None
+):
     """
     Make batches of data or any other iterable.
     RH 2021
