@@ -8,8 +8,6 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 
-from . import indexing, image_processing
-
 # ###############################################################################
 # ## This block of code is used to initialize cv2.imshow
 # ## This is necessary because importing av and decord 
@@ -32,6 +30,8 @@ from . import indexing, image_processing
 # import av
 import decord
 # # import cv2 
+
+from . import indexing, image_processing
 
 def prepare_cv2_imshow():
     test = np.zeros((1,300,400,3))
