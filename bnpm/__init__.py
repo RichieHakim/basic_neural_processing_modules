@@ -25,6 +25,7 @@ __all__ = [
             'spectral',
             'timeSeries',
             'torch_helpers',
+            'video',
         ]
 
 for pkg in __all__:
