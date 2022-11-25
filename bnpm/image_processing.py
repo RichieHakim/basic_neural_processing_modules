@@ -1,7 +1,4 @@
 import multiprocessing as mp
-import threading
-from typing import Union
-import time
 
 import numpy as np
 import cv2

@@ -1,6 +1,14 @@
+import threading
+from typing import Union
+import time
+
 import torch
+import torchvision
 import numpy as np
 import cv2
+from tqdm import tqdm
+
+from . import indexing, image_processing
 
 # ###############################################################################
 # ## This block of code is used to initialize cv2.imshow
@@ -897,7 +905,7 @@ def make_tiled_video_array(
             if aspect_ratio < block_aspect_ratio:
                 tmp_height = int(np.ceil(chunk.shape[2] * block_aspect_ratio))
                 tmp_width = chunk.shape[2]
-            chunk_ar = center_pad_images(chunk, height_width=[tmp_height, tmp_width])
+            chunk_ar = image_processing.center_pad_images(chunk, height_width=[tmp_height, tmp_width])
 
             ## then we resize the movie to the final correct size
             chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=interpolation).transpose(0,2,3,1)
