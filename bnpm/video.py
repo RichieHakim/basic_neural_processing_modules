@@ -294,6 +294,7 @@ class BufferedVideoReader:
         else:
             print(f"FR: Using provided video reader objects...") if self._verbose > 1 else None
             assert isinstance(video_readers, list), "video_readers must be list of decord.VideoReader objects"
+            self.paths_videos = None
             # assert all([isinstance(v, decord.VideoReader) for v in video_readers]), "video_readers must be list of decord.VideoReader objects"
         ## Assert that method_getitem is valid
         assert method_getitem in ['continuous', 'by_video'], "method_getitem must be 'continuous' or 'by_video'"
@@ -365,7 +366,7 @@ class BufferedVideoReader:
         print("FR: Collecting video metadata...") if self._verbose > 1 else None
         metadata = {"paths_videos": self.paths_videos}
         num_frames, frame_rate, frame_height_width, num_channels = [], [], [], []
-        for v in tqdm(video_readers):
+        for v in tqdm(video_readers, disable=(self._verbose < 2)):
             num_frames.append(int(len(v)))
             frame_rate.append(float(v.get_avg_fps()))
             frame_tmp = v[0]
@@ -502,7 +503,7 @@ class BufferedVideoReader:
                 self.loaded.remove(idx_slot)
                 print(f"FR: Deleted slot {idx_slot}") if self._verbose > 1 else None
 
-    def _delete_all_slots(self):
+    def delete_all_slots(self):
         """
         Delete all slots from memory.
         Uses the _delete_slots() method.
@@ -693,6 +694,7 @@ class BufferedVideoReader:
                 starting_seek_position=0,
                 decord_backend='torch',
                 decord_ctx=None,
+                verbose=self._verbose,
             ) for idx in range(len(self.video_readers))])
         elif self.method_getitem == 'continuous':
             ## Initialise the buffers by loading the first frame in the sequence
