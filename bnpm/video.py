@@ -533,14 +533,14 @@ class BufferedVideoReader:
         if isinstance(idx, slice):
             ## convert to a slice
             print(f"FR: Returning new buffered video reader(s). Videos={idx.start} to {idx.stop}.") if self._verbose > 1 else None
-            # return _BufferedVideoReader_singleVideo(self, idx)
             return BufferedVideoReader(
                 video_readers=self.video_readers[idx],
                 buffer_size=self.buffer_size,
                 prefetch=self.prefetch,
                 method_getitem='continuous',
                 starting_seek_position=0,
-                backend=self._decord_backend,
+                decord_backend='torch',
+                decord_ctx=None,
                 verbose=self._verbose,
             )
         print(f"FR: Getting item {idx}") if self._verbose > 1 else None
@@ -691,8 +691,8 @@ class BufferedVideoReader:
                 prefetch=self.prefetch,
                 method_getitem='continuous',
                 starting_seek_position=0,
-                backend=self._decord_backend,
-                verbose=self._verbose,
+                decord_backend='torch',
+                decord_ctx=None,
             ) for idx in range(len(self.video_readers))])
         elif self.method_getitem == 'continuous':
             ## Initialise the buffers by loading the first frame in the sequence
