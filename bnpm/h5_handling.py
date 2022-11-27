@@ -1,7 +1,6 @@
 import gc
 import h5py
 
-
 def close_all_h5():
     '''
     Closes all h5 objects in workspace. Not tested thoroughly.
@@ -105,7 +104,7 @@ def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=Fa
                     print(f'{indent}{ii+1}. {val}:   type={type(hObj[val])}')
 
 
-def make_h5_tree(dict_obj , h5_obj , group_string=''):
+def make_h5_tree(dict_obj , h5_obj , group_string='', use_compression=False):
     '''
     This function is meant to be called by write_dict_to_h5. It probably shouldn't be called alone.
     This function creates an h5 group and dataset tree structure based on the hierarchy and values within a python dict.
@@ -118,11 +117,14 @@ def make_h5_tree(dict_obj , h5_obj , group_string=''):
         if isinstance(val , dict):
             # print(f'making group:  {key}')
             h5_obj[group_string].create_group(key)
-            make_h5_tree(val , h5_obj[group_string] , f'{group_string}/{key}')
+            make_h5_tree(val , h5_obj[group_string] , f'{group_string}/{key}', use_compression=use_compression)
         else:
             # print(f'saving:  {group_string}: {key}')
-            h5_obj[group_string].create_dataset(key , data=val)
-def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pref=True):
+            if use_compression:
+                h5_obj[group_string].create_dataset(key , data=val, compression='gzip', compression_opts=9)
+            else:
+                h5_obj[group_string].create_dataset(key , data=val)
+def write_dict_to_h5(path_save, input_dict, use_compression=False, write_mode='w-', show_item_tree_pref=True):
     '''
     Writes an h5 file that matches the hierarchy and data within a python dict.
     This function calls the function 'make_h5_tree'
@@ -139,7 +141,7 @@ def write_dict_to_h5(path_save , input_dict , write_mode='w-', show_item_tree_pr
             Whether you'd like to print the item tree or not
     '''
     with h5py.File(path_save , write_mode) as hf:
-        make_h5_tree(input_dict , hf , '')
+        make_h5_tree(input_dict , hf , '', use_compression=use_compression)
         if show_item_tree_pref:
             print(f'==== Successfully wrote h5 file. Displaying h5 hierarchy ====')
             show_item_tree(hf)
@@ -173,7 +175,7 @@ def simple_load(path=None, verbose=False):
     return h5Obj
 
 
-def simple_save(dict_to_save, path=None, write_mode='w-', verbose=False):
+def simple_save(dict_to_save, path=None, use_compression=False, write_mode='w-', verbose=False):
     """
     Saves a python dict to an hdf file.
     Also allows for adding new data to
@@ -194,37 +196,4 @@ def simple_save(dict_to_save, path=None, write_mode='w-', verbose=False):
             Whether or not to print out the h5 file hierarchy.
     """
 
-    write_dict_to_h5(path, dict_to_save, write_mode=write_mode, show_item_tree_pref=verbose)
-
-
-def h5py_dataset_iterator(g, prefix=''):
-    '''
-    Made by Akshay. More general version of above. Could be useful.
-    '''
-    for key in g.keys():
-        item = g[key]
-        path = '{}/{}'.format(prefix, key)
-        if isinstance(item, h5py.Dataset): # test for dataset
-            yield (path, item)
-        elif isinstance(item, h5py.Group): # test for group (go down)
-            yield from h5py_dataset_iterator(item, path)
-
-
-def dump_nwb(nwb_path):
-    """
-    Print out nwb contents
-
-    Args:
-        nwb_path (str): path to the nwb file
-
-    Returns:
-    """
-    import pynwb
-    with pynwb.NWBHDF5IO(nwb_path, 'r') as io:
-        nwbfile = io.read()
-        for interface in nwbfile.processing['Face Rhythm'].data_interfaces:
-            print(interface)
-            time_series_list = list(nwbfile.processing['Face Rhythm'][interface].time_series.keys())
-            for ii, time_series in enumerate(time_series_list):
-                data_tmp = nwbfile.processing['Face Rhythm'][interface][time_series].data
-                print(f"     {time_series}:    {data_tmp.shape}   ,  {data_tmp.dtype}   ,   {round((data_tmp.size * data_tmp.dtype.itemsize)/1000000000, 6)} GB")
+    write_dict_to_h5(path, dict_to_save, use_compression=use_compression, write_mode=write_mode, show_item_tree_pref=verbose)
