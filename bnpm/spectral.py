@@ -270,7 +270,7 @@ def torch_hilbert(x, dim=0):
     """
     
     xf = torch.fft.fft(x, dim=dim)
-    m = torch.zeros(x.shape[dim])
+    m = torch.zeros(x.shape[dim], device=x.device)
     n = x.shape[dim]
     if n % 2: ## then even
         m[0] = m[n//2] = 1
