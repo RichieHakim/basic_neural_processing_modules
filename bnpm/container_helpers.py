@@ -133,7 +133,6 @@ def deep_update_dict(dictionary, key, new_val=None, new_key=None, in_place=False
             updated dictionary
     """
     def helper_deep_update_dict(d, key):
-        print(key)
         if type(key) is str:
             key = [key]
 
