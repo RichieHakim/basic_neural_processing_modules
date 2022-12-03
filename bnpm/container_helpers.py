@@ -118,8 +118,13 @@ def deep_update_dict(dictionary, key, new_val=None, new_key=None, in_place=False
                 deep_update_dict(params, ['dataloader_kwargs', 'prefetch_factor'], val)
         new_val (any):
             If not None, the value to update with this
+            If None, then new_key must be specified and will only
+             be used to update the key.
         new_key (str):
-            If not None, the key will be updated with this
+            If not None, the key will be updated with this key.
+             [key[-1]] will be deleted and replaced with new_key.
+            If None, then [key[-1]] will be updated with new_val.
+             
         in_place (bool):
             whether to update in place
 
