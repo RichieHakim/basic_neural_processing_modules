@@ -252,7 +252,7 @@ def simple_cwt(
     return coeff, freq
 
 
-def torch_hilbert(x, dim=0):
+def torch_hilbert(x, N=None, dim=0):
     """
     Computes the analytic signal using the Hilbert transform.
     Based on scipy.signal.hilbert
@@ -260,7 +260,10 @@ def torch_hilbert(x, dim=0):
     
     Args:
         x (nd tensor):
-            Signal data. Should be real.
+            Signal data. Must be real.
+        N (int):
+            Number of Fourier components to use.
+            If None, then N = x.shape[dim]
         dim (int):
             Dimension along which to do the transformation.
     
@@ -268,10 +271,12 @@ def torch_hilbert(x, dim=0):
         xa (nd tensor):
             Analytic signal of input x along dim
     """
-    
-    xf = torch.fft.fft(x, dim=dim)
-    m = torch.zeros(x.shape[dim], device=x.device)
-    n = x.shape[dim]
+    assert x.is_complex() == False, "x should be real"
+    n = x.shape[dim] if N is None else N
+    assert n >= 0, "N must be non-negative"
+
+    xf = torch.fft.fft(input=x, n=n, dim=dim)
+    m = torch.zeros(n, dtype=xf.dtype, device=xf.device)
     if n % 2: ## then even
         m[0] = m[n//2] = 1
         m[1:n//2] = 2
