@@ -1,6 +1,8 @@
-import numpy as np
+import re
 import copy
 from collections.abc import MutableMapping
+
+import numpy as np
 
 """
 This module is intended to have minimal dependencies.
@@ -99,7 +101,7 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
     return dict(items)
 
 
-def deep_update_dict(dictionary, key, val, in_place=False):
+def deep_update_dict(dictionary, key, new_val=None, new_key=None, in_place=False):
     """
     Updates a dictionary with a new value.
     RH 2022
@@ -114,8 +116,10 @@ def deep_update_dict(dictionary, key, val, in_place=False):
              level of the dictionary.
             DEMO:
                 deep_update_dict(params, ['dataloader_kwargs', 'prefetch_factor'], val)
-        val (any):
-            Value to update with
+        new_val (any):
+            If not None, the value to update with this
+        new_key (str):
+            If not None, the key will be updated with this
         in_place (bool):
             whether to update in place
 
@@ -123,7 +127,8 @@ def deep_update_dict(dictionary, key, val, in_place=False):
         output (Dict):
             updated dictionary
     """
-    def helper_deep_update_dict(d, key, val):
+    def helper_deep_update_dict(d, key):
+        print(key)
         if type(key) is str:
             key = [key]
 
@@ -131,16 +136,20 @@ def deep_update_dict(dictionary, key, val, in_place=False):
 
         if type(key) is list:
             if len(key) > 1:
-                helper_deep_update_dict(d[key[0]], key[1:], val)
+                helper_deep_update_dict(d[key[0]], key[1:])
             elif len(key) == 1:
-                key = key[0]
-                d.update({key:val})
+                val = d[key[0]] if new_val is None else new_val
+                if new_key is None:
+                    d[key[0]] = val
+                else:
+                    d[new_key] = val
+                    del d[key[0]]
 
     if in_place:
-        helper_deep_update_dict(dictionary, key, val)
+        helper_deep_update_dict(dictionary, key)
     else:
         d = copy.deepcopy(dictionary)
-        helper_deep_update_dict(d, key, val)
+        helper_deep_update_dict(d, key)
         return d
 
 
@@ -209,3 +218,26 @@ def find_differences_across_dictionaries(dicts):
     return params_unchanging, params_changing
 
 
+def find_subDict_key(d: dict, s: str, _k_all=[]):
+    """
+    Recursively search for a sub-dictionary that contains the given string.
+    Yield the result.
+
+    Args:
+        d (dict):
+            dictionary to search
+        s (str):
+            string of the key to search for using regex
+        _k_all (list):
+            IGNORE: used for recursion
+
+    Yields:
+        _k_all (tuple):
+            2-tuple: (list of strings of keys to
+             sub-dictionary, value of sub-dictionary)
+    """
+    for k, v in d.items():
+        if re.search(s, k):
+            yield _k_all + [k], v
+        if isinstance(v, dict):
+            yield from find_subDict_key(v, s, _k_all + [k])
