@@ -18,7 +18,8 @@ def close_all_h5():
                     obj.close()
                 except:
                     pass # Was already closed
-    except:
+    except Exception as e:
+        print(f"Error closing h5 files. Will try again using `tables._open_files.close_all()`. Error: {e}")
         import tables
         tables.file._open_files.close_all()
     

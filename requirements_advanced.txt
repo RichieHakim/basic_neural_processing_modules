@@ -1,5 +1,7 @@
 ## requirements.txt
 
+tables
+
 opt-einsum
 rolling-quantiles
 
@@ -21,6 +23,10 @@ cupy
 cudf
 
 scanimage-tiff-reader
+
+jupyter
+
+PyWavelets
 
 #torch
 #torchvision
