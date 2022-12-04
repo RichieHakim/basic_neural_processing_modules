@@ -8,11 +8,8 @@ scikit-learn
 tqdm
 h5py
 hdfdict
-tables
 opencv-contrib-python
 sparse
 natsort
-jupyter
 paramiko
-PyWavelets
 pandas
