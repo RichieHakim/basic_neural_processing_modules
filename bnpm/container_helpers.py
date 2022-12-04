@@ -222,7 +222,7 @@ def find_differences_across_dictionaries(dicts):
     return params_unchanging, params_changing
 
 
-def find_subDict_key(d: dict, s: str, _k_all=[]):
+def find_subDict_key(d: dict, s: str, max_depth: int=999):
     """
     Recursively search for a sub-dictionary that contains the given string.
     Yield the result.
@@ -232,16 +232,30 @@ def find_subDict_key(d: dict, s: str, _k_all=[]):
             dictionary to search
         s (str):
             string of the key to search for using regex
-        _k_all (list):
-            IGNORE: used for recursion
+        max_depth (int):
+            maximum depth to search.
+            1 means only search the keys in the top level of
+             the dictionary. 2 means the first and second level.
 
-    Yields:
-        _k_all (tuple):
-            2-tuple: (list of strings of keys to
-             sub-dictionary, value of sub-dictionary)
+    Returns:
+        k_all (list of tuples):
+            List of 2-tuples: (list of tuples containing:
+             list of strings of keys to sub-dictionary, value
+             of sub-dictionary)
     """
-    for k, v in d.items():
-        if re.search(s, k):
-            yield _k_all + [k], v
-        if isinstance(v, dict):
-            yield from find_subDict_key(v, s, _k_all + [k])
+    def helper_find_subDict_key(d, s, depth=999, _k_all=[]):
+        """
+        _k_all: 
+            Used for recursion. List of keys. Set to [] on first call.
+        depth: 
+            Used for recursion. Decrements by 1 each call. At 0, stops
+             recursion.
+        """
+        if depth > 0:    
+            depth -= 1
+            for k, v in d.items():
+                if re.search(s, k):
+                    yield _k_all + [k], v
+                if isinstance(v, dict):
+                    yield from helper_find_subDict_key(v, s, depth, _k_all + [k])
+    return list(helper_find_subDict_key(d, s, depth=max_depth, _k_all=[]))
