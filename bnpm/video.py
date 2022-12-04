@@ -179,37 +179,13 @@ class BufferedVideoReader:
 
     RH 2022
     """
-
-    __slots__ = (
-        "__dict__",
-        "boundaries",
-        "buffer_size",
-        "loaded",
-        "loading",
-        "lookup",
-        "metadata",
-        "method_getitem",
-        "num_videos",
-        "paths_videos",
-        "prefetch",
-        "slots", 
-        "total_frames",
-        "video_readers",
-        "_cumulative_frame_end",
-        "_cumulative_frame_start",
-        "_decord_backend",
-        "_decord_ctx",
-        "_iterator_frame",
-        "_start_frame_continuous",
-        "_verbose",
-        )
-
     def __init__(
         self,
         video_readers: list=None,
         paths_videos: list=None,
         buffer_size: int=1000,
         prefetch: int=2,
+        posthold: int=1,
         method_getitem: str='continuous',
         starting_seek_position: int=0,
         decord_backend: str='torch',
@@ -239,6 +215,10 @@ class BufferedVideoReader:
             Note that a single buffer slot can only contain frames
              from a single video. Best to keep 
              buffer_size <= video length.
+        posthold (int):
+            Number of buffers to hold after a new buffer is loaded.
+            If 0, then no posthold.
+            This is useful if you want to go backwards in the video.
         method_getitem (str):
             Method to use for __getitem__.
             'continuous' - read frames continuously across videos.
@@ -270,6 +250,7 @@ class BufferedVideoReader:
         self._verbose = verbose
         self.buffer_size = buffer_size
         self.prefetch = prefetch
+        self.posthold = posthold
         self._decord_backend = decord_backend
         self._decord_ctx = decord.cpu(0) if decord_ctx is None else decord_ctx
 
@@ -294,14 +275,14 @@ class BufferedVideoReader:
         else:
             print(f"FR: Using provided video reader objects...") if self._verbose > 1 else None
             assert isinstance(video_readers, list), "video_readers must be list of decord.VideoReader objects"
-            self.paths_videos = None
-            # assert all([isinstance(v, decord.VideoReader) for v in video_readers]), "video_readers must be list of decord.VideoReader objects"
+            self.paths_videos = [v.path for v in video_readers]
+            assert all([isinstance(v, decord.VideoReader) for v in video_readers]), "video_readers must be list of decord.VideoReader objects"
         ## Assert that method_getitem is valid
         assert method_getitem in ['continuous', 'by_video'], "method_getitem must be 'continuous' or 'by_video'"
         ## Check if backend is valid by trying to set it here (only works fully when used in the _load_frames method)
         decord.bridge.set_bridge(self._decord_backend)
 
-
+        self.paths_videos = [str(path) for path in self.paths_videos]  ## ensure paths are str
         self.video_readers = video_readers
         self._cumulative_frame_end = np.cumsum([len(video_reader) for video_reader in self.video_readers])
         self._cumulative_frame_start = np.concatenate([[0], self._cumulative_frame_end[:-1]])
@@ -422,7 +403,8 @@ class BufferedVideoReader:
         if not isinstance(wait_for_load, list):
             wait_for_load = [wait_for_load] * len(idx_slots)
 
-        print(f"FR: Loading slots {idx_slots} in the background.") if self._verbose > 1 else None
+        print(f"FR: Loading slots {idx_slots} in the background. Waiting: {wait_for_load}") if self._verbose > 1 else None
+        print(f"FR: Loaded: {self.loaded}, Loading: {self.loading}") if self._verbose > 1 else None
         thread = None
         for idx_slot, wait in zip(idx_slots, wait_for_load):
             ## Check if slot is already loaded
@@ -474,7 +456,17 @@ class BufferedVideoReader:
         ## Load the slot
         idx_video, idx_buffer = idx_slot
         idx_frame_start, idx_frame_end = self.boundaries[idx_video][idx_buffer]
-        self.slots[idx_video][idx_buffer] = self.video_readers[idx_video][idx_frame_start:idx_frame_end+1]
+        loaded = False
+        while loaded == False:
+            try:
+                self.slots[idx_video][idx_buffer] = self.video_readers[idx_video][idx_frame_start:idx_frame_end+1]
+                loaded = True
+            except Exception as e:
+                print(f"FR WARNING: Failed to load slot {idx_slot}. Likely causes are: 1) File is partially corrupted, 2) You are trying to go back to a file that was recently removed from a slot.") if self._verbose > 0 else None
+                print(f"    Sleeping for 1s, then will try loading again. Decord error below:") if self._verbose > 0 else None
+                print(e)
+                time.sleep(1)
+
         ## Mark the slot as loaded
         self.loaded.append(idx_slot)
         ## Remove the slot from the loading list
@@ -510,6 +502,14 @@ class BufferedVideoReader:
         """
         print(f"FR: Deleting all slots") if self._verbose > 1 else None
         self._delete_slots(self.loaded)
+
+    def wait_for_loading(self):
+        """
+        Wait for all slots to finish loading.
+        """
+        print(f"FR: Waiting for all slots to load") if self._verbose > 1 else None
+        while len(self.loading) > 0:
+            time.sleep(0.01)
         
 
     
@@ -569,18 +569,22 @@ class BufferedVideoReader:
         print(f"FR: Slots to load: {idx_slots}") if self._verbose > 1 else None
 
         ## Load the prefetch slots
+        idx_slot_lookuptable = np.where((self.lookup['video']==idx_slots[-1][0]) * (self.lookup['slot']==idx_slots[-1][1]))[0][0]
         if self.prefetch > 0:
-            idx_slot_lookuptable = np.where((self.lookup['video']==idx_slots[-1][0]) * (self.lookup['slot']==idx_slots[-1][1]))[0][0]
             idx_slots_prefetch = [(self.lookup['video'][ii], self.lookup['slot'][ii]) for ii in range(idx_slot_lookuptable+1, idx_slot_lookuptable+self.prefetch+1) if ii < len(self.lookup)]
         else:
             idx_slots_prefetch = []
         ## Load the slots
-        self._load_slots(idx_slots + idx_slots_prefetch, wait_for_load=[True]*len(idx_slots) + [False])
+        self._load_slots(idx_slots + idx_slots_prefetch, wait_for_load=[True]*len(idx_slots) + [False]*len(idx_slots_prefetch))
         ## Delete the slots that are no longer needed. 
-        ### All slots from old videos should be deleted.
-        self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] < idx_video])
-        ### All slots from previous buffers should be deleted.
-        self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] == idx_video and idx_slot[1] < idx_frame_start // self.buffer_size])
+        ### Find slots before the posthold to delete
+        idx_slots_delete = [(self.lookup['video'][ii], self.lookup['slot'][ii]) for ii in range(idx_slot_lookuptable-self.posthold) if ii >= 0]
+        ### Delete all previous slots
+        self._delete_slots(idx_slots_delete)
+        # ### All slots from old videos should be deleted.
+        # self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] < idx_video])
+        # ### All slots from previous buffers should be deleted.
+        # self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] == idx_video and idx_slot[1] < idx_frame_start // self.buffer_size])
 
         ## Get the frames from the slots
         idx_frames_slots = [slice(max(idx_frame_start - self.boundaries[idx_slot[0]][idx_slot[1]][0], 0), min(idx_frame_end - self.boundaries[idx_slot[0]][idx_slot[1]][0], self.buffer_size), idx_frame_step) for idx_slot in idx_slots]
