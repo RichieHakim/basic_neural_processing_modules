@@ -222,7 +222,7 @@ def find_differences_across_dictionaries(dicts):
     return params_unchanging, params_changing
 
 
-def find_subDict_key(d: dict, s: str, max_depth: int=999):
+def find_subDict_key(d: dict, s: str, max_depth: int=9999999):
     """
     Recursively search for a sub-dictionary that contains the given string.
     Yield the result.
