@@ -9,9 +9,9 @@ class Convergence_checker:
     """
     def __init__(
         self,
-        tol_convergence=1e-2,
+        tol_convergence=-1e-2,
         window_convergence=100,
-        mode='less',
+        mode='greater',
     ):
         """
         Initialize the convergence checker.
@@ -23,6 +23,10 @@ class Convergence_checker:
             window_convergence (int):
                 Number of iterations to use for fitting the line.
             mode (str):
+                Where deltaLoss = loss[current] - loss[window convergence steps ago]
+                For typical loss curves, deltaLoss should be negative. So common
+                 modes are: 'greater' with tol_convergence = -1e-x, and 'less' with
+                 tol_convergence = 1e-x.
                 Mode for how criterion is defined.
                 'less': converged = deltaLoss < tol_convergence (default)
                 'abs_less': converged = abs(deltaLoss) < tol_convergence
@@ -75,6 +79,7 @@ class Convergence_checker:
             diff_window_convergence (float):
                 Difference between first and last element of the fit line
                  over the range of 'window_convergence'.
+                 diff_window_convergence = (y_rec[-1] - y_rec[0])
             loss_smooth (float):
                 The mean loss over 'window_convergence'.
             converged (bool):
@@ -86,7 +91,7 @@ class Convergence_checker:
         loss_window = torch.as_tensor(loss_history[-self.window_convergence:], device='cpu', dtype=torch.float32)
         theta, y_rec, bias = self.OLS(y=loss_window)
 
-        diff_window_convergence = (y_rec[0] - y_rec[-1])
+        diff_window_convergence = (y_rec[-1] - y_rec[0])
         loss_smooth = loss_window.mean()
         converged = self.fn_criterion(diff_window_convergence)
         return diff_window_convergence.item(), loss_smooth.item(), converged
