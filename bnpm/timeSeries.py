@@ -276,10 +276,12 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
             Input array. Last dimension will be 
              aligned to boolean True values in 
              'trigger_signal'
-        trigger_signal (boolean np.ndarray):
-            1-D boolean array. True values are trigger
-             events
-        win_bounds (size 2 integer list or np.ndarray):
+        trigger_signal (boolean np.ndarray, or np.ndarray of int):
+            1-D boolean array or 1-D index array.
+            True values or idx values are trigger events.
+            If 'trigger_signal_is_idx' is True, then
+             'trigger_signal' is assumed to be an index array.
+        win_bounds (size 2 integer list, tuple, or np.ndarray):
             2 value integer array. win_bounds[0] should
              be negative and is the number of samples prior
              to the event that the window starts. 
