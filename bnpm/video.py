@@ -619,7 +619,8 @@ class BufferedVideoReader:
                 A tensor of shape (num_frames, height, width, num_channels)
         """
         ## Assert that idx is an int or a slice
-        assert isinstance(idx, int) or isinstance(idx, slice), f"idx must be an int or a slice. Got {type(idx)}"
+        assert isinstance(idx, (int, np.int_)) or isinstance(idx, slice), f"idx must be an int or a slice. Got {type(idx)}"
+        idx = int(idx) if isinstance(idx, (np.int_)) else idx
         ## If idx is a single integer, convert it to a slice
         idx = slice(idx, idx+1) if isinstance(idx, int) else idx
         ## Assert that the slice is not empty
@@ -857,7 +858,7 @@ def make_tiled_video_array(
 
     vid_dict = {}  ## pre-allocation of video dictionary
 
-    for i_vid, path_vid in enumerate(tqdm(paths_videos)):
+    for i_vid, path_vid in enumerate(tqdm(paths_videos, leave=False)):
         if isinstance(path_vid, list):
             flag_multivid = True
             multivid_lens = [av.open(str(path)).streams.video[0].frames for path in path_vid]
@@ -867,7 +868,7 @@ def make_tiled_video_array(
             flag_multivid = False
 
 
-        for i_chunk, idx_chunk in enumerate(tqdm(frame_idx_list)):
+        for i_chunk, idx_chunk in enumerate(tqdm(frame_idx_list, leave=False)):
             if null_chunks[i_chunk, i_vid]:
                 continue
             elif flag_multivid:
