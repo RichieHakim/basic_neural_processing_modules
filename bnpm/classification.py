@@ -56,7 +56,7 @@ def confusion_matrix(y_hat, y_true):
     cmat = np.dot(y_hat.T, y_true)
     return cmat / np.sum(cmat, axis=0)[None,:]
     
-def idx_to_oneHot(arr, n_classes=None, dtype=None):
+def idx_to_oneHot(arr, n_classes: int=None):
     """
     Convert an array of class indices to matrix of
      one-hot vectors.
@@ -81,17 +81,19 @@ def idx_to_oneHot(arr, n_classes=None, dtype=None):
         zeros = np.zeros
         arange = np.arange
         dtype = np.bool8 if dtype is None else dtype
-    elif type(arr) is torch.Tensor:
+    if type(arr) is torch.Tensor:
         max = torch.max
         zeros = torch.zeros
         arange = torch.arange
-        dtype = torch.bool if dtype is None else dtype
     assert arr.ndim == 1
 
     if n_classes is None:
         n_classes = max(arr)+1
-    oneHot = zeros((len(arr), n_classes), dtype=dtype)
-    oneHot[arange(len(arr)), arr] = True
+    
+    ## Make an array of repeated arange(len(arr)) vector
+    indices = arange(n_classes)[None,:]
+    ## Compare each element of arr to each element of indices
+    oneHot = arr[:,None] == indices
     return oneHot
 
 
