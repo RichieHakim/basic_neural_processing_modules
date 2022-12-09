@@ -1,3 +1,5 @@
+[![repo size](https://github.com/RichieHakim/basic_neural_processing_modules)](https://github.com/RichieHakim/basic_neural_processing_modules/)
+
 #  basic_neural_processing_modules 
 Personal library of functions used in analyzing neural data.
 If you find a bug or just want to reach out: RichHakim@gmail.com
