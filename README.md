@@ -1,4 +1,4 @@
-[![repo size](https://img.shields.io/github.com/RichieHakim/basic_neural_processing_modules)](https://github.com/RichieHakim/basic_neural_processing_modules/)
+[![repo size](https://img.shields.io/github/repo-size/RichieHakim/basic_neural_processing_modules)](https://github.com/RichieHakim/basic_neural_processing_modules/)
 
 #  basic_neural_processing_modules 
 Personal library of functions used in analyzing neural data.
