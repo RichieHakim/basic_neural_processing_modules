@@ -781,6 +781,14 @@ class sftp_interface():
         ret[directory]['_size'] = out[1]
         return ret
 
+    def exists(self, path):
+        try:
+            self.sftp.stat(path)
+            return True
+        except FileNotFoundError:
+            return False
+
+
 
     def close(self):
         self.sftp.close()
