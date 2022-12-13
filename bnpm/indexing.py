@@ -357,14 +357,16 @@ def index_with_nans(values, indices):
 
     Args:
         values (np.ndarray):
-            values to index from
+            Values to index from
         indices (np.ndarray, dtype=float):
-            indices to index into values
+            Indices to index into values.
+            Will be cast to int64.
 
     Returns:
         output (np.ndarray):
             array of values indexed by indices
     """
+    indices = np.array(indices, dtype=float) if not isinstance(indices, np.ndarray) else indices
     values = np.concatenate((np.array([np.nan]), values))
     idx = indices.copy() + 1
     idx[np.isnan(idx)] = 0
