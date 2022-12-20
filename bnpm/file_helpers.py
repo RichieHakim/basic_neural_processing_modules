@@ -409,3 +409,33 @@ def is_valid_hash(hash_hex, hash_type='MD5'):
     except ValueError:
         return False
     return True
+
+
+def extract_zip(
+    path_zip,
+    path_extract=None,
+    verbose=True,
+):
+    """
+    Extracts a zip file.
+    RH 2022
+
+    Args:
+        path_zip (str):
+            Path to zip file.
+        path_extract (str):
+            Path to extract zip file to.
+            If None, extracts to the same directory as the zip file.
+        verbose (int):
+            Whether to print progress.
+    """
+    import zipfile
+    if path_extract is None:
+        path_extract = str(Path(path_zip).parent)
+
+    print(f'Extracting {path_zip} to {path_extract}.') if verbose else None
+
+    with zipfile.ZipFile(path_zip, 'r') as zip_ref:
+        zip_ref.extractall(path_extract)
+
+    print('Completed zip extraction.') if verbose else None
