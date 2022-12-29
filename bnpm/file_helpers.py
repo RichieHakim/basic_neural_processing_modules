@@ -284,6 +284,7 @@ def download_file(
     Args:
         url (str):
             URL of file to download.
+            If url is None, then no download is attempted.
         path_save (str):
             Path to save file to.
         check_local_first (bool):
@@ -338,6 +339,9 @@ def download_file(
             print(f'File does not exist locally: {path_save}. Will attempt download from {url}') if verbose else None
 
     # Download file
+    if url is None:
+        print('No URL provided. No download attempted.') if verbose else None
+        return None
     try:
         response = requests.get(url, stream=True)
     except requests.exceptions.RequestException as e:
