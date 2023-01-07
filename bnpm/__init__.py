@@ -28,5 +28,5 @@ __all__ = [
             'video',
         ]
 
-for pkg in __all__:
-    exec('from . import ' + pkg)
+# for pkg in __all__:
+#     exec('from . import ' + pkg)
