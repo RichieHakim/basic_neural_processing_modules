@@ -308,6 +308,7 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
             x-axis of the traces. Aligns with dimension
              et_traces.shape[-2]
         windows (np.ndarray):
+            Index array of the windows used.
     '''
     def bounds_to_win(x_pos, win_bounds):
         return x_pos + np.arange(win_bounds[0], win_bounds[1])
@@ -398,36 +399,42 @@ def make_sorted_event_triggered_average(
             Shows the event triggered average of the 
              test set, sorted by the peak times found 
              in the training set.
-        et_traces (np.ndarray):
-            All event triggered traces.
-            Same as return 'et_traces' in 
-             timeSeries.event_triggered_traces
         cv_idx (list of 2 lists):
             List of 2 lists.
             Outer list entries: Splits
             Inner list entries: Train, Test indices
             Same as return 'cv_idx' in 
              cross_validation.group_split
-            
+        et_traces (np.ndarray):
+             Event Triggered Traces. et_traces.ndim = 
+              arr.ndim+1. Last dimension is new and is
+              the event number axis. Note that events 
+              near edges are discarded if window extends
+              past edge bounds.
+        xAxis (np.ndarray):
+            x-axis of the traces. Aligns with dimension
+             et_traces.shape[-2]
+        windows (np.ndarray):
+            Index array of the windows used.       
     '''
 
-    et_traces = event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_idx=trigger_signal_is_idx)
+    et_traces, xAxis, windows = event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_idx=trigger_signal_is_idx)
 
-    cv_idx = cross_validation.group_split(1, et_traces[0].shape[1], cv_group_size, test_size=test_frac)
+    cv_idx = cross_validation.group_split(1, et_traces.shape[1], cv_group_size, test_size=test_frac)
 
-    mean_traces_train = et_traces[0][:,cv_idx[0][0],:].mean(1)
-    mean_traces_test = et_traces[0][:,cv_idx[0][1],:].mean(1)
+    mean_traces_train = et_traces[:,cv_idx[0][0],:].mean(1)
+    mean_traces_test = et_traces[:,cv_idx[0][1],:].mean(1)
 
     mean_traces_sorted = mean_traces_test[np.argsort(np.argmax(mean_traces_train,axis=1))]
     
     if show_plot:
         plt.figure()
         plt.imshow(mean_traces_sorted, aspect='auto', 
-                   extent=(et_traces[1][0], et_traces[1][-1],
+                   extent=(xAxis[0], xAxis[-1],
                           mean_traces_sorted.shape[0], 0),
 #                    vmin=-1, vmax=3
                   )
-    return mean_traces_sorted, et_traces, cv_idx
+    return mean_traces_sorted, cv_idx, et_traces, xAxis, windows
     
 
 def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same', correct_edge_effects=True):
