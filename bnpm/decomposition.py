@@ -1,5 +1,6 @@
 import sklearn.decomposition
 import numpy as np
+import scipy.interpolate
 import matplotlib.pyplot as plt
 
 import torch
@@ -216,6 +217,41 @@ def unmix_pcs(pca_components, weight_vecs):
     mixing_vecs[:weight_vecs.shape[0],:] = weight_vecs
 
     return pca_components @ mixing_vecs
+
+
+def dimensionality_pca(X, ev=[0.10,0.25,0.50,0.90,0.95], device='cpu'):
+    """
+    Returns the number of components needed to explain a certain 
+     amount of variance. 
+    Calculates the 'linear embedding dimensionality'.
+    Uses torch_pca() function to perform PCA.
+    RH 2022
+
+    Args:
+        X (np.ndarray or torch.Tensor):
+            Data to be decomposed.
+            2-D array. Columns are features, rows are samples.
+        ev (list or np.ndarray):
+            List of explained variance ratios to calculate the
+             number of components needed to explain.
+        device (str):
+            Device to use. ie 'cuda' or 'cpu'. Use a function
+             torch_helpers.set_device() to get.
+
+    Returns:
+        n_components (np.ndarray):
+            Number of components needed to explain the
+             corresponding ev.
+            Same array type (torch.Tensor or np.array) as X.
+    """
+    ## assert there are no nans
+    assert np.any(np.isnan(X)) == False, 'RH ERROR: X must not contain NaNs.'
+
+    comps, scores, sv, EVR = torch_pca(X_in=X, device=device, mean_sub=True, zscore=False, return_cpu=True, return_numpy=(True if type(X) == np.ndarray else False))
+    EVR_cumsum = np.cumsum(np.concatenate([[0], EVR]))
+    interp = scipy.interpolate.interp1d(x=EVR_cumsum, y=np.arange(0, len(EVR_cumsum)), kind='linear')
+    return interp(ev)
+
 
 #######################################
 ########## Incremental PCA ############
