@@ -174,7 +174,7 @@ def torch_pca(  X_in,
         X = X / stds[None,:]        
         
     if rank is None:
-        rank = X.shape[1]
+        rank = min(list(X.shape))
     
     (U,S,V) = torch.pca_lowrank(X, q=rank, center=False, niter=2)
     components = V
