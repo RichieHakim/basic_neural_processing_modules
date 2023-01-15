@@ -15,6 +15,8 @@ RH 2022
 class Lazy_repeat_item():
     """
     Makes a lazy iterator that repeats an item.
+    Very similar to itertools.repeat, but allows
+     for a pseudo length to be specified.
      RH 2021
     """
     def __init__(self, item, pseudo_length=None):
