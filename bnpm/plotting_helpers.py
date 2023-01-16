@@ -137,8 +137,7 @@ def shaded_error_bar(
     Args:
         data (np.array):
             Data to plot.
-            Should be 2D array with shape (n_samples, n_lines).
-            Columns will be plotted as different lines.
+            Should be 2D array with shape (n_samples, n_features).
         x (np.array):
             x-axis values.
             Optional.
@@ -146,13 +145,13 @@ def shaded_error_bar(
             Axes to plot on.
             Optional.
         reduction_center (function):
-            Function to reduce data along axis=0 to get the 
+            Function to reduce data along axis=1 to get the 
              center line.
-            Must have accept 'axis=0' as an argument.
+            Must have accept 'axis=1' as an argument.
         reduction_fill (function):
-            Function to reduce data along axis=0 to get the
+            Function to reduce data along axis=1 to get the
              fill.
-            Must have accept 'axis=0' as an argument.
+            Must have accept 'axis=1' as an argument.
         alpha_fill (float):
             Alpha value for the fill.
         color_center (str):
@@ -174,7 +173,7 @@ def shaded_error_bar(
         ax = plt.gca()
     
     if x is None:
-        x = np.arange(data.shape[1])
+        x = np.arange(data.shape[0])
     
     if color_center is None:
         color_center = ax._get_lines.get_next_color()
@@ -182,8 +181,8 @@ def shaded_error_bar(
     if color_fill is None:
         color_fill = color_center
 
-    y_center = reduction_center(data, axis=0)
-    y_error = reduction_fill(data, axis=0)  
+    y_center = reduction_center(data, axis=1)
+    y_error = reduction_fill(data, axis=1)  
 
     kwargs_center = {} if kwargs_center is None else kwargs_center
     kwargs_fill = {} if kwargs_fill is None else kwargs_fill
