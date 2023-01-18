@@ -711,7 +711,7 @@ def zscore_numba(array):
 
     Args:
         array (ndarray):
-            2-D array. Percentile will be calculated
+            2-D array. Zscore will be calculated
             along second dimension (rows)
     
     Returns:
