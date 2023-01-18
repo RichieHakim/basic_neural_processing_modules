@@ -686,7 +686,7 @@ def percentile_numba(X, ptile):
     Args:
         X (ndarray):
             2-D array. Percentile will be calculated
-            along first dimension (columns)
+            along second dimension (rows)
         ptile (scalar 0-100):
             Percentile
     
