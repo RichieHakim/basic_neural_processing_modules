@@ -35,15 +35,15 @@ def map_parallel(func, args, method='multithreading', workers=-1, prog_bar=True)
 
     if method == 'multithreading':
         executor = ThreadPoolExecutor
-    if method == 'multiprocessing':
+    elif method == 'multiprocessing':
         executor = ProcessPoolExecutor
-    if method == 'mpire':
+    elif method == 'mpire':
         import mpire
         executor = mpire.WorkerPool
-    if method == 'joblib':
+    elif method == 'joblib':
         import joblib
         return joblib.Parallel(n_jobs=workers)(joblib.delayed(func)(arg) for arg in args)
-    if method == 'serial':
+    elif method == 'serial':
         return [func(arg) for arg in tqdm(args, disable=prog_bar!=True)]
     else:
         raise ValueError(f"method {method} not recognized")
