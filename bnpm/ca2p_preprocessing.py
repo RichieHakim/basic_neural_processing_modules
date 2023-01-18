@@ -2,6 +2,8 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 
+import torch
+
 import time
 
 from numba import jit, njit, prange
@@ -16,9 +18,9 @@ def make_dFoF(
     Fneu=None, 
     neuropil_fraction=0.7, 
     percentile_baseline=30, 
+    channelOffset_correction=0,
     multicore_pref=False, 
     verbose=True,
-    dtype=np.float32,
     ):
     """
     calculates the dF/F and other signals. Designed for Suite2p data.
@@ -35,6 +37,8 @@ def make_dFoF(
             value, 0-1, of neuropil signal (Fneu) to be subtracted off of ROI signals (F)
         percentile_baseline (float/int): 
             value, 0-100, of percentile to be subtracted off from signals
+        channelOffset_correction (float):
+            value to be added to F and Fneu to correct for channel offset
         verbose (bool): 
             Whether you'd like printed updates
     Returns:
@@ -51,27 +55,28 @@ def make_dFoF(
 
     tic = time.time()
 
+    F = torch.as_tensor(F, dtype=torch.float32) + channelOffset_correction
+    Fneu = torch.as_tensor(Fneu, dtype=torch.float32) + channelOffset_correction
+
     if Fneu is None:
         F_neuSub = F
     else:
         F_neuSub = F - neuropil_fraction*Fneu
 
     if multicore_pref:
-        F_baseline = percentile_numba(F_neuSub, percentile_baseline)
+        F_baseline = percentile_numba(F_neuSub.numpy(), percentile_baseline)
+        # F_baseline = torch.quantile(F_neuSub, percentile_baseline/100, dim=1)
     else:
-        F_baseline = np.percentile(F_neuSub , percentile_baseline , axis=1)
+        F_baseline = np.percentile(F_neuSub.numpy() , percentile_baseline , axis=1)
+    F_baseline = torch.as_tensor(F_baseline, dtype=torch.float32)
+
     dF = F_neuSub - F_baseline[:,None]
     dFoF = dF / F_baseline[:,None]
-
-    dFoF       = dFoF.astype(dtype)
-    dF         = dF.astype(dtype)
-    F_neuSub   = F_neuSub.astype(dtype)
-    F_baseline = F_baseline.astype(dtype)
 
     if verbose:
         print(f'Calculated dFoF. Total elapsed time: {round(time.time() - tic,2)} seconds')
     
-    return dFoF , dF , F_neuSub , F_baseline
+    return dFoF.numpy() , dF.numpy() , F_neuSub.numpy() , F_baseline.numpy()
 
 
 def import_s2p(dir_s2p):
