@@ -2,15 +2,55 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import multiprocessing as mp
 from functools import partial
 import numpy as np
+from tqdm import tqdm
 
-def multithreading(func, args, workers):
-    with ThreadPoolExecutor(workers) as ex:
-        res = ex.map(func, args)
-    return list(res)
-def multiprocessing(func, args, workers):
-    with ProcessPoolExecutor(workers) as ex:
-        res = ex.map(func, args)
-    return list(res)
+def map_parallel(func, args, method='multithreading', workers=-1, prog_bar=True):
+    """
+    Map a function to a list of arguments in parallel.
+    RH 2022
+
+    Args:
+        func (function):
+            Function to map.
+        args (list):
+            List of arguments to map the function to.
+        method (str):
+            Method to use for parallelization. Options are:
+                'multithreading': Use multithreading from concurrent.futures.
+                'multiprocessing': Use multiprocessing from concurrent.futures.
+                'mpire': Use mpire
+                'joblib': Use joblib.Parallel
+                'serial': Use list comprehension
+        workers (int):
+            Number of workers to use. If -1, use all available.
+        prog_bar (bool):
+            Whether to show a progress bar with tqdm.
+
+    Returns:
+        output (list):
+            List of results from mapping the function to the arguments.
+    """
+    if workers == -1:
+        workers = mp.cpu_count()
+
+    if method == 'multithreading':
+        executor = ThreadPoolExecutor
+    if method == 'multiprocessing':
+        executor = ProcessPoolExecutor
+    if method == 'mpire':
+        import mpire
+        executor = mpire.WorkerPool
+    if method == 'joblib':
+        import joblib
+        return joblib.Parallel(n_jobs=workers)(joblib.delayed(func)(arg) for arg in args)
+    if method == 'serial':
+        return [func(arg) for arg in tqdm(args, disable=prog_bar!=True)]
+    else:
+        raise ValueError(f"method {method} not recognized")
+
+    with executor(workers) as ex:
+        return list(tqdm(ex.map(func, args), total=len(args), disable=prog_bar!=True))
+    
 
 def multiprocessing_pool_along_axis(x_in, function, n_workers=None, axis=0, **kwargs):
     pool = mp.Pool(processes=n_workers)
@@ -24,8 +64,6 @@ def multiprocessing_pool_along_axis(x_in, function, n_workers=None, axis=0, **kw
         pool.close()
         pool.join()
         return np.column_stack(results)
-
-
 
 def unpacking_apply_along_axis(all_args):
     """
@@ -54,9 +92,9 @@ def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
 
     # Chunks for the mapping (only a few chunks):
     chunks = [(func1d, effective_axis, sub_arr, args, kwargs)
-              for sub_arr in np.array_split(arr, multiprocessing.cpu_count())]
+              for sub_arr in np.array_split(arr, mp.cpu_count())]
 
-    pool = multiprocessing.Pool()
+    pool = mp.Pool()
     individual_results = pool.map(unpacking_apply_along_axis, chunks)
     # Freeing the workers:
     pool.close()
