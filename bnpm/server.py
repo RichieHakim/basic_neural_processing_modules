@@ -533,7 +533,14 @@ class sftp_interface():
         if ssh_client is None:
             self.transport = paramiko.Transport((hostname, port))  ## open a transport object
         else:
-            self.sftp = ssh_client.open_sftp()
+            if isinstance(ssh_client, ssh_interface):
+                client = ssh_client.client
+                self.sftp = client.open_sftp()
+            elif isinstance(ssh_client, paramiko.SSHClient):
+                client = ssh_client
+                self.sftp = client.open_sftp()
+            elif isinstance(ssh_client, paramiko.Channel):
+                self.sftp = paramiko.SFTPClient.from_transport(ssh_client.get_transport())
         
     def connect(
         self,
