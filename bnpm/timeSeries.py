@@ -424,8 +424,8 @@ def make_sorted_event_triggered_average(
 
     cv_idx = cross_validation.group_split(1, et_traces.shape[1], cv_group_size, test_size=test_frac)
 
-    mean_traces_train = et_traces[:,cv_idx[0][0],:].mean(1)
-    mean_traces_test = et_traces[:,cv_idx[0][1],:].mean(1)
+    mean_traces_train = np.nanmean(et_traces[:,cv_idx[0][0],:], axis=1)
+    mean_traces_test =  np.nanmean(et_traces[:,cv_idx[0][1],:], axis=1)
 
     mean_traces_sorted = mean_traces_test[np.argsort(np.argmax(mean_traces_train,axis=1))]
     
