@@ -100,13 +100,15 @@ def simple_pca(X , n_components=None , mean_sub=True, zscore=False, plot_pref=Fa
     return components , scores , decomp.explained_variance_ratio_
 
 
-def torch_pca(  X_in, 
-                device='cpu', 
-                mean_sub=True, 
-                zscore=False, 
-                rank=None, 
-                return_cpu=True, 
-                return_numpy=False):
+def torch_pca(
+    X_in, 
+    device='cpu', 
+    mean_sub=True, 
+    zscore=False, 
+    rank=None, 
+    return_cpu=True, 
+    return_numpy=False
+):
     """
     Principal Components Analysis for PyTorch.
     If using GPU, then call torch.cuda.empty_cache() after.
