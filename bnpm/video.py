@@ -8,23 +8,23 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 
-# ###############################################################################
-# ## This block of code is used to initialize cv2.imshow
-# ## This is necessary because importing av and decord 
-# ##  will cause cv2.imshow to fail unless it is initialized.
-# ## Obviously, this should be commented out when running on
-# ##  systems that do not support cv2.imshow like servers.
-# ## Also be sure to import BNPM before importing most other
-# ##  modules.
-# test = np.zeros((1,300,400,3))
-# for frame in test:
-#     cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-#     cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-#     cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-#     cv2.imshow('startup', frame)
-#     cv2.waitKey(100)
-# cv2.destroyWindow('startup')
-# ###############################################################################
+###############################################################################
+## This block of code is used to initialize cv2.imshow
+## This is necessary because importing av and decord 
+##  will cause cv2.imshow to fail unless it is initialized.
+## Obviously, this should be commented out when running on
+##  systems that do not support cv2.imshow like servers.
+## Also be sure to import BNPM before importing most other
+##  modules.
+test = np.zeros((1,300,400,3))
+for frame in test:
+    cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+    cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+    cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+    cv2.imshow('startup', frame)
+    cv2.waitKey(100)
+cv2.destroyWindow('startup')
+###############################################################################
 
 
 # import av
@@ -43,7 +43,16 @@ def prepare_cv2_imshow():
         cv2.waitKey(100)
     cv2.destroyWindow('startup')
 
-def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=True, fourcc_code='MJPG', text=None, kwargs_text={}):
+def play_video_cv2(
+    array=None, 
+    path_video=None, 
+    frameRate=30, 
+    path_save=None, 
+    show=True, 
+    fourcc_code='MJPG', 
+    text=None, 
+    kwargs_text={}
+):
     """
     Play a video using OpenCV
     RH 2021
@@ -54,13 +63,14 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
              or a 4D array of images (frames x height x width x channels)
             Scaling assumed to be between 0 and 255
             If None, then path must be specified
-        path:
+        path_video:
             Path to video file
             If None, then array must be specified
         frameRate:  
             Frame rate of the video (in Hz)
-        save_path:
-            Path to save the video
+        path_save:
+            Path to save the video.
+            If None, then video is not saved.
         show:   
             Whether to show the video or not
         fourcc_code:
@@ -73,11 +83,11 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
     """
     import decord
     wait_frames = max(int((1/frameRate)*1000), 1)
-    if save_path is not None:
+    if path_save is not None:
         size = tuple((np.flip(array.shape[1:3])))
         fourcc = cv2.VideoWriter_fourcc(*fourcc_code)
-        print(f'saving to file {save_path}')
-        writer = cv2.VideoWriter(save_path, fourcc, frameRate, size)
+        print(f'saving to file {path_save}')
+        writer = cv2.VideoWriter(path_save, fourcc, frameRate, size)
 
     if kwargs_text is None:
         kwargs_text = { 'org': (5, 15), 
@@ -98,7 +108,7 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
         else:
             flag_convert_to_gray = False
     else:
-        movie = decord.VideoReader(path)
+        movie = decord.VideoReader(path_video)
         flag_convert_to_gray = False
 
     for i_frame, frame in enumerate(tqdm(movie)):
@@ -109,7 +119,7 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
             if flag_convert_to_gray:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             else:
-                Exception('RH: Unsupported number of channels, check array shape')
+                raise Exception('RH: Unsupported number of channels, check array shape')
             # else:  
             #     frame = cv2.merge([frame, frame, frame])
 
@@ -125,9 +135,10 @@ def play_video_cv2(array=None, path=None, frameRate=30, save_path=None, show=Tru
         if show:
             cv2.imshow('handle', np.uint8(frame))
             cv2.waitKey(wait_frames)
-        if save_path is not None:
+        if path_save is not None:
             writer.write(np.uint8(frame))
-    if save_path is not None:
+            # print(flag_convert_to_gray, frame.shape, frame.dtype)
+    if path_save is not None:
         writer.release()
         print('Video saved')
     if show:
