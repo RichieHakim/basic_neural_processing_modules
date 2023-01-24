@@ -576,3 +576,49 @@ def add_image_overlay(
     images_out[:, pos_all[0]:pos_all[1], pos_all[2]:pos_all[3],:] = images_rs
     
     return images_out
+
+
+def apply_shifts_along_axis(
+    images, 
+    xShifts=[0], 
+    yShifts=[0], 
+    workers=-1,
+    prog_bar=True
+):
+    """
+    Apply shifts along a given axis.
+    Useful for applying motion correction shifts to a video.
+    RH 2022
+
+    Args:
+        images (np.ndarray):
+            Sequence of images or video.
+            shape: (n_frames, height, width, n_channels)
+             or (n_frames, height, width)
+        xShifts (np.ndarray):
+            Shifts to apply along x axis.
+            shape: (n_frames,)
+        yShifts (np.ndarray):
+            Shifts to apply along y axis.
+            shape: (n_frames,)
+        prog_bar (bool):
+            if True, then will show a progress bar.
+
+    Returns:
+        images_shifted (np.ndarray):
+            Shifted images.
+            shape: (n_frames, height, width, n_channels)
+             or (n_frames, height, width)
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    import multiprocessing as mp
+
+    def apply_shifts_frame(frame, xShift, yShift):
+        M = np.float32([[1,0,xShift],[0,1,yShift]])
+        return cv2.warpAffine(frame, M, (frame.shape[1], frame.shape[0]))
+
+    workers = mp.cpu_count() if workers == -1 else workers
+    n_args = len(images)
+
+    with ThreadPoolExecutor(workers) as ex:
+        return np.stack(list(tqdm(ex.map(apply_shifts_frame, *(images, xShifts, yShifts)), total=n_args, disable=prog_bar!=True)), axis=0)
