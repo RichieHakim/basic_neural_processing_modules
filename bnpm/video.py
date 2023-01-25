@@ -105,8 +105,10 @@ def play_video_cv2(
         movie = array
         if array.ndim == 4:
             flag_convert_to_gray = True
-        else:
+        elif array.ndim == 3:
             flag_convert_to_gray = False
+        else:
+            raise Exception('RH: Unsupported number of channels, check array shape')
     else:
         movie = decord.VideoReader(path_video)
         flag_convert_to_gray = False
@@ -118,8 +120,6 @@ def play_video_cv2(
         if array is not None:
             if flag_convert_to_gray:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            else:
-                raise Exception('RH: Unsupported number of channels, check array shape')
             # else:  
             #     frame = cv2.merge([frame, frame, frame])
 
