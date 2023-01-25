@@ -620,5 +620,8 @@ def apply_shifts_along_axis(
     workers = mp.cpu_count() if workers == -1 else workers
     n_args = len(images)
 
+    if workers == 1:
+        return np.stack([apply_shifts_frame(*args) for args in zip(images, xShifts, yShifts)], axis=0)
+
     with ThreadPoolExecutor(workers) as ex:
         return np.stack(list(tqdm(ex.map(apply_shifts_frame, *(images, xShifts, yShifts)), total=n_args, disable=prog_bar!=True)), axis=0)
