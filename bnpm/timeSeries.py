@@ -265,20 +265,26 @@ def rolling_percentile_rq(x_in, window, ptile=10, stride=1, center=True):
         return pipe.feed(x_in)
 def rolling_percentile_rq_multicore(x_in, window, ptile, stride=1, center=True, n_workers=None):
     import rolling_quantiles as rq
-    return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=None, axis=0, **{'window': window , 'ptile': ptile, 'stride': stride, 'center': False} )
+    return multiprocessing_pool_along_axis(x_in, rolling_percentile_rq, n_workers=n_workers, axis=0, **{'window': window , 'ptile': ptile, 'stride': stride, 'center': center} )
 
 
-def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_idx=False):
-    '''
-    Makes event triggered traces along last dimension
-    RH 2021
+def event_triggered_traces(
+    arr, 
+    idx_triggers, 
+    win_bounds=[-100,0], 
+    dim=0,
+    verbose=1,
+):
+    """
+    Makes event triggered traces along last dimension.
+    New version using torch.
+    RH 2022
     
     Args:
-        arr (np.ndarray):
-            Input array. Last dimension will be 
-             aligned to boolean True values in 
-             'trigger_signal'
-        trigger_signal (boolean np.ndarray, or np.ndarray of int):
+        arr (np.ndarray or torch.Tensor):
+            Input array. Dimension 'dim' will be 
+             aligned to the idx specified in 'idx_triggers'.
+        idx_triggers (list of int, np.ndarray, or torch.Tensor):
             1-D boolean array or 1-D index array.
             True values or idx values are trigger events.
             If 'trigger_signal_is_idx' is True, then
@@ -292,59 +298,68 @@ def event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_id
             Events that would have a window extending
              before or after the bounds of the length
              of the trace are discarded.
-        trigger_signal_is_idx (bool):
-            If True then trigger_signal is an index array.
-            If False then trigger_signal is a boolean array.
-            Use an index array if there are multiple events
-             with the same index, else they will be
-             collapsed when this is 'True'.
-     
+        dim (int):
+            Dimension of 'arr' to align to 'idx_triggers'.
+        verbose (int):
+            0: no print statements
+            1: print warnings
+            2: print warnings and info
+        
      Returns:
-        et_traces (np.ndarray):
+        et_traces (np.ndarray or torch.Tensor):
              Event Triggered Traces. et_traces.ndim = 
-              arr.ndim+1. Last dimension is new and is
-              the event number axis. Note that events 
-              near edges are discarded if window extends
-              past edge bounds.
-        xAxis (np.ndarray):
+              arr.ndim+1. First two dimensions are made from
+              'dim'. Shape: 
+               (len(idx_triggers), len(window), lengths of other dimensions besides 'dim')
+        xAxis (np.ndarray or torch.Tensor):
             x-axis of the traces. Aligns with dimension
-             et_traces.shape[-2]
-        windows (np.ndarray):
+             et_traces.shape[1]
+        windows (np.ndarray or torch.Tensor):
             Index array of the windows used.
-    '''
-    def bounds_to_win(x_pos, win_bounds):
-        return x_pos + np.arange(win_bounds[0], win_bounds[1])
-    def make_windows(x_pos, win_bounds):
-        return np.apply_along_axis(bounds_to_win, 0, tuple([x_pos]), win_bounds).T
+    """
+    from warnings import warn
 
-    axis=arr.ndim-1
-    len_axis = arr.shape[axis]
+    ## Error checking
+    assert isinstance(dim, int), "dim must be int"
+    assert isinstance(arr, (np.ndarray, torch.Tensor)), "arr must be np.ndarray or torch.Tensor"
+    assert isinstance(idx_triggers, (list, np.ndarray, torch.Tensor)), "idx_triggers must be list, np.ndarray, or torch.Tensor"
+    assert isinstance(win_bounds, (list, tuple, np.ndarray)), "win_bounds must be list, tuple, or np.ndarray"
+    ## Warn if idx_triggers are not integers
+    if isinstance(idx_triggers, np.ndarray) and not np.issubdtype(idx_triggers.dtype, np.integer):
+        warn("idx_triggers is np.ndarray but not integer dtype. COnverting to torch.long dtype.")
+    if isinstance(idx_triggers, torch.Tensor) and not torch.is_tensor(idx_triggers, dtype=torch.long):
+        warn("idx_triggers is torch.Tensor but not dtype torch.long. Converting to torch.long dtype.")
+    if isinstance(idx_triggers, list):
+        warn("Using a list for idx_triggers is slow. Convert to np.array or torch.Tensor.")
+        if all([isinstance(i, int) for i in idx_triggers]): 
+            warn("idx_triggers is list but not all elements are integers. Converting to torch.long dtype.")        
+        
+    arr = torch.as_tensor(arr)  ## convert to tensor
+    xAxis = torch.arange(win_bounds[0], win_bounds[1], dtype=torch.long)  ## x-axis for each window relative to trigger
+    dim = arr.ndim + dim if dim<0 else dim  ## convert negative dim to positive dim
 
-    if trigger_signal_is_idx:
-        windows = make_windows(trigger_signal[np.isnan(trigger_signal)==0], win_bounds)
-    else:
-        windows = make_windows(np.nonzero(trigger_signal)[0], win_bounds)
-    win_toInclude = (np.sum(windows<0, axis=1)==0) * (np.sum(windows>len_axis, axis=1)==0)
-    win_toExclude = win_toInclude==False
-    n_win_included = np.sum(win_toInclude)
-    n_win_excluded = np.sum(win_toExclude)
-    windows = windows[win_toInclude]
+    windows = torch.stack([xAxis + i for i in torch.as_tensor(idx_triggers, dtype=torch.long)], dim=0)  ## make windows. shape = (n_triggers, len_window)
+    win_toInclude = (torch.any(windows<0, dim=1)==0) * (torch.any(windows>arr.shape[dim], dim=1)==0)  ## boolean array of windows that are within the bounds of the length of 'dim'
+    n_win_excluded = torch.sum(win_toInclude==False)  ## number of windows excluded due to window bounds. Only used for printing currently
+    windows = windows[win_toInclude]  ## windows after pruning out windows that are out of bounds
+    n_windows = windows.shape[0]  ## number of windows. Only used for printing currently
 
+    print(f'number of triggers excluded due to window bounds:     {n_win_excluded}') if (n_win_excluded>0) and (verbose>1) else None
+    print(f'number of triggers included and within window bounds: {len(windows)}') if verbose>1 else None
 
-    windows_flat = np.reshape(windows, (windows.size))
-    
-    axes_all = np.arange(arr.ndim)
-    axes_non = axes_all[axes_all != axis]
-    et_traces_flat = np.take_along_axis(arr, np.expand_dims(np.array(windows_flat, dtype=np.int64), axis=tuple(axes_non)), axis=axis)
+    shape = list(arr.shape)  ## original shape
+    dims_perm = [dim] + list(range(dim)) + list(range(dim+1, len(shape)))  ## new dims for indexing. put dim at dim 0
+    arr_perm = arr.permute(*dims_perm)  ## permute to put 'dim' to dim 0
+    arr_idx = arr_perm.index_select(0, windows.reshape(-1))  ## index out windows along dim 0
+    rs = list(arr_perm.shape[1:]) + [n_windows, win_bounds[1]-win_bounds[0]]  ## new shape for unflattening. 'dim' will be moved to dim -1, then reshaped to n_windows x len_window
+    arr_idx_rs = arr_idx.permute(*(list(range(1, arr_idx.ndim)) + [0])).reshape(*rs)  ## permute to put current 'dim' (currently dim 0) to end, then reshape
 
-    new_shape = np.array(et_traces_flat.shape)
-    new_shape[axis] = new_shape[axis] / windows.shape[1]
-    new_shape = np.concatenate((new_shape, np.array([windows.shape[1]])))
-    et_traces = np.reshape(et_traces_flat, new_shape)
-    
-    xAxis = np.arange(win_bounds[0], win_bounds[1])
-    
-    return et_traces, xAxis, windows
+    return_numpy = isinstance(arr, np.ndarray)  ## return numpy if input was numpy
+    arr_out = arr_idx_rs.numpy() if return_numpy else arr_idx_rs
+    xAxis_out = xAxis.numpy() if return_numpy else xAxis
+    windows_out = windows.numpy() if return_numpy else windows
+
+    return arr_out, xAxis_out, windows_out
 
 
 def make_sorted_event_triggered_average(
@@ -422,12 +437,12 @@ def make_sorted_event_triggered_average(
 
     et_traces, xAxis, windows = event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_idx=trigger_signal_is_idx)
 
-    cv_idx = cross_validation.group_split(1, et_traces.shape[1], cv_group_size, test_size=test_frac)
+    cv_idx = cross_validation.group_split(1, et_traces.shape[0], cv_group_size, test_size=test_frac)
 
-    mean_traces_train = np.nanmean(et_traces[:,cv_idx[0][0],:], axis=1)
-    mean_traces_test =  np.nanmean(et_traces[:,cv_idx[0][1],:], axis=1)
+    mean_traces_train = np.nanmean(et_traces[cv_idx[0][0]], axis=1)
+    mean_traces_test =  np.nanmean(et_traces[cv_idx[0][1]], axis=1)
 
-    mean_traces_sorted = mean_traces_test[np.argsort(np.argmax(mean_traces_train,axis=1))]
+    mean_traces_sorted = mean_traces_test[np.argsort(np.argmax(mean_traces_train,axis=0))]
     
     if show_plot:
         plt.figure()
