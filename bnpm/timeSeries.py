@@ -334,11 +334,16 @@ def event_triggered_traces(
         if all([isinstance(i, int) for i in idx_triggers]): 
             warn("idx_triggers is list but not all elements are integers. Converting to torch.long dtype.")        
         
+    dtype_in = 'np' if isinstance(arr, np.ndarray) else 'torch' if isinstance(arr, torch.Tensor) else 'unknown'
     arr = torch.as_tensor(arr)  ## convert to tensor
     xAxis = torch.arange(win_bounds[0], win_bounds[1], dtype=torch.long)  ## x-axis for each window relative to trigger
+    
     dim = arr.ndim + dim if dim<0 else dim  ## convert negative dim to positive dim
+    
+    isnan = torch.isnan if isinstance(idx_triggers, torch.Tensor) else np.isnan if isinstance(idx_triggers, np.ndarray) else None
+    idx_triggers_clean = torch.as_tensor(idx_triggers[~isnan(idx_triggers)], dtype=torch.long)  ## remove nans from idx_triggers and convert to torch.long
 
-    windows = torch.stack([xAxis + i for i in torch.as_tensor(idx_triggers, dtype=torch.long)], dim=0)  ## make windows. shape = (n_triggers, len_window)
+    windows = torch.stack([xAxis + i for i in torch.as_tensor(idx_triggers_clean, dtype=torch.long)], dim=0)  ## make windows. shape = (n_triggers, len_window)
     win_toInclude = (torch.any(windows<0, dim=1)==0) * (torch.any(windows>arr.shape[dim], dim=1)==0)  ## boolean array of windows that are within the bounds of the length of 'dim'
     n_win_excluded = torch.sum(win_toInclude==False)  ## number of windows excluded due to window bounds. Only used for printing currently
     windows = windows[win_toInclude]  ## windows after pruning out windows that are out of bounds
@@ -354,10 +359,9 @@ def event_triggered_traces(
     rs = list(arr_perm.shape[1:]) + [n_windows, win_bounds[1]-win_bounds[0]]  ## new shape for unflattening. 'dim' will be moved to dim -1, then reshaped to n_windows x len_window
     arr_idx_rs = arr_idx.permute(*(list(range(1, arr_idx.ndim)) + [0])).reshape(*rs)  ## permute to put current 'dim' (currently dim 0) to end, then reshape
 
-    return_numpy = isinstance(arr, np.ndarray)  ## return numpy if input was numpy
-    arr_out = arr_idx_rs.numpy() if return_numpy else arr_idx_rs
-    xAxis_out = xAxis.numpy() if return_numpy else xAxis
-    windows_out = windows.numpy() if return_numpy else windows
+    arr_out = arr_idx_rs.numpy() if dtype_in=='np' else arr_idx_rs
+    xAxis_out = xAxis.numpy() if dtype_in=='np' else xAxis
+    windows_out = windows.numpy() if dtype_in=='np' else windows
 
     return arr_out, xAxis_out, windows_out
 
