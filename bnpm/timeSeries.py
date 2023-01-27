@@ -326,7 +326,7 @@ def event_triggered_traces(
     assert isinstance(win_bounds, (list, tuple, np.ndarray)), "win_bounds must be list, tuple, or np.ndarray"
     ## Warn if idx_triggers are not integers
     if isinstance(idx_triggers, np.ndarray) and not np.issubdtype(idx_triggers.dtype, np.integer):
-        warn("idx_triggers is np.ndarray but not integer dtype. COnverting to torch.long dtype.")
+        warn("idx_triggers is np.ndarray but not integer dtype. Converting to torch.long dtype.")
     if isinstance(idx_triggers, torch.Tensor) and not torch.is_tensor(idx_triggers, dtype=torch.long):
         warn("idx_triggers is torch.Tensor but not dtype torch.long. Converting to torch.long dtype.")
     if isinstance(idx_triggers, list):
