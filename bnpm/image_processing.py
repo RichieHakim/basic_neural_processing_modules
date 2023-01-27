@@ -223,8 +223,9 @@ def stack_to_RGB(images):
         images = [images]
     
     im_out = np.stack(images, axis=2)
-    appended_images = np.stack([images[0]*0] * (3 - len(images)), axis=2)
-    im_out = np.concatenate([im_out, appended_images], axis=2)
+    if im_out.shape[2] != 3:
+        appended_images = np.stack([images[0]*0] * (3 - len(images)), axis=2)
+        im_out = np.concatenate([im_out, appended_images], axis=2)
 
     return im_out
 
