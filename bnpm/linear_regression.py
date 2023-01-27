@@ -107,7 +107,103 @@ def Ridge(X, y, lam=1, add_bias_terms=False):
 
     return theta, y_rec, bias
 
+"""
+Reduced rank regression class.
+Requires scipy to be installed.
+Implemented by Chris Rayner (2015)
+dchrisrayner AT gmail DOT com
+Optimal linear 'bottlenecking' or 'multitask learning'.
+"""
+import numpy as np
+from scipy import sparse
 
+
+# def ideal_data(num, dimX, dimY, rrank, noise=1):
+#     """Low rank data"""
+#     X = np.random.randn(num, dimX)
+#     W = np.dot(np.random.randn(dimX, rrank), np.random.randn(rrank, dimY))
+#     Y = np.dot(X, W) + np.random.randn(num, dimY) * noise
+#     return X, Y
+
+
+class ReducedRankRegressor(object):
+    """
+    Reduced Rank Regressor (linear 'bottlenecking' or 'multitask learning')
+    - X is an n-by-d matrix of features.
+    - Y is an n-by-D matrix of targets.
+    - rrank is a rank constraint.
+    - reg is a regularization parameter (optional).
+    """
+    def __init__(self, X, Y, rank, reg=None):
+        if np.size(np.shape(X)) == 1:
+            X = np.reshape(X, (-1, 1))
+        if np.size(np.shape(Y)) == 1:
+            Y = np.reshape(Y, (-1, 1))
+        if reg is None:
+            reg = 0
+        self.rank = rank
+
+        CXX = np.dot(X.T, X) + reg * sparse.eye(np.size(X, 1))
+        CXY = np.dot(X.T, Y)
+        _U, _S, V = np.linalg.svd(np.dot(CXY.T, np.dot(np.linalg.pinv(CXX), CXY)))
+        self.W = V[0:rank, :].T
+        self.A = np.dot(np.linalg.pinv(CXX), np.dot(CXY, self.W)).T
+
+    def __str__(self):
+        return 'Reduced Rank Regressor (rank = {})'.format(self.rank)
+
+    def predict(self, X):
+        """Predict Y from X."""
+        if np.size(np.shape(X)) == 1:
+            X = np.reshape(X, (-1, 1))
+        return np.dot(X, np.dot(self.A.T, self.W.T))
+
+
+
+
+import numpy as np
+import sklearn.linear_model
+
+def _fit_rrr_no_intercept_all_ranks(X: np.ndarray, Y: np.ndarray, alpha: float, solver: str):
+    ridge = sklearn.linear_model.Ridge(alpha=alpha, fit_intercept=False, solver=solver)
+    beta_ridge = ridge.fit(X, Y).coef_
+    Lambda = np.eye(X.shape[1]) * np.sqrt(np.sqrt(alpha))
+    X_star = np.concatenate((X, Lambda))
+    Y_star = X_star @ beta_ridge.T
+    _, _, Vt = np.linalg.svd(Y_star, full_matrices=False)
+    return beta_ridge, Vt
+
+def _fit_rrr_no_intercept(X: np.ndarray, Y: np.ndarray, alpha: float, rank: int, solver: str, memory=None):
+    memory = sklearn.utils.validation.check_memory(memory)
+    fit = memory.cache(_fit_rrr_no_intercept_all_ranks)
+    beta_ridge, Vt = fit(X, Y, alpha, solver)
+    return Vt[:rank, :].T @ (Vt[:rank, :] @ beta_ridge)
+
+class ReducedRankRidge(sklearn.base.MultiOutputMixin, sklearn.base.RegressorMixin, sklearn.linear_model._base.LinearModel):
+    def __init__(self, alpha=1.0, fit_intercept=True, rank=None, ridge_solver='auto', memory=None):
+        self.alpha = alpha
+        self.fit_intercept = fit_intercept
+        self.rank = rank
+        self.ridge_solver = ridge_solver
+        self.memory = memory
+
+    def fit(self, X, y):
+        if self.fit_intercept:
+            X_offset = np.average(X, axis=0)
+            y_offset = np.average(y, axis=0)
+            # doesn't modify inplace, unlike -=
+            X = X - X_offset
+            y = y - y_offset
+        self.coef_ = _fit_rrr_no_intercept(X, y, self.alpha, self.rank, self.ridge_solver, self.memory)
+        self.rank_ = np.linalg.matrix_rank(self.coef_)
+        if self.fit_intercept:
+            self.intercept_ = y_offset - X_offset @ self.coef_.T
+        else:
+            self.intercept_ = np.zeros(y.shape[1])
+        return self
+
+
+        
 def LinearRegression_sweep(X_in,
                             y_in,
                             cv_idx,
