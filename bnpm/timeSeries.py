@@ -63,10 +63,10 @@ def convolve_along_axis(
 
         kernel = np.ascontiguousarray(kernel)
         if axis==0:
-            output_list = parallel_helpers.map_parallel(convFun_axis0, range(array.shape[1]), method='multithreading', workers=-1, prog_bar=True)
+            output_list = parallel_helpers.map_parallel(convFun_axis0, [range(array.shape[1])], method='multithreading', workers=-1, prog_bar=True)
             # output_list = parallel_helpers.multithreading(convFun_axis0, range(array.shape[1]), workers=None)
         if axis==1:
-            output_list = parallel_helpers.map_parallel(convFun_axis1, range(array.shape[0]), method='multithreading', workers=-1, prog_bar=True)
+            output_list = parallel_helpers.map_parallel(convFun_axis1, [range(array.shape[0])], method='multithreading', workers=-1, prog_bar=True)
             # output_list = parallel_helpers.multithreading(convFun_axis1, range(array.shape[0]), workers=None)
         
         if verbose:
@@ -307,10 +307,9 @@ def event_triggered_traces(
         
      Returns:
         et_traces (np.ndarray or torch.Tensor):
-             Event Triggered Traces. et_traces.ndim = 
-              arr.ndim+1. First two dimensions are made from
-              'dim'. Shape: 
-               (len(idx_triggers), len(window), lengths of other dimensions besides 'dim')
+             Event Triggered Traces. et_traces.ndim = arr.ndim+1.
+             Last two dims are the event triggered traces.
+             Shape: (len(idx_triggers), len(window), lengths of other dimensions besides 'dim')
         xAxis (np.ndarray or torch.Tensor):
             x-axis of the traces. Aligns with dimension
              et_traces.shape[1]
