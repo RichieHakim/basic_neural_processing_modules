@@ -350,7 +350,7 @@ def event_triggered_traces(
     n_windows = windows.shape[0]  ## number of windows. Only used for printing currently
 
     print(f'number of triggers excluded due to window bounds:     {n_win_excluded}') if (n_win_excluded>0) and (verbose>1) else None
-    print(f'number of triggers included and within window bounds: {len(windows)}') if verbose>1 else None
+    print(f'number of triggers included and within window bounds: {len(windows)}') if verbose>2 else None
 
     shape = list(arr.shape)  ## original shape
     dims_perm = [dim] + list(range(dim)) + list(range(dim+1, len(shape)))  ## new dims for indexing. put dim at dim 0
