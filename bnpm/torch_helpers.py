@@ -217,6 +217,35 @@ def nanmean(arr, dim=None, keepdim=False):
     num = torch.sum(torch.logical_not(nan_mask), **kwargs)
     return sum / num
 
+def nanvar(arr, dim=None, keepdim=False, ddof=0, ret_mean=False):
+    """
+    Compute the standard deviation of an array ignoring any NaNs.
+    RH 2022
+    """
+    nan_mask = torch.isnan(arr)
+    arr_no_nan = arr.masked_fill(nan_mask, 0)
+    cnt = torch.sum(torch.logical_not(nan_mask), dim=dim, keepdim=True)
+    avg = torch.sum(arr_no_nan, dim=dim, keepdim=True) / cnt
+    dev_sqrd = (arr_no_nan - avg)**2
+    var = torch.sum(dev_sqrd, dim=dim, keepdim=True) / cnt
+    dof = cnt - ddof
+    out = var * cnt / dof
+
+    out = squeeze_multiple_dims(out, dims=dim) if keepdim==False else out
+    return out if ret_mean==False else (out, avg)
+
+def nanstd(arr, dim=None, keepdim=False, ddof=0, ret_mean=False):
+    """
+    Compute the standard deviation of an array ignoring any NaNs.
+    RH 2022
+    """
+    var = nanvar(arr, dim=dim, keepdim=keepdim, ddof=ddof, ret_mean=ret_mean)
+    if ret_mean:
+        var, avg = var
+    std = torch.sqrt(var)
+    return std if ret_mean==False else (std, avg)
+        
+
 def nansum(arr, dim=None, keepdim=False):
     """
     Compute the sum of an array ignoring any NaNs.
@@ -267,6 +296,19 @@ def nanmin(arr, dim=None, keepdim=False):
     nan_mask = torch.isnan(arr)
     arr_no_nan = arr.masked_fill(nan_mask, float('inf'))
     return torch.min(arr_no_nan, **kwargs)
+
+
+def squeeze_multiple_dims(arr, dims=(0, 1)):
+    """
+    Squeeze multiple dimensions of a tensor.
+    RH 2022
+    """
+    assert all([arr.shape[d] == 1 for d in dims])
+    ## make custom slices to squeeze out the dims
+    slices = [slice(None)] * arr.ndim
+    for d in dims:
+        slices[d] = 0
+    return arr[tuple(slices)]
 
 def multiply_elementwise_sparse_dense(s, d):
     """
@@ -344,6 +386,24 @@ class Diag_sparse:
     def __call__(self, x):
         values = x.values()
         return values[self.idx]
+
+
+def zscore(X, dim=None, ddof=0, nan_policy='propagate', axis=None):
+    """
+    Compute the z-score of a tensor.
+    RH 2022
+    """
+    dim = axis if (axis is not None) and (dim is None) else dim
+    assert dim is not None, 'Must specify dimension to compute z-score over.'
+
+    if nan_policy == 'omit':
+        std, mean = nanstd(X, dim=dim, ddof=ddof, keepdim=True, ret_mean=True)
+    elif nan_policy == 'propagate':
+        std, mean = torch.std_mean(X, dim=dim, keepdim=True, unbiased=ddof==1)
+    else:
+        raise ValueError('nan_policy must be "omit" or "propagate".')
+    return (X - mean) / std
+
 
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
