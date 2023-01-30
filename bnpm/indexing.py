@@ -699,3 +699,28 @@ def merge_sparse_arrays(s_list, idx_list, shape_full, remove_redundant=True, eli
     if remove_redundant:
         remove_redundant_elements(s_full, inPlace=True)
     return s_full
+
+
+####################################################################################################
+##################################### TENSOR OPERATIONS ###########################################
+####################################################################################################
+
+def cp_to_kruskal(cp):
+    """
+    Converts a list (of length n_modes) of 2D arrays (of shape (len_dim, rank))
+     [CP format] to a list (of length rank) of lists (of length n_modes) of
+     vectors (of length len_dim) [Kruskal format].
+    RH 2022
+
+    Args:
+        cp (list of np.ndarray):
+            List of 2D arrays in CP format.
+            Tensorly uses this format for their 'cp' format.
+
+    Returns:
+        k (list of list of np.ndarray):
+            List of lists of vectors in Kruskal format.
+    """
+    rank = cp[0].shape[1]
+    k = [[cp[m][:,r] for m in range(len(cp))] for r in range(rank)]
+    return k
