@@ -85,16 +85,16 @@ def Ridge(X, y, lam=1, add_bias_terms=False):
     if type(X) == np.ndarray:
         inv = np.linalg.inv
         eye = np.eye(X.shape[1] + 1*add_bias_terms)
-        ones = np.ones
+        ones = np.ones((X.shape[0],1))
         cat = np.concatenate
     elif type(X) == torch.Tensor:
         inv = torch.inverse
         eye = torch.eye(X.shape[1] + 1*add_bias_terms).to(X.device)
-        ones = torch.ones
+        ones = torch.ones((X.shape[0],1), device=X.device)
         cat = torch.cat
 
     if add_bias_terms:
-        X = cat((X, ones((X.shape[0],1))), axis=1)
+        X = cat((X, ones), axis=1)
 
     theta = inv(X.T @ X + lam*eye) @ X.T @ y
     y_rec = X @ theta
