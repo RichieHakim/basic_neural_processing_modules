@@ -619,7 +619,7 @@ def phase_shift(signal, shift_angle=90, deg_or_rad='deg', axis=0):
     signal_shifted = ifft(signal_fft_shifted, axis=axis)
     return signal_shifted
 
-class phase_shifter():
+class Phase_Shifter():
     def __init__(self, signal_len, discard_imaginary_component=True, device='cpu', dtype=torch.float32, pin_memory=False):
         """
         Initializes the shift_signal_angle_obj class.
