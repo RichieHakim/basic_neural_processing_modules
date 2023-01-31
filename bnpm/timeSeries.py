@@ -367,11 +367,11 @@ def event_triggered_traces(
 
 def make_sorted_event_triggered_average(
     arr, 
-    trigger_signal, 
+    idx_triggers, 
     win_bounds, 
+    dim=0,
     cv_group_size=2, 
     test_frac=0.5, 
-    trigger_signal_is_idx=False, 
     show_plot=False
 ):
     '''
@@ -382,7 +382,6 @@ def make_sorted_event_triggered_average(
         arr (np.ndarray):
             Input array. Last dimension will be aligned
              to boolean True values in 'trigger_signal'.
-             Same as in event_triggered_traces.
         trigger_signal (boolean np.ndarray):
             1-D boolean array. True values are trigger
              events.
@@ -396,6 +395,8 @@ def make_sorted_event_triggered_average(
              before or after the bounds of the length
              of the trace are discarded.
             Same as in event_triggered_traces.
+        dim (int):
+            Axis/dimension to align to trigger_signal.
         cv_group_size (int):
             Number of samples per group. Uses sklearn's
              model_selection.GroupShuffleSplit.
@@ -419,6 +420,12 @@ def make_sorted_event_triggered_average(
             Shows the event triggered average of the 
              test set, sorted by the peak times found 
              in the training set.
+        peaks_train_sorted (np.ndarray):
+            Indices of the peaks for each row. Training set.
+            Size (arr.shape[0],)
+        peaks_test_sorted (np.ndarray):
+            Indices of the peaks for each row. Test set.
+            Size (arr.shape[0],)
         cv_idx (list of 2 lists):
             List of 2 lists.
             Outer list entries: Splits
@@ -438,14 +445,21 @@ def make_sorted_event_triggered_average(
             Index array of the windows used.       
     '''
 
-    et_traces, xAxis, windows = event_triggered_traces(arr, trigger_signal, win_bounds, trigger_signal_is_idx=trigger_signal_is_idx)
+    et_traces, xAxis, windows = event_triggered_traces(
+        arr, 
+        idx_triggers=idx_triggers,
+        win_bounds=win_bounds, 
+        dim=dim,       
+    )
 
-    cv_idx = cross_validation.group_split(1, et_traces.shape[0], cv_group_size, test_size=test_frac)
+    cv_idx = cross_validation.group_split(1, et_traces.shape[1], cv_group_size, test_size=test_frac)
 
-    mean_traces_train = np.nanmean(et_traces[cv_idx[0][0]], axis=1)
-    mean_traces_test =  np.nanmean(et_traces[cv_idx[0][1]], axis=1)
+    mean_traces_train = np.nanmean(et_traces[:,cv_idx[0][0]], axis=1)
+    mean_traces_test =  np.nanmean(et_traces[:,cv_idx[0][1]], axis=1)
 
-    mean_traces_sorted = mean_traces_test[np.argsort(np.argmax(mean_traces_train,axis=0))]
+    peaks_train = np.argmax(mean_traces_train, axis=1)
+    peaks_test = np.argmax(mean_traces_test, axis=1)
+    mean_traces_sorted = mean_traces_test[np.argsort(peaks_train)]
     
     if show_plot:
         plt.figure()
@@ -454,7 +468,10 @@ def make_sorted_event_triggered_average(
                           mean_traces_sorted.shape[0], 0),
 #                    vmin=-1, vmax=3
                   )
-    return mean_traces_sorted, cv_idx, et_traces, xAxis, windows
+
+    peaks_train_sorted = np.sort(peaks_train)
+    peaks_test_sorted = np.sort(peaks_test)
+    return mean_traces_sorted, peaks_train_sorted, peaks_test_sorted, cv_idx, et_traces, xAxis, windows
     
 
 def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same', correct_edge_effects=True):
