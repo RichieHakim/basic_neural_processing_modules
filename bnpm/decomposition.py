@@ -173,7 +173,9 @@ def torch_pca(
     if zscore:
         X = X - torch.mean(X, dim=0)
         stds = torch.std(X, dim=0)
-        X = X / stds[None,:]        
+        idx_zeroStd = torch.where(stds==0)[0]
+        stds[idx_zeroStd] = 1.0
+        X = X / stds
         
     if rank is None:
         rank = min(list(X.shape))
@@ -221,7 +223,14 @@ def unmix_pcs(pca_components, weight_vecs):
     return pca_components @ mixing_vecs
 
 
-def dimensionality_pca(X, ev=[0.10,0.25,0.50,0.90,0.95], device='cpu'):
+def dimensionality_pca(
+    X, 
+    ev=[0.10,0.25,0.50,0.90,0.95], 
+    mean_sub=True, 
+    zscore=False, 
+    device='cpu', 
+    kwargs_torchPCA={}
+):
     """
     Returns the number of components needed to explain a certain 
      amount of variance. 
@@ -236,6 +245,13 @@ def dimensionality_pca(X, ev=[0.10,0.25,0.50,0.90,0.95], device='cpu'):
         ev (list or np.ndarray):
             List of explained variance ratios to calculate the
              number of components needed to explain.
+            ie [0.10,0.25,0.50,0.90,0.95]
+        mean_sub (bool):
+            Whether or not to mean subtract ('center') the
+             columns.
+        zscore (bool):
+            Whether or not to z-score the columns. This is
+             equivalent to doing PCA on the correlation-matrix.
         device (str):
             Device to use. ie 'cuda' or 'cpu'. Use a function
              torch_helpers.set_device() to get.
@@ -246,10 +262,22 @@ def dimensionality_pca(X, ev=[0.10,0.25,0.50,0.90,0.95], device='cpu'):
              corresponding ev.
             Same array type (torch.Tensor or np.array) as X.
     """
+    ## make sure ev is a list or np.ndarray
+    ev = [ev] if isinstance(ev, (int,float)) else ev
+    assert isinstance(ev, (list,np.ndarray)), 'RH ERROR: ev must be a list or np.ndarray.'
+    ev = np.array(ev)
+
     ## assert there are no nans
     assert np.any(np.isnan(X)) == False, 'RH ERROR: X must not contain NaNs.'
 
-    comps, scores, sv, EVR = torch_pca(X_in=X, device=device, mean_sub=True, zscore=False, return_cpu=True, return_numpy=(True if type(X) == np.ndarray else False))
+    comps, scores, sv, EVR = torch_pca(
+        X_in=X, 
+        device=device,
+        return_numpy=True,
+        mean_sub=mean_sub,
+        zscore=zscore,
+        **kwargs_torchPCA,
+    )
     EVR_cumsum = np.cumsum(np.concatenate([[0], EVR]))
     interp = scipy.interpolate.interp1d(x=EVR_cumsum, y=np.arange(0, len(EVR_cumsum)), kind='linear')
     return interp(ev)
