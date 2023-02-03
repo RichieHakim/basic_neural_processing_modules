@@ -276,6 +276,14 @@ def pairwise_orthogonalization_torch(v1, v2, center:bool=False):
         EVR_total_unweighted (scalar):
             Average amount of variance explained in v1 by v2
     """
+    if isinstance(v1, np.ndarray):
+        v1 = torch.as_tensor(v1)
+        return_np = True
+    else:
+        return_np = False
+    if isinstance(v2, np.ndarray):
+        v2 = torch.as_tensor(v2)
+
 
     assert v1.ndim == v2.ndim
     if v1.ndim==1:
@@ -296,7 +304,11 @@ def pairwise_orthogonalization_torch(v1, v2, center:bool=False):
 
     EVR_total_weighted = torch.sum(v1_var * EVR) / torch.sum(v1_var)
     EVR_total_unweighted = torch.mean(EVR)
-    return v1_orth.squeeze(), EVR, EVR_total_weighted, EVR_total_unweighted
+    
+    if return_np:
+        return v1_orth.numpy(), EVR.numpy(), EVR_total_weighted.numpy(), EVR_total_unweighted.numpy()
+    else:
+        return v1_orth.squeeze(), EVR, EVR_total_weighted, EVR_total_unweighted
 
 
 def OLS(X,y):
