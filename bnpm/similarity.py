@@ -176,7 +176,7 @@ def pair_orth_helper(v1, v2):
             v1 - proj(v1 onto v2)
     """
     return  v1 - (np.diag(np.dot(v1.T, v2)) / np.diag(np.dot(v2.T, v2))) * v2
-def pairwise_orthogonalization(v1, v2, center:bool=False):
+def pairwise_orthogonalization(v1, v2, center:bool=True):
     """
     Orthogonalizes columns of v2 off of the columns of v1
      and returns the orthogonalized v1 and the explained
@@ -236,11 +236,35 @@ def pairwise_orthogonalization(v1, v2, center:bool=False):
 
 
 @torch.jit.script
-def pairwise_orthogonalization_torch(v1, v2, center:bool=False):
+def pairwise_orthogonalization_torch_helper(v1, v2, center:bool=True):
+    # assert v1.ndim == v2.ndim
+    if v1.ndim==1:
+        v1 = v1[:,None]
+    if v2.ndim==1:
+        v2 = v2[:,None]
+    # assert v1.shape[1] == v2.shape[1]
+    assert v1.shape[0] == v2.shape[0]
+    
+    if center:
+        v1 = v1 - torch.mean(v1, dim=0)
+        v2 = v2 - torch.mean(v2, dim=0)
+
+    # v1_orth = v1 - (torch.diag(torch.matmul(v1.T, v2)) / torch.diag(torch.matmul(v2.T, v2)))*v2
+    v1_orth = v1 - (torch.sum(v1 * v2, dim=0) / torch.sum(v2 * v2, dim=0) )*v2
+
+    v1_var = torch.var(v1, dim=0)
+    EVR = 1 - (torch.var(v1_orth, dim=0) / v1_var)
+
+    EVR_total_weighted = torch.sum(v1_var * EVR) / torch.sum(v1_var)
+    EVR_total_unweighted = torch.mean(EVR)
+    return v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted
+def pairwise_orthogonalization_torch(v1, v2, center:bool=True, device='cpu'):
     """
     Orthogonalizes columns of v2 off of the columns of v1
      and returns the orthogonalized v1 and the explained
      variance ratio of v2 off of v1.
+    Use center=True to get guarantee zero correlation between
+     columns of v1_orth and v2.
     v1: y_true, v2: y_pred
     Since it's just pairwise, there should not be any 
      numerical instability issues.
@@ -277,38 +301,10 @@ def pairwise_orthogonalization_torch(v1, v2, center:bool=False):
             Average amount of variance explained in v1 by v2
     """
     if isinstance(v1, np.ndarray):
-        v1 = torch.as_tensor(v1)
-        return_np = True
-    else:
-        return_np = False
+        v1 = torch.from_numpy(v1).to(device)
     if isinstance(v2, np.ndarray):
-        v2 = torch.as_tensor(v2)
-
-
-    assert v1.ndim == v2.ndim
-    if v1.ndim==1:
-        v1 = v1[:,None]
-        v2 = v2[:,None]
-    assert v1.shape[1] == v2.shape[1]
-    assert v1.shape[0] == v2.shape[0]
-    
-    if center:
-        v1 = v1 - torch.mean(v1, dim=0)
-        v2 = v2 - torch.mean(v2, dim=0)
-
-    # v1_orth = v1 - (torch.diag(torch.matmul(v1.T, v2)) / torch.diag(torch.matmul(v2.T, v2)))*v2
-    v1_orth = v1 - (torch.sum(v1 * v2, dim=0) / torch.sum(v2 * v2, dim=0) )*v2
-
-    v1_var = torch.var(v1, dim=0)
-    EVR = 1 - (torch.var(v1_orth, dim=0) / v1_var)
-
-    EVR_total_weighted = torch.sum(v1_var * EVR) / torch.sum(v1_var)
-    EVR_total_unweighted = torch.mean(EVR)
-    
-    if return_np:
-        return v1_orth.numpy(), EVR.numpy(), EVR_total_weighted.numpy(), EVR_total_unweighted.numpy()
-    else:
-        return v1_orth.squeeze(), EVR, EVR_total_weighted, EVR_total_unweighted
+        v2 = torch.from_numpy(v2).to(device)
+    return pairwise_orthogonalization_torch_helper(v1, v2, center=center)
 
 
 def OLS(X,y):
