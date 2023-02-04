@@ -9,6 +9,8 @@ from .. import math_functions
 from ..featurization import Toeplitz_convolution2d
 from ..optimization import Convergence_checker
 
+from ..similarity import pairwise_orthogonalization_torch
+
 def test_toeplitz_convolution2d():
     """
     Test toeplitz_convolution2d
@@ -177,3 +179,36 @@ def test_Convergence_checker():
     assert test_check3, f"'less' mode failed"
 
     # return np.all((test_check1, test_check2, test_check3))
+
+
+def test_pairwise_orthogonalization_torch():
+    import torch
+    torch.manual_seed(0)
+    
+    ## test 1: matrix, matrix, center=True
+    ### make two random matrices with correlated columns
+    v1 = torch.randn(100, 100)
+    v2 = torch.randn(100, 100)
+    v2 = v2 + v1*0.5
+    v1 = v1 / torch.norm(v1, dim=0)
+    v2 = v2 / torch.norm(v2, dim=0)
+    ### orthogonalize v2 off of v1. v1_orth should be orthogonal to v2.
+    v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted = pairwise_orthogonalization_torch(v1, v2, center=True)
+
+    ## test that columns of v1_orth are orthogonal to columns of v2. Check the pairwise correlation along the columns.
+    corr = (v1_orth.T @ v2).diag()
+    assert torch.allclose(corr, torch.zeros_like(corr), atol=1e-5), f"columns of v1_orth are not orthogonal to columns of v2. corr={corr}"
+
+    ## test 2: matrix, vector, center=True
+    ### make a random matrix and vector with correlated columns. Use a master column that is correlated with all columns.
+    master_column = torch.randn(100)
+    v1 = torch.randn(100, 100) + master_column[:,None]*0.5
+    v2 = torch.randn(100) + master_column*0.5
+    v1 = v1 / torch.norm(v1, dim=0)
+    v2 = v2 / torch.norm(v2)
+    ### orthogonalize v2 off of v1. v1_orth should be orthogonal to v2.
+    v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted = pairwise_orthogonalization_torch(v1, v2, center=True)
+    
+    ## test that columns of v1_orth are orthogonal to v2. Check the pairwise correlation along the columns.
+    corr = (v1_orth.T @ v2).diag()
+    assert torch.allclose(corr, torch.zeros_like(corr), atol=1e-5), f"columns of v1_orth are not orthogonal to v2. corr={corr}"
