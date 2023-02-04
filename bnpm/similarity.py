@@ -301,11 +301,21 @@ def pairwise_orthogonalization_torch(v1, v2, center:bool=True, device='cpu'):
             Average amount of variance explained in v1 by v2
     """
     if isinstance(v1, np.ndarray):
-        v1 = torch.from_numpy(v1).to(device)
+        v1 = torch.from_numpy(v1)
+        return_numpy = True
+    else:
+        return_numpy = False
     if isinstance(v2, np.ndarray):
-        v2 = torch.from_numpy(v2).to(device)
-    return pairwise_orthogonalization_torch_helper(v1, v2, center=center)
-
+        v2 = torch.from_numpy(v2)
+    v1 = v1.to(device)
+    v2 = v2.to(device)
+    v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted = pairwise_orthogonalization_torch_helper(v1, v2, center=center)
+    if return_numpy:
+        v1_orth = v1_orth.cpu().numpy()
+        EVR = EVR.cpu().numpy()
+        EVR_total_weighted = EVR_total_weighted.cpu().numpy()
+        EVR_total_unweighted = EVR_total_unweighted.cpu().numpy()
+    return v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted
 
 def OLS(X,y):
     '''
