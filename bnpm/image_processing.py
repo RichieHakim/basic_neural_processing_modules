@@ -123,7 +123,13 @@ def apply_warp_transform(
 
 
 @torch.jit.script
-def phase_correlation_helper(im_template, im_moving, mask_fft=None, template_precomputed: bool=False):
+def phase_correlation_helper(
+    im_template,
+    im_moving,
+    mask_fft=None, 
+    compute_maskFFT: bool=False, 
+    template_precomputed: bool=False
+):
     if im_template.ndim == 2:
         im_template = im_template[None, ...]
     if im_moving.ndim == 2:
@@ -131,20 +137,36 @@ def phase_correlation_helper(im_template, im_moving, mask_fft=None, template_pre
         return_2D = True
     else:
         return_2D = False
-    if mask_fft is not None:
+    if compute_maskFFT:
         mask_fft = mask_fft[None, ...]
 
     dims = (-2, -1)
         
-    mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum(), dim=dims) if mask_fft is not None else 1
+    if compute_maskFFT:
+        mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum(), dim=dims)
+        fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims) * mask_fft) if not template_precomputed else im_template
+        fft_moving = torch.fft.fft2(im_moving, dim=dims) * mask_fft
+    else:
+        fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims)) if not template_precomputed else im_template
+        fft_moving = torch.fft.fft2(im_moving, dim=dims)
 
-    fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims) * mask_fft) if not template_precomputed else im_template
-    fft_moving   = torch.fft.fft2(im_moving, dim=dims) * mask_fft
     R = fft_template * fft_moving
-    R[mask_fft != 0] /= torch.abs(R)[mask_fft != 0]
+
+    if compute_maskFFT:
+        R[mask_fft != 0] /= torch.abs(R)[mask_fft != 0]
+    else:
+        R /= torch.abs(R)
+    
     cc = torch.fft.fftshift(torch.fft.ifft2(R, dim=dims), dim=dims).real
+    
     return cc if not return_2D else cc[0]
-def phase_correlation(im_template, im_moving, mask=None, template_precomputed=False, device='cpu'):
+def phase_correlation(
+    im_template, 
+    im_moving,
+    mask_fft=None, 
+    template_precomputed=False, 
+    device='cpu'
+):
     """
     Perform phase correlation on two images.
     Uses pytorch for speed
@@ -192,18 +214,26 @@ def phase_correlation(im_template, im_moving, mask=None, template_precomputed=Fa
     if isinstance(mask_fft, np.ndarray):
         mask_fft = torch.from_numpy(mask_fft).to(device)
 
-    cc = phase_correlation_helper(im_template, im_moving, mask_fft, template_precomputed)
+    cc = phase_correlation_helper(
+        im_template=im_template,
+        im_moving=im_moving,
+        mask_fft=mask_fft if mask_fft is not None else torch.as_tensor([1], device=device),
+        compute_maskFFT=(mask_fft is not None),
+        template_precomputed=template_precomputed,
+    )
 
     if return_numpy:
         cc = cc.cpu().numpy()
     return cc
 
-@torch.jit.script
+# @torch.jit.script
 def phaseCorrelationImage_to_shift_helper(cc_im):
-    height, width = cc_im.shape
-    shift_y_raw, shift_x_raw = torch_helpers.unravel_index(cc_im.argmax(), cc_im.shape)
-    shift_y, shift_x = (torch.floor(height/2) - shift_y_raw) , (torch.ceil(width/2) - shift_x_raw)
-    return shift_y, shift_x
+    cc_im = cc_im[None,:] if cc_im.ndim==2 else cc_im
+    height, width = torch.as_tensor(cc_im.shape[-2:])
+    idx = torch.argmax(cc_im.reshape(cc_im.shape[0], cc_im.shape[1]*cc_im.shape[2]), dim=1)
+    _, shift_y_raw, shift_x_raw = torch_helpers.unravel_index(idx, cc_im.shape)
+    shifts_y_x = torch.stack(((torch.floor(height/2) - shift_y_raw) , (torch.ceil(width/2) - shift_x_raw)), dim=1)
+    return shifts_y_x
 def phaseCorrelationImage_to_shift(cc_im):
     """
     Convert phase correlation image to pixel shift values.
@@ -218,9 +248,32 @@ def phaseCorrelationImage_to_shift(cc_im):
         shifts (np.ndarray):
             Pixel shift values (y, x).
     """
-    cc_im = torch.from_numpy(cc_im)
-    shift_y, shift_x = phaseCorrelationImage_to_shift_helper(cc_im)
-    return shift_y.item(), shift_x.item()
+    cc_im = torch.as_tensor(cc_im)
+    shifts_y_x = phaseCorrelationImage_to_shift_helper(cc_im)
+    return shifts_y_x
+
+
+def find_translation_shifts(im1, im2, mask_fft=None, device='cpu', dtype=torch.float16):
+    """
+    Convenience function that combines `phase_correlation`
+     and `phaseCorrelationImage_to_shift`
+    
+    Useful for matlab calls.
+    """
+    if mask_fft == 'None':
+        mask_fft = None
+
+    im1_t = torch.as_tensor(im1).type(dtype).to(device)
+    im2_t = torch.as_tensor(im2).type(dtype).to(device)
+    cc = phase_correlation(
+        im1_t, 
+        im2_t, 
+        mask_fft=None,
+        template_precomputed=False, 
+        device=device
+    )
+    y_x = phaseCorrelationImage_to_shift(cc)
+    return y_x.cpu().numpy()
 
 
 def clahe(im, grid_size=50, clipLimit=0, normalize=True):
