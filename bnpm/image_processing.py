@@ -123,7 +123,7 @@ def apply_warp_transform(
 
 
 @torch.jit.script
-def phase_correlation_helper(im_template, im_moving, mask_fft=None, template_precomputed=False):
+def phase_correlation_helper(im_template, im_moving, mask_fft=None, template_precomputed: bool=False):
     if im_template.ndim == 2:
         im_template = im_template[None, ...]
     if im_moving.ndim == 2:
