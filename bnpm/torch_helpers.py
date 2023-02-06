@@ -299,11 +299,11 @@ def nanmin(arr, dim=None, keepdim=False):
 
 def unravel_index(index, shape):
     out = []
-    for dim in reversed(shape):
+    for dim in shape[::-1]:
         out.append(index % dim)
         index = index // dim
-    return tuple(reversed(out))
-    
+    return tuple(out[::-1])
+
 def squeeze_multiple_dims(arr, dims=(0, 1)):
     """
     Squeeze multiple dimensions of a tensor.
