@@ -230,10 +230,10 @@ def phase_correlation(
 def phaseCorrelationImage_to_shift_helper(cc_im):
     cc_im = cc_im[None,:] if cc_im.ndim==2 else cc_im
     height, width = torch.as_tensor(cc_im.shape[-2:])
-    idx = torch.argmax(cc_im.reshape(cc_im.shape[0], cc_im.shape[1]*cc_im.shape[2]), dim=1)
-    _, shift_y_raw, shift_x_raw = torch_helpers.unravel_index(idx, cc_im.shape)
+    vals_max, idx = torch.max(cc_im.reshape(cc_im.shape[0], cc_im.shape[1]*cc_im.shape[2]), dim=1)
+    _, shift_y_raw, shift_x_raw = unravel_index(idx, cc_im.shape)
     shifts_y_x = torch.stack(((torch.floor(height/2) - shift_y_raw) , (torch.ceil(width/2) - shift_x_raw)), dim=1)
-    return shifts_y_x
+    return shifts_y_x, vals_max
 def phaseCorrelationImage_to_shift(cc_im):
     """
     Convert phase correlation image to pixel shift values.
@@ -249,8 +249,8 @@ def phaseCorrelationImage_to_shift(cc_im):
             Pixel shift values (y, x).
     """
     cc_im = torch.as_tensor(cc_im)
-    shifts_y_x = phaseCorrelationImage_to_shift_helper(cc_im)
-    return shifts_y_x
+    shifts_y_x, cc_max = phaseCorrelationImage_to_shift_helper(cc_im)
+    return shifts_y_x, cc_max
 
 
 def find_translation_shifts(im1, im2, mask_fft=None, device='cpu', dtype=torch.float16):
@@ -265,15 +265,15 @@ def find_translation_shifts(im1, im2, mask_fft=None, device='cpu', dtype=torch.f
 
     im1_t = torch.as_tensor(im1).type(dtype).to(device)
     im2_t = torch.as_tensor(im2).type(dtype).to(device)
-    cc = phase_correlation(
+    cc = helpers.phase_correlation(
         im1_t, 
         im2_t, 
         mask_fft=None,
         template_precomputed=False, 
         device=device
     )
-    y_x = phaseCorrelationImage_to_shift(cc)
-    return y_x.cpu().numpy()
+    y_x, cc_max = helpers.phaseCorrelationImage_to_shift(cc)
+    return y_x.cpu().numpy(), cc_max.cpu().numpy()
 
 
 def clahe(im, grid_size=50, clipLimit=0, normalize=True):
