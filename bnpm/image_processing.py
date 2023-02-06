@@ -265,14 +265,14 @@ def find_translation_shifts(im1, im2, mask_fft=None, device='cpu', dtype=torch.f
 
     im1_t = torch.as_tensor(im1).type(dtype).to(device)
     im2_t = torch.as_tensor(im2).type(dtype).to(device)
-    cc = helpers.phase_correlation(
+    cc = phase_correlation(
         im1_t, 
         im2_t, 
         mask_fft=None,
         template_precomputed=False, 
         device=device
     )
-    y_x, cc_max = helpers.phaseCorrelationImage_to_shift(cc)
+    y_x, cc_max = phaseCorrelationImage_to_shift(cc)
     return y_x.cpu().numpy(), cc_max.cpu().numpy()
 
 
