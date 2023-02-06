@@ -9,6 +9,7 @@ import torchvision
 from tqdm.notebook import tqdm
 
 from . import indexing
+from . import torch_helpers
 
 
 def find_registration_transformation(
@@ -169,7 +170,12 @@ def phase_correlation(im_template, im_moving, mask_fft=None, template_precompute
         cc = cc.cpu().numpy()
     return cc
 
-
+@torch.jit.script
+def phaseCorrelationImage_to_shift_helper(cc_im):
+    height, width = cc_im.shape
+    shift_y_raw, shift_x_raw = torch_helpers.unravel_index(cc_im.argmax(), cc_im.shape)
+    shift_y, shift_x = (torch.floor(height/2) - shift_y_raw) , (torch.ceil(width/2) - shift_x_raw)
+    return shift_y, shift_x
 def phaseCorrelationImage_to_shift(cc_im):
     """
     Convert phase correlation image to pixel shift values.
@@ -184,9 +190,9 @@ def phaseCorrelationImage_to_shift(cc_im):
         shifts (np.ndarray):
             Pixel shift values (y, x).
     """
-    height, width = cc_im.shape
-    shift_y_raw, shift_x_raw = np.unravel_index(cc_im.argmax(), cc_im.shape)
-    return int(np.floor(height/2) - shift_y_raw) , int(np.ceil(width/2) - shift_x_raw)
+    cc_im = torch.from_numpy(cc_im)
+    shift_y, shift_x = phaseCorrelationImage_to_shift_helper(cc_im)
+    return shift_y.item(), shift_x.item()
 
 
 def clahe(im, grid_size=50, clipLimit=0, normalize=True):
