@@ -121,39 +121,53 @@ def apply_warp_transform(
     return im_out
 
 
-def phase_correlation(im_template, im_moving, mask_fft=None, template_precomputed=False):
+def phase_correlation(im_template, im_moving, mask_fft=None, template_precomputed=False, device='cpu'):
     """
     Perform phase correlation on two images.
+    Uses pytorch for speed
     RH 2022
     
     Args:
-        im_template (np.ndarray):
-            Template image
-        im_moving (np.ndarray):
+        im_template (np.ndarray or torch.Tensor):
+            Template image.
+            If template_precomputed is True, this is assumed to be:
+             np.conj(np.fft.fft2(im_template) * mask_fft)
+        im_moving (np.ndarray or torch.Tensor):
             Moving image
-        mask_fft (np.ndarray):
+        mask_fft (np.ndarray or torch.Tensor):
             Mask for the FFT.
             If None, no mask is used.
         template_precomputed (bool):
             If True, im_template is assumed to be:
              np.conj(np.fft.fft2(im_template) * mask_fft)
+        device (str):
+            Device to use.
     
     Returns:
         cc (np.ndarray):
             Phase correlation coefficient.
             Middle of image is zero-shift.
     """
-    
-    
-    mask_fft = np.fft.fftshift(mask_fft/mask_fft.sum()) if mask_fft is not None else 1
+    if isinstance(im_template, np.ndarray):
+        im_template = torch.from_numpy(im_template, device=device)
+        return_numpy = True
+    else:
+        return_numpy = False
+    if isinstance(im_moving, np.ndarray):
+        im_moving = torch.from_numpy(im_moving, device=device)
+    if isinstance(mask_fft, np.ndarray):
+        mask_fft = torch.from_numpy(mask_fft, device=device)
 
-    fft_template = np.conj(np.fft.fft2(im_template) * mask_fft) if not template_precomputed else im_template
-    fft_moving   = np.fft.fft2(im_moving) * mask_fft
+    mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum()) if mask_fft is not None else 1
+
+    fft_template = torch.conj(torch.fft.fft2(im_template) * mask_fft) if not template_precomputed else im_template
+    fft_moving   = torch.fft.fft2(im_moving) * mask_fft
     R = fft_template * fft_moving
-    R[mask_fft != 0] /= np.abs(R)[mask_fft != 0]
-    cc = np.fft.fftshift(np.fft.ifft2(R)).real
+    R[mask_fft != 0] /= torch.abs(R)[mask_fft != 0]
+    cc = torch.fft.fftshift(torch.fft.ifft2(R)).real
+    if return_numpy:
+        cc = cc.cpu().numpy()
     return cc
-
 
 
 def phaseCorrelationImage_to_shift(cc_im):
