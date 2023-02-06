@@ -297,7 +297,13 @@ def nanmin(arr, dim=None, keepdim=False):
     arr_no_nan = arr.masked_fill(nan_mask, float('inf'))
     return torch.min(arr_no_nan, **kwargs)
 
-
+def unravel_index(index, shape):
+    out = []
+    for dim in reversed(shape):
+        out.append(index % dim)
+        index = index // dim
+    return tuple(reversed(out))
+    
 def squeeze_multiple_dims(arr, dims=(0, 1)):
     """
     Squeeze multiple dimensions of a tensor.
