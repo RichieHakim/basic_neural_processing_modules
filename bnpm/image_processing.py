@@ -122,7 +122,29 @@ def apply_warp_transform(
     return im_out
 
 
-def phase_correlation(im_template, im_moving, mask_fft=None, template_precomputed=False, device='cpu'):
+@torch.jit.script
+def phase_correlation_helper(im_template, im_moving, mask_fft=None, template_precomputed=False):
+    if im_template.ndim == 2:
+        im_template = im_template[None, ...]
+    if im_moving.ndim == 2:
+        im_moving = im_moving[None, ...]
+        return_2D = True
+    else:
+        return_2D = False
+    if mask_fft is not None:
+        mask_fft = mask_fft[None, ...]
+
+    dims = (-2, -1)
+        
+    mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum(), dim=dims) if mask_fft is not None else 1
+
+    fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims) * mask_fft) if not template_precomputed else im_template
+    fft_moving   = torch.fft.fft2(im_moving, dim=dims) * mask_fft
+    R = fft_template * fft_moving
+    R[mask_fft != 0] /= torch.abs(R)[mask_fft != 0]
+    cc = torch.fft.fftshift(torch.fft.ifft2(R, dim=dims), dim=dims).real
+    return cc if not return_2D else cc[0]
+def phase_correlation(im_template, im_moving, mask=None, template_precomputed=False, device='cpu'):
     """
     Perform phase correlation on two images.
     Uses pytorch for speed
@@ -130,17 +152,28 @@ def phase_correlation(im_template, im_moving, mask_fft=None, template_precompute
     
     Args:
         im_template (np.ndarray or torch.Tensor):
-            Template image.
+            Template image(s).
+            If ndim=2, a single image is assumed.
+                shape: (height, width)
+            if ndim=3, multiple images are assumed, dim=0 is the batch dim.
+                shape: (batch, height, width)
+                dim 0 should either be length 1 or the same as im_moving.
             If template_precomputed is True, this is assumed to be:
-             np.conj(np.fft.fft2(im_template) * mask_fft)
+             np.conj(np.fft.fft2(im_template, axis=(1,2)) * mask_fft)
         im_moving (np.ndarray or torch.Tensor):
-            Moving image
+            Moving image(s).
+            If ndim=2, a single image is assumed.
+                shape: (height, width)
+            if ndim=3, multiple images are assumed, dim=0 is the batch dim.
+                shape: (batch, height, width)
+                dim 0 should either be length 1 or the same as im_template.
         mask_fft (np.ndarray or torch.Tensor):
             Mask for the FFT.
+            Shape: (height, width)
             If None, no mask is used.
         template_precomputed (bool):
             If True, im_template is assumed to be:
-             np.conj(np.fft.fft2(im_template) * mask_fft)
+             np.conj(np.fft.fft2(im_template, axis=(1,2)) * mask_fft)
         device (str):
             Device to use.
     
@@ -159,13 +192,8 @@ def phase_correlation(im_template, im_moving, mask_fft=None, template_precompute
     if isinstance(mask_fft, np.ndarray):
         mask_fft = torch.from_numpy(mask_fft).to(device)
 
-    mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum()) if mask_fft is not None else 1
+    cc = phase_correlation_helper(im_template, im_moving, mask_fft, template_precomputed)
 
-    fft_template = torch.conj(torch.fft.fft2(im_template) * mask_fft) if not template_precomputed else im_template
-    fft_moving   = torch.fft.fft2(im_moving) * mask_fft
-    R = fft_template * fft_moving
-    R[mask_fft != 0] /= torch.abs(R)[mask_fft != 0]
-    cc = torch.fft.fftshift(torch.fft.ifft2(R)).real
     if return_numpy:
         cc = cc.cpu().numpy()
     return cc
