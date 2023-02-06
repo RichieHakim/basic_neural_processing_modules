@@ -231,7 +231,7 @@ def phaseCorrelationImage_to_shift_helper(cc_im):
     cc_im = cc_im[None,:] if cc_im.ndim==2 else cc_im
     height, width = torch.as_tensor(cc_im.shape[-2:])
     vals_max, idx = torch.max(cc_im.reshape(cc_im.shape[0], cc_im.shape[1]*cc_im.shape[2]), dim=1)
-    _, shift_y_raw, shift_x_raw = unravel_index(idx, cc_im.shape)
+    _, shift_y_raw, shift_x_raw = torch_helpers.unravel_index(idx, cc_im.shape)
     shifts_y_x = torch.stack(((torch.floor(height/2) - shift_y_raw) , (torch.ceil(width/2) - shift_x_raw)), dim=1)
     return shifts_y_x, vals_max
 def phaseCorrelationImage_to_shift(cc_im):
