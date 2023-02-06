@@ -149,14 +149,14 @@ def phase_correlation(im_template, im_moving, mask_fft=None, template_precompute
             Middle of image is zero-shift.
     """
     if isinstance(im_template, np.ndarray):
-        im_template = torch.from_numpy(im_template, device=device)
+        im_template = torch.from_numpy(im_template).to(device)
         return_numpy = True
     else:
         return_numpy = False
     if isinstance(im_moving, np.ndarray):
-        im_moving = torch.from_numpy(im_moving, device=device)
+        im_moving = torch.from_numpy(im_moving).to(device)
     if isinstance(mask_fft, np.ndarray):
-        mask_fft = torch.from_numpy(mask_fft, device=device)
+        mask_fft = torch.from_numpy(mask_fft).to(device)
 
     mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum()) if mask_fft is not None else 1
 
