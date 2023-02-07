@@ -168,23 +168,28 @@ def amplitude_basis_expansion(y, LUT, kernels):
     return y_expanded
 
 
-def make_distance_image(center_idx, vid_height, vid_width):
+def make_distance_image(im_height=512, im_width=512, idx_center_yx=(256, 256)):
     """
     creates a matrix of cartesian coordinate distances from the center
     RH 2021
     
     Args:
-        center_idx (list): chosen center index
-        vid_height (int): height of the video in pixels
-        vid_width (int): width of the video in pixels
+        im_height (int):
+            height of image
+        im_width (int):
+            width of image
+        idx_center (tuple):
+            center index (y, x) - 0-indexed
 
     Returns:
-        distance_image (np.ndarray): array of distances to the center index
+        distance_image (np.ndarray): 
+            array of distances to the center index
 
     """
 
-    x, y = np.meshgrid(range(vid_width), range(vid_height))  # note dim 1:X and dim 2:Y
-    return np.sqrt((y - int(center_idx[1])) ** 2 + (x - int(center_idx[0])) ** 2)
+    # create meshgrid
+    x, y = np.meshgrid(range(im_width), range(im_height))  # note dim 1:X and dim 2:Y
+    return np.sqrt((y - int(idx_center_yx[1])) ** 2 + (x - int(idx_center_yx[0])) ** 2)
 
 
 def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
