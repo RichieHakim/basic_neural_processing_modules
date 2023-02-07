@@ -275,6 +275,45 @@ def find_translation_shifts(im1, im2, mask_fft=None, device='cpu', dtype=torch.f
     y_x, cc_max = phaseCorrelationImage_to_shift(cc)
     return y_x.cpu().numpy(), cc_max.cpu().numpy()
 
+def mask_image_border(im, border_inner, border_outer, mask_value=0):
+    """
+    Mask an image with a border.
+    RH 2022
+
+    Args:
+        im (np.ndarray):
+            Input image.
+        border_inner (int):
+            Inner border width.
+            Number of pixels in the center to mask.
+            Value is the edge length of the center square.
+        border_outer (int):
+            Outer border width.
+            Number of pixels in the border to mask.
+        mask_value (float):
+            Value to mask with.
+    
+    Returns:
+        im_out (np.ndarray):
+            Output image.
+    """
+    ## Find the center of the image
+    height, width = im.shape
+    center_y = cy = int(np.floor(height/2))
+    center_x = cx = int(np.floor(width/2))
+
+    ## make edge_lengths
+    center_edge_length = cel = int(np.ceil(border_inner/2))
+    outer_edge_length = oel = int(border_outer)
+
+    ## Mask the center
+    im[cy-cel:cy+cel, cx-cel:cx+cel] = mask_value
+    ## Mask the border
+    im[:oel, :] = mask_value
+    im[-oel:, :] = mask_value
+    im[:, :oel] = mask_value
+    im[:, -oel:] = mask_value
+    return im
 
 def clahe(im, grid_size=50, clipLimit=0, normalize=True):
     """
