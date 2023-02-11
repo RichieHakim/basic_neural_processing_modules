@@ -257,7 +257,7 @@ def make_cosine_taurus(offset, width):
     c_idx = (l-1)/2
     cosine = np.cos(np.linspace((-np.pi) , (np.pi), width)) + 1
     cosine = np.concatenate((np.zeros(offset), cosine))
-    dist_im = make_distance_image([c_idx , c_idx], l, l)
+    dist_im = make_distance_grid([c_idx , c_idx])
     taurus = cosine[np.searchsorted(np.arange(len(cosine)), dist_im, side='left')-1]
     return taurus
 
