@@ -168,29 +168,40 @@ def amplitude_basis_expansion(y, LUT, kernels):
     return y_expanded
 
 
-def make_distance_image(im_height=512, im_width=512, idx_center_yx=(256, 256)):
+def make_distance_grid(shape=(512,512), p=2):
     """
-    creates a matrix of cartesian coordinate distances from the center
-    RH 2021
+    Creates a matrix of distances from the center.
+    Can calculate the Minkowski distance for any p.
+    RH 2023
     
     Args:
-        im_height (int):
-            height of image
-        im_width (int):
-            width of image
-        idx_center (tuple):
-            center index (y, x) - 0-indexed
+        shape (Tuple[int, int, ...]):
+            Shape of the n-dimensional grid (i,j,k,...)
+            If a shape value is odd, the center will be the center
+             of that dimension. If a shape value is even, the center
+             will be between the two center points.
+        p (int):
+            Order of the Minkowski distance.
+            p=1 is the Manhattan distance
+            p=2 is the Euclidean distance
+            p=inf is the Chebyshev distance
 
     Returns:
         distance_image (np.ndarray): 
             array of distances to the center index
 
     """
+    axes = [np.arange(-(d - 1) / 2, (d - 1) / 2 + 0.5) for d in shape]
+    grid_dist = np.linalg.norm(
+        np.stack(
+            np.meshgrid(*axes),
+            axis=0,
+        ),
+        ord=p,
+        axis=0,
+    )
 
-    # create meshgrid
-    x, y = np.meshgrid(range(im_width), range(im_height))  # note dim 1:X and dim 2:Y
-    return np.sqrt((y - int(idx_center_yx[1])) ** 2 + (x - int(idx_center_yx[0])) ** 2)
-
+    return grid_dist
 
 def gaussian_kernel_2D(center = (5, 5), image_size = (11, 11), sig = 1):
     """
