@@ -63,10 +63,10 @@ def convolve_along_axis(
 
         kernel = np.ascontiguousarray(kernel)
         if axis==0:
-            output_list = parallel_helpers.map_parallel(convFun_axis0, [range(array.shape[1])], method='multithreading', workers=-1, prog_bar=True)
+            output_list = parallel_helpers.map_parallel(convFun_axis0, [range(array.shape[1])], method='multithreading', workers=-1, prog_bar=verbose)
             # output_list = parallel_helpers.multithreading(convFun_axis0, range(array.shape[1]), workers=None)
         if axis==1:
-            output_list = parallel_helpers.map_parallel(convFun_axis1, [range(array.shape[0])], method='multithreading', workers=-1, prog_bar=True)
+            output_list = parallel_helpers.map_parallel(convFun_axis1, [range(array.shape[0])], method='multithreading', workers=-1, prog_bar=verbose)
             # output_list = parallel_helpers.multithreading(convFun_axis1, range(array.shape[0]), workers=None)
         
         if verbose:
@@ -195,7 +195,15 @@ def scale_between(
     return x_out
 
 
-def rolling_percentile_pd(X, ptile=50, window=21, interpolation='linear', output_type='numpy', **kwargs):
+def rolling_percentile_pd(
+    X, 
+    ptile=50, 
+    window=21, 
+    interpolation='linear', 
+    multiprocessing_pref=True,
+    prog_bar=False,
+    **kwargs_rolling
+):
     '''
     Computes a rolling percentile over one dimension 
      (defaults to dim 1 / rows).
@@ -226,7 +234,7 @@ def rolling_percentile_pd(X, ptile=50, window=21, interpolation='linear', output
         output_type (string):
             Either 'numpy' or 'pandas'
             If 'numpy', then output is a continguous array
-        **kwargs (dict):
+        **kwargs_rolling (dict):
             kwargs for pandas.DataFrame.rolling function call.
             https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.rolling.html
             Includes: min_periods, center, axis, win_type, closed
@@ -236,24 +244,48 @@ def rolling_percentile_pd(X, ptile=50, window=21, interpolation='linear', output
             Output array of signals.
     '''
     
-    if 'min_periods' not in kwargs:
-        kwargs['min_periods'] = 1
-    if 'center' not in kwargs:
-        kwargs['center'] = True
-    if 'axis' not in kwargs:
-        kwargs['axis'] = 1
-    if 'win_type' not in kwargs:
-        kwargs['win_type'] = None
-    if 'closed' not in kwargs:
-        kwargs['closed'] = None
-        
-    if not isinstance(X, pd.core.frame.DataFrame):
-        X = pd.DataFrame(X)
-    output = X.rolling(window=window, **kwargs).quantile(ptile/100, interpolation=interpolation)
-    if output_type == 'numpy':
-        output = np.ascontiguousarray(output)
-    return output
+    if 'min_periods' not in kwargs_rolling:
+        kwargs_rolling['min_periods'] = 1
+    if 'center' not in kwargs_rolling:
+        kwargs_rolling['center'] = True
+    if 'axis' not in kwargs_rolling:
+        kwargs_rolling['axis'] = 1
+    if 'win_type' not in kwargs_rolling:
+        kwargs_rolling['win_type'] = None
+    if 'closed' not in kwargs_rolling:
+        kwargs_rolling['closed'] = None
 
+    from functools import partial
+    _rolling_ptile_pd_helper_partial = partial(_rolling_ptile_pd_helper, win=window, ptile=ptile, kwargs_rolling=kwargs_rolling, interpolation=interpolation)
+
+    if multiprocessing_pref:
+        from .parallel_helpers import map_parallel
+        from .indexing import make_batches
+        import multiprocessing as mp
+        n_batches = mp.cpu_count()
+        batches = make_batches(X, num_batches=n_batches)
+        output = map_parallel(
+            _rolling_ptile_pd_helper_partial,
+            [list(batches)],
+            method='multiprocessing',
+            prog_bar=False,
+        )
+        output = np.concatenate(output, axis=0)
+    else:
+        output = _rolling_ptile_pd_helper_partial(X)
+
+    return output
+def _rolling_ptile_pd_helper(X, win, ptile, kwargs_rolling, interpolation='linear'):
+    return pd.DataFrame(X).rolling(
+        window=win, 
+        **kwargs_rolling
+    ).quantile(
+        ptile/100, 
+        numeric_only=True, 
+        interpolation=interpolation, 
+        engine='numba', 
+        engine_kwargs={'nopython': True, 'nogil': True, 'parallel': True}
+    ).to_numpy()
 
 def rolling_percentile_rq(x_in, window, ptile=10, stride=1, center=True):
     import rolling_quantiles as rq
