@@ -231,9 +231,10 @@ def rolling_percentile_pd(
             For details see: pandas.core.window.rolling.Rolling.quantile
             https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.core.window.rolling.Rolling.quantile.html
             Can be: linear, lower, higher, nearest, midpoint
-        output_type (string):
-            Either 'numpy' or 'pandas'
-            If 'numpy', then output is a continguous array
+        multiprocessing_pref (bool):
+            Whether to use multiprocessing to speed up the calculation.
+        prog_bar (bool):
+            Whether to show a progress bar. For multiprocessing.
         **kwargs_rolling (dict):
             kwargs for pandas.DataFrame.rolling function call.
             https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.rolling.html
@@ -268,7 +269,7 @@ def rolling_percentile_pd(
             _rolling_ptile_pd_helper_partial,
             [list(batches)],
             method='multiprocessing',
-            prog_bar=False,
+            prog_bar=prog_bar,
         )
         output = np.concatenate(output, axis=0)
     else:
@@ -761,7 +762,7 @@ def percentile_numba(X, ptile):
     
     Returns:
         X_ptile (ndarray):
-            1-D array. Percentiles of X
+            Percentiles of X
     '''
 
     X_ptile = np.zeros(X.shape[0])
