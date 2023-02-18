@@ -56,7 +56,7 @@ def make_dFoF(
     tic = time.time()
 
     F = torch.as_tensor(F, dtype=torch.float32) + channelOffset_correction
-    Fneu = torch.as_tensor(Fneu, dtype=torch.float32) + channelOffset_correction
+    Fneu = torch.as_tensor(Fneu, dtype=torch.float32) + channelOffset_correction if Fneu is not None else 0
 
     if Fneu is None:
         F_neuSub = F
