@@ -19,6 +19,7 @@ def convolve_along_axis(
     kernel, 
     axis=1 , 
     mode='same', 
+    correct_edge_effects=True,
     multicore_pref=False, 
     verbose=False
     ):
@@ -48,6 +49,13 @@ def convolve_along_axis(
             axis to convolve array along. NOT USED IF multicore_pref==True
         mode (str): 
             see numpy.convolve documentation. Can be 'valid', 'same', 'full'
+        correct_edge_effects (bool):
+            Whether or not to correct for edge effects.
+            Here, correcting for edge effects means to
+             normalize each time point by the number of
+             samples actually used in the convolution 
+             at each time point
+            
     Returns:
         output (np.ndarray): input array convolved with kernel
     '''
@@ -79,6 +87,17 @@ def convolve_along_axis(
 
     else:
         output = np.apply_along_axis(lambda m: np.convolve(m, kernel, mode=mode), axis=axis, arr=array)
+
+    if correct_edge_effects:
+        trace_norm = np.convolve(
+            a=np.ones(array.shape[axis]),
+            v=kernel,
+            mode=mode
+            )
+
+        trace_norm_padded = indexing.pad_with_singleton_dims(trace_norm, n_dims_pre=axis, n_dims_post=array.ndim-axis-1)
+
+        output = output / trace_norm_padded
 
     if verbose:
         print(f'Calculated convolution. Total elapsed time: {round(time.time() - tic,2)} seconds')
@@ -549,23 +568,11 @@ def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same', correct_edge_ef
         kernel=gaus,
         axis=axis, 
         mode=mode, 
+        correct_edge_effects=correct_edge_effects,
         multicore_pref=True, 
         verbose=False
         )
     
-    if correct_edge_effects:
-        trace_norm = np.convolve(
-            a=np.ones(arr.shape[axis]),
-            v=gaus,
-            mode=mode
-            )
-
-        trace_norm_padded = indexing.pad_with_singleton_dims(trace_norm, n_dims_pre=axis, n_dims_post=arr.ndim-axis-1)
-
-        arr_conv_corrected = arr_conv / trace_norm_padded
-
-        return arr_conv_corrected
-    else:
         return arr_conv
 
 ####################################
