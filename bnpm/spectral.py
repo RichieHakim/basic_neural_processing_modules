@@ -19,11 +19,11 @@ from . import math_functions, timeSeries, indexing
 from tqdm import tqdm
 
 
-def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
+def design_butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
     '''
     designs a butterworth bandpass filter.
-    Found on a stackoverflow, but can't find it
-     anymore.
+    Makes a lowpass filter if lowcut is 0.
+    Makes a highpass filter if highcut is fs/2.
     RH 2021
 
         Args:
@@ -45,14 +45,18 @@ def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
-    b, a = scipy.signal.butter(order, [low, high], btype='band')
+
+    if low <= 0:
+        ## Make a lowpass filter
+        b, a = scipy.signal.butter(N=order, Wn=high, btype='low')
+    elif high >= 1:
+        ## Make a highpass filter
+        b, a = scipy.signal.butter(N=order, Wn=low, btype='high')
+    else:
+        b, a = scipy.signal.butter(N=order, Wn=[low, high], btype='band')
     
     if plot_pref:
-        w, h = scipy.signal.freqz(b, a, worN=2000)
-        plt.figure()
-        plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
-        plt.xlabel('frequency (Hz)')
-        plt.ylabel('frequency response (a.u)')
+        plot_digital_filter_response(b=b, a=a, fs=fs, worN=100000)
     return b, a
 
 
@@ -78,9 +82,78 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, axis=-1, order=5, plot_pre
             y (ndarray): 
                 filtered data array
     '''
-    b, a = butter_bandpass(lowcut, highcut, fs, order=order, plot_pref=plot_pref)
+    b, a = design_butter_bandpass(lowcut, highcut, fs, order=order, plot_pref=plot_pref)
     y = scipy.signal.lfilter(b, a, data, axis=axis)
     return y
+
+
+def design_fir_bandpass(lowcut, highcut, num_taps=30001, fs=30, window='hamming', plot_pref=True):
+    '''
+    designs a FIR bandpass filter.
+    Makes a lowpass filter if lowcut is 0.
+    Makes a highpass filter if highcut is fs/2.
+    RH 2021
+
+        Args:
+            lowcut (scalar): 
+                frequency (in Hz) of low pass band
+            highcut (scalar):  
+                frequency (in Hz) of high pass band
+            num_taps (int): 
+                number of taps in the filter
+            fs (scalar): 
+                sample rate (frequency in Hz)
+        
+        Returns:
+            b (ndarray): 
+                Numerator polynomial coeffs of the IIR filter
+            a (ndarray): 
+                Denominator polynomials coeffs of the IIR filter
+    '''
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+
+    if low <= 0:
+        ## Make a lowpass filter
+        b = scipy.signal.firwin(numtaps=num_taps, cutoff=high, window=window, pass_zero=True)
+    elif high >= 1:
+        ## Make a highpass filter
+        b = scipy.signal.firwin(numtaps=num_taps, cutoff=low, window=window, pass_zero=False)
+    else:
+        b = scipy.signal.firwin(numtaps=num_taps, cutoff=[low, high], window=window, pass_zero=False)
+
+    if plot_pref:
+        plot_digital_filter_response(b=b, fs=fs, worN=100000)
+    return b
+
+
+def plot_digital_filter_response(b, a=None, fs=30, worN=100000, plot_pref=True):
+    '''
+    plots the frequency response of a digital filter
+    RH 2021
+
+        Args:
+            b (ndarray): 
+                Numerator polynomial coeffs of the IIR filter
+            a (ndarray): 
+                Denominator polynomials coeffs of the IIR filter
+            fs (scalar): 
+                sample rate (frequency in Hz)
+            worN (int): 
+                number of frequencies at which to evaluate the filter
+    '''
+    w, h = scipy.signal.freqz(b, a, worN=worN) if a is not None else scipy.signal.freqz(b, worN=worN)
+    xAxis = (fs * 0.5 / np.pi) * w
+
+    if plot_pref:
+        plt.figure()
+        plt.plot(xAxis, abs(h))
+        plt.xlabel('frequency (Hz)')
+        plt.ylabel('frequency response (a.u)')
+        plt.xscale('log')
+
+    return xAxis, abs(h)
 
 
 def mtaper_specgram(
