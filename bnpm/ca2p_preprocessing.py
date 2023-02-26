@@ -18,15 +18,16 @@ def make_dFoF(
     Fneu=None, 
     neuropil_fraction=0.7, 
     percentile_baseline=30, 
+    rolling_percentile_window=None,
     channelOffset_correction=0,
     multicore_pref=False, 
     verbose=True,
     ):
     """
-    calculates the dF/F and other signals. Designed for Suite2p data.
+    Calculates the dF/F and other signals. Designed for Suite2p data.
     If Fneu is left empty or =None, then no neuropil subtraction done.
     See S2p documentation for more details
-    RH 2021
+    RH 2021-2023
     
     Args:
         F (np.ndarray): 
@@ -37,6 +38,9 @@ def make_dFoF(
             value, 0-1, of neuropil signal (Fneu) to be subtracted off of ROI signals (F)
         percentile_baseline (float/int): 
             value, 0-100, of percentile to be subtracted off from signals
+        rolling_percentile_window (int):
+            window size for rolling percentile. 
+            If None, then a single percentile is calculated for the entire trace.
         channelOffset_correction (float):
             value to be added to F and Fneu to correct for channel offset
         verbose (bool): 
@@ -63,15 +67,21 @@ def make_dFoF(
     else:
         F_neuSub = F - neuropil_fraction*Fneu
 
-    if multicore_pref:
-        F_baseline = percentile_numba(F_neuSub.numpy(), percentile_baseline)
-        # F_baseline = torch.quantile(F_neuSub, percentile_baseline/100, dim=1)
+    if rolling_percentile_window is None:
+        F_baseline = percentile_numba(F_neuSub.numpy(), ptile=percentile_baseline) if multicore_pref else np.percentile(F_neuSub.numpy() , percentile_baseline , axis=1)
     else:
-        F_baseline = np.percentile(F_neuSub.numpy() , percentile_baseline , axis=1)
+        from .timeSeries import rolling_percentile_pd
+        F_baseline = rolling_percentile_pd(
+            F_neuSub.numpy(), 
+            ptile=percentile_baseline, 
+            window=rolling_percentile_window, 
+            multiprocessing_pref=multicore_pref, 
+            prog_bar=verbose
+        )
     F_baseline = torch.as_tensor(F_baseline, dtype=torch.float32)
 
-    dF = F_neuSub - F_baseline[:,None]
-    dFoF = dF / F_baseline[:,None]
+    dF = F_neuSub - F_baseline[:,None] if F_baseline.ndim==1 else F_neuSub - F_baseline
+    dFoF = dF / F_baseline[:,None] if F_baseline.ndim==1 else dF / F_baseline
 
     if verbose:
         print(f'Calculated dFoF. Total elapsed time: {round(time.time() - tic,2)} seconds')
@@ -85,16 +95,43 @@ def import_s2p(dir_s2p):
     """
     dir_S2p = Path(dir_s2p).resolve()
 
-    F = np.load(dir_s2p / 'F.npy')
-    Fneu = np.load(dir_s2p / 'Fneu.npy')
-    iscell = np.load(dir_s2p / 'iscell.npy')
-    ops = np.load(dir_s2p / 'ops.npy', allow_pickle=True)[()]
-    spks = np.load(dir_s2p / 'spks.npy')
-    stat = np.load(dir_s2p / 'stat.npy', allow_pickle=True)
+    try:
+        F = np.load(dir_s2p / 'F.npy')
+    except FileNotFoundError:
+        print(f'F.npy not found in {dir_s2p}')
+        F = None
 
-    num_frames_S2p = F.shape[1]
+    try:
+        Fneu = np.load(dir_s2p / 'Fneu.npy')
+    except FileNotFoundError:
+        print(f'Fneu.npy not found in {dir_s2p}')
+        Fneu = None
 
-    return F , Fneu , iscell , ops , spks , stat , num_frames_S2p
+    try:
+        iscell = np.load(dir_s2p / 'iscell.npy')
+    except FileNotFoundError:
+        print(f'iscell.npy not found in {dir_s2p}')
+        iscell = None
+
+    try:
+        ops = np.load(dir_s2p / 'ops.npy', allow_pickle=True)[()]
+    except FileNotFoundError:
+        print(f'ops.npy not found in {dir_s2p}')
+        ops = None
+
+    try:
+        spks = np.load(dir_s2p / 'spks.npy')
+    except FileNotFoundError:
+        print(f'spks.npy not found in {dir_s2p}')
+        spks = None
+
+    try:
+        stat = np.load(dir_s2p / 'stat.npy', allow_pickle=True)
+    except FileNotFoundError:
+        print(f'stat.npy not found in {dir_s2p}')
+        stat = None
+        
+    return F, Fneu, iscell, ops, spks, stat
 
 
 @njit(parallel=True)
