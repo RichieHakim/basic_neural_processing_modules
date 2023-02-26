@@ -573,7 +573,7 @@ def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same', correct_edge_ef
         verbose=False
         )
     
-        return arr_conv
+    return arr_conv
 
 ####################################
 ######## PYTORCH algorithms ########
