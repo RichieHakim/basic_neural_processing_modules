@@ -246,17 +246,17 @@ def pairwise_orthogonalization_torch_helper(v1, v2, center:bool=True):
     assert v1.shape[0] == v2.shape[0]
     
     if center:
-        v1 = v1 - torch.mean(v1, dim=0)
-        v2 = v2 - torch.mean(v2, dim=0)
+        v1 = v1 - torch.nanmean(v1, dim=0)
+        v2 = v2 - torch.nanmean(v2, dim=0)
 
     # v1_orth = v1 - (torch.diag(torch.matmul(v1.T, v2)) / torch.diag(torch.matmul(v2.T, v2)))*v2
-    v1_orth = v1 - (torch.sum(v1 * v2, dim=0) / torch.sum(v2 * v2, dim=0) )*v2
+    v1_orth = v1 - (torch.nansum(v1 * v2, dim=0) / torch.nansum(v2 * v2, dim=0) )*v2
 
     v1_var = torch.var(v1, dim=0)
     EVR = 1 - (torch.var(v1_orth, dim=0) / v1_var)
 
-    EVR_total_weighted = torch.sum(v1_var * EVR) / torch.sum(v1_var)
-    EVR_total_unweighted = torch.mean(EVR)
+    EVR_total_weighted = torch.nansum(v1_var * EVR) / torch.sum(v1_var)
+    EVR_total_unweighted = torch.nanmean(EVR)
     return v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted
 def pairwise_orthogonalization_torch(v1, v2, center:bool=True, device='cpu'):
     """
