@@ -119,6 +119,18 @@ def delete_all_cuda_tensors(globals):
             if globals[i_key].device.type == 'cuda':
                 print(f'deleting: {i_key}, size: {globals[i_key].element_size() * globals[i_key].nelement()/1000000} MB')
                 del(globals[i_key])
+    
+    clear_cuda_cache()
+
+def clear_cuda_cache():
+    """
+    Clear cuda cache.
+    """
+    torch.cuda.empty_cache()
+    gc.collect()
+    torch.cuda.empty_cache()
+    gc.collect()
+    torch.cuda.empty_cache()
     gc.collect()
     torch.cuda.empty_cache()
 
