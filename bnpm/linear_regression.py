@@ -79,6 +79,8 @@ def Ridge(X, y, lam=1, add_bias_terms=False):
             regression coefficents
         y_rec (ndarray):
             y reconstructions
+        bias (ndarray):
+            bias terms
     '''
     if X.ndim==1:
         X = X[:,None]
