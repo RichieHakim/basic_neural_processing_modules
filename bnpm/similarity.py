@@ -317,33 +317,6 @@ def pairwise_orthogonalization_torch(v1, v2, center:bool=True, device='cpu'):
         EVR_total_unweighted = EVR_total_unweighted.cpu().numpy()
     return v1_orth, EVR, EVR_total_weighted, EVR_total_unweighted
 
-def OLS(X,y):
-    '''
-    Ordinary Least Squares regression.
-    This method works great and is fast under most conditions.
-    It tends to do poorly when X.shape[1] is small or too big 
-     (overfitting can occur). Using OLS + EV is probably
-     better than the 'orthogonalize' function.
-    RH 2021
-
-    Args:
-        X (ndarray):
-            array where columns are vectors to regress against 'y'
-        y (ndarray):
-            1-D or 2-D array
-    Returns:
-        theta (ndarray):
-            regression coefficents
-        y_rec (ndarray):
-            y reconstructions
-    '''
-    if X.ndim==1:
-        X = X[:,None]
-    theta = np.linalg.inv(X.T @ X) @ X.T @ y
-    y_rec = X @ theta
-    return theta, y_rec
-
-
 def EV(y_true, y_pred):
     '''
     Explained Variance
