@@ -3,6 +3,7 @@ from numba import jit, njit, prange
 import copy
 import scipy.signal
 import matplotlib.pyplot as plt
+import torch
 
 
 def widen_boolean(arr, n_before, n_after, axis=None):
@@ -702,7 +703,7 @@ def merge_sparse_arrays(s_list, idx_list, shape_full, remove_redundant=True, eli
 
 
 ####################################################################################################
-##################################### TENSOR OPERATIONS ###########################################
+##################################### TENSOR OPERATIONS ############################################
 ####################################################################################################
 
 def cp_to_kruskal(cp):
@@ -724,3 +725,42 @@ def cp_to_kruskal(cp):
     rank = cp[0].shape[1]
     k = [[cp[m][:,r] for m in range(len(cp))] for r in range(rank)]
     return k
+
+def kruskal_to_dense(k, weights=None):
+    """
+    Converts a list (of length rank) of lists (of length n_modes) of
+     vectors (of length len_dim) [Kruskal format] to a dense tensor
+     (of shape (len_dim, len_dim, ...))
+    RH 2022
+
+    Args:
+        k (list of list of np.ndarray):
+            List of lists of vectors in Kruskal format.
+
+    Returns:
+        dense (np.ndarray):
+            Dense tensor
+    """
+    assert isinstance(k, list), 'k must be a list'
+    assert isinstance(k[0], list), 'k must be a list of lists'
+    assert all([len(k[0]) == len(k[r]) for r in range(len(k))]), 'each mode must have the same size'
+
+
+    ## check if numpy or torch
+    if isinstance(k[0][0], np.ndarray):
+        zeros = np.zeros
+        einsum = np.einsum
+        weights = np.array(weights).astype(k[0][0].dtype) if weights is not None else np.ones(len(k)).astype(k[0][0].dtype)
+    elif isinstance(k[0][0], torch.Tensor):
+        zeros = torch.zeros
+        einsum = torch.einsum
+        weights = torch.as_tensor(weights).type(k[0][0].dtype).to(k[0][0].device) if weights is not None else torch.ones(len(k)).type(k[0][0].dtype).to(k[0][0].device)
+
+    rank = len(k)
+    n_modes = len(k[0])
+    dense = zeros([k[0][m].shape[0] for m in range(n_modes)]).type(k[0][0].dtype).to(k[0][0].device)
+    for r in range(rank):
+        ## take the outer product of the n vectors in each mode and add to the dense tensor
+        dense += einsum(','.join([chr(97+m) for m in range(n_modes)]) + '->' + ''.join([chr(97+m) for m in range(n_modes)]), *k[r]) * weights[r]
+
+    return dense
