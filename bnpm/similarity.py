@@ -14,7 +14,6 @@ Functions and Interdependencies:
         - best_permutation
 '''
 import numpy as np
-from numpy.linalg import norm, qr
 from scipy.stats import zscore
 import scipy.optimize
 import copy
@@ -50,7 +49,14 @@ def proj(v1, v2):
         proj_score (ndarray or scalar): 
             projection scores. shape: (v1.shape[1], v2.shape[1])
     '''
-    from opt_einsum import contract
+    if isinstance(v1, np.ndarray):
+        from opt_einsum import contract
+        einsum = contract
+        norm = np.linalg.norm
+    elif isinstance(v1, torch.Tensor):
+        from torch import einsum
+        norm = torch.linalg.norm
+
     if v1.ndim < 2:
         v1 = v1[:,None]
     if v2.ndim < 2:
@@ -60,7 +66,7 @@ def proj(v1, v2):
     proj_score = v1.T @ u
     # this einsum can probably be optimized better
     # proj_vec = np.einsum('ik,jk->ijk', u, proj_score)
-    proj_vec = contract('ik,jk->ijk', u, proj_score)
+    proj_vec = einsum('ik,jk->ijk', u, proj_score)
 
     return proj_vec , proj_score
 
@@ -95,7 +101,7 @@ def vector_angle(v1, v2, deg_or_rad='deg'):
     if deg_or_rad == 'deg':
         return rad2deg(arccos((v1@v2) / (norm(v1) * norm(v2))))
 
-def orthogonalize(v1, v2):
+def orthogonalize(v1, v2, method='OLS', device='cpu'):
     '''
     Orthogonalizes one or more vectors (columns of v1) relative to another set 
      of vectors (v2). Subtracts the projection of v1 onto v2 off of v1.
@@ -112,6 +118,14 @@ def orthogonalize(v1, v2):
         v2 (ndarray): 
             vector set 2. Either a single vector or a 2-D array where the columns
              are the vectors
+        method (str):
+            'gram_schmidt': uses a gram-schmidt process to orthogonalize v1
+             off of v2. This method may have some minor numerical instability 
+             issues when v2 contains many (>100) vectors.
+            'OLS': uses OLS to orthogonalize v1 off of v2. This method is
+             numerically stable when v2 has many columns, and usually faster.
+             However, OLS can have issues when v2 is not full rank.
+
     
     Returns:
         v1_orth (ndarray): 
@@ -128,6 +142,17 @@ def orthogonalize(v1, v2):
         EVR_total (scalar):
             total amount of variance explained in v1 by v2
     '''
+    if isinstance(v1, np.ndarray):
+        v1 = torch.as_tensor(v1)
+        return_numpy = True
+    else:
+        return_numpy = False
+    if isinstance(v2, np.ndarray):
+        v2 = torch.as_tensor(v2)
+
+    v1 = v1.to(device)
+    v2 = v2.to(device)
+
     if v1.ndim < 2:
         v1 = v1[:,None]
     if v2.ndim < 2:
@@ -136,21 +161,45 @@ def orthogonalize(v1, v2):
     # I'm pretty sure using PCA is fine for this, but it might be a good idea
     # to look into QR decompositions, basic SVD, and whether mean subtracting
     # actually matters to the outcome. Pretty sure this is fine though.
-    decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
-    v2_PCs = decomp.fit_transform(v2)
+    from .decomposition import torch_pca
+    comps, v2_PCs, singVals, EVR = torch_pca(
+        X_in=v2, 
+        rank=v2.shape[1], 
+        mean_sub=True,  
+        device=device, 
+        return_cpu=False, 
+        return_numpy=isinstance(v1, np.ndarray), 
+        cuda_empty_cache=False
+    )
+    
+    # decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
+    # v2_PCs = decomp.fit_transform(v2)
 
-    # Serial orthogonalization. I think doing it serially isn't necessary 
-    # since we are orthogonalizing the v2 vectors. This method might have
-    # some numerical instability issues given it's similarity to a 
-    # Gram-Schmidt process, but maybe less because v2 is orthogonal.
-    # I'll leave optimization to a future me.
-    v1_orth = copy.deepcopy(v1)
-    for ii in range(v2.shape[1]):
-        proj_vec = proj(v1_orth , v2_PCs[:,ii])[0]
-        v1_orth = np.squeeze(v1_orth) - np.squeeze(proj_vec)
+    if method == 'gram_schmidt':
+        # Serial orthogonalization. I think doing it serially isn't necessary 
+        # since we are orthogonalizing the v2 vectors. This method might have
+        # some numerical instability issues given it's similarity to a 
+        # Gram-Schmidt process, but maybe less because v2 is orthogonal.
+        # I'll leave optimization to a future me.
+        v1_orth = copy.deepcopy(v1)
+        for ii in range(v2.shape[1]):
+            proj_vec = proj(v1_orth , v2_PCs[:,ii])[0]
+            v1_orth = v1_orth.squeeze() - proj_vec.squeeze()
+    elif method == 'OLS':
+        # Orthogonal Least Squares.
+        X = torch.cat((v2_PCs, torch.ones((v2_PCs.shape[0], 1), dtype=v2_PCs.dtype, device=device)), dim=1)
+        theta = torch.linalg.inv(X.T @ X) @ X.T @ v1
+        y_rec = X @ theta
+        v1_orth = v1 - y_rec + X[:,-1][:,None] * theta[-1]  ## this adds back the bias term
 
-    EVR = 1 - (np.var(v1_orth, axis=0) / np.var(v1, axis=0))
-    EVR_total = 1 - ( np.sum(np.var(v1_orth,axis=0),axis=0) / np.sum(np.var(v1,axis=0),axis=0) )
+    EVR = 1 - (torch.var(v1_orth, dim=0) / torch.var(v1, dim=0))
+    EVR_total = 1 - ( torch.sum(torch.var(v1_orth, dim=0), dim=0) / torch.sum(torch.var(v1, dim=0), dim=0) )
+
+    if return_numpy:
+        v1_orth = v1_orth.cpu().numpy()
+        v2_PCs = v2_PCs.cpu().numpy()
+        EVR = EVR.cpu().numpy()
+        EVR_total = EVR_total.cpu().numpy()
 
     return v1_orth, v2_PCs, EVR, EVR_total
 
@@ -369,6 +418,10 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         v2 (ndarray): 
             2-D array of column vectors to compare to vector_set1. If None, then
              the function is a type of autosimilarity matrix
+        method (str):
+            'cov' - covariance
+            'pearson' or 'R' - Pearson correlation
+            'cosine_similarity' - cosine similarity
         ddof (scalar/int):
             Used if method=='cov'. Define the degrees of freedom. Set to 1 for
             unbiased calculation, 0 for biased calculation.
@@ -404,7 +457,7 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         v2_ms = v2 - np.mean(v2, axis=0)
         output = (v1_ms.T @ v2_ms) / np.sqrt(np.sum(v1_ms**2, axis=0, keepdims=True).T * np.sum(v2_ms**2, axis=0, keepdims=True))
     if method=='cosine_similarity':    
-        output = (v1 / (norm(v1 , axis=0, keepdims=True))).T  @ (v2  / norm(v2 , axis=0, keepdims=True))
+        output = (v1 / (np.linalg.norm(v1 , axis=0, keepdims=True))).T  @ (v2  / np.linalg.norm(v2 , axis=0, keepdims=True))
     return output
 
 
