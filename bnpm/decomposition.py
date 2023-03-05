@@ -107,7 +107,8 @@ def torch_pca(
     zscore=False, 
     rank=None, 
     return_cpu=True, 
-    return_numpy=False
+    return_numpy=False,
+    cuda_empty_cache=True,
 ):
     """
     Principal Components Analysis for PyTorch.
@@ -138,6 +139,9 @@ def torch_pca(
         return_numpy (bool):
             Whether or not to force returns/outputs to be
              numpy.ndarray type.
+        cuda_empty_cache (bool):
+            Whether or not to call torch.cuda.empty_cache()
+            Only relevant if device!='cpu'.
 
     Returns:
         components (torch.Tensor or np.ndarray):
@@ -163,11 +167,11 @@ def torch_pca(
     
     if isinstance(X_in, torch.Tensor) == False:
         X = torch.from_numpy(X_in).to(device)
-    elif X_in.device != device:
-            X = X_in.to(device)
+    elif str(X_in.device) != device:
+        X = X_in.to(device)
     else:
-        X = copy.copy(X_in)
-            
+        X = X_in
+        
     if mean_sub and not zscore:
         X = X - torch.mean(X, dim=0)
     if zscore:
@@ -197,12 +201,11 @@ def torch_pca(
         scores = scores.cpu().numpy()
         singVals = singVals.cpu().numpy()
         EVR = EVR.cpu().numpy()
+
+    if cuda_empty_cache and device!='cpu':
+        torch.cuda.empty_cache()
+        gc.collect()
         
-    gc.collect()
-    torch.cuda.empty_cache()
-    gc.collect()
-    torch.cuda.empty_cache()
-    gc.collect()
     return components, scores, singVals, EVR
 
 def unmix_pcs(pca_components, weight_vecs):
