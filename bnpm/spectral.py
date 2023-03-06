@@ -194,7 +194,7 @@ def mtaper_specgram(
                 else nfft = freq_resolution_frac * round(win_len * fs)
             mode (string): 
                 mode of the scipy.signal.spectrogram to use. Can be
-                'psd', 'complex', ‘magnitude’, ‘angle’, ‘phase’
+                'psd', 'complex', 'magnitude', 'angle', 'phase'
             **kwargs: 
                 Additional arguments for scipy.signal.spectrogram
         Returns:
