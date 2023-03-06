@@ -14,19 +14,15 @@ Functions and Interdependencies:
         - best_permutation
 '''
 import numpy as np
-from scipy.stats import zscore
 import scipy.optimize
-import copy
-import sklearn.decomposition
+# import sklearn.decomposition
 from numba import njit, prange, jit
 import torch
-
 from tqdm import tqdm
 
 from . import indexing
 
-import numpy as np
-
+import copy
 from time import time
 
 def proj(v1, v2):
@@ -105,26 +101,24 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
     '''
     Orthogonalizes one or more vectors (columns of v1) relative to another set 
      of vectors (v2). Subtracts the projection of v1 onto v2 off of v1.
-    Update: I found a scenario under which numerical instability can cause and
-     overestimation in the EVR (and how much gets orthogonalized away). Be 
-     careful when v2 >> v1 in magnitude and/or rank. Use OLS + EV instead for 
-     those cases.
-    RH 2021
+    RH 2021-2023
 
     Args:
         v1 (ndarray): 
-            vector set 1. Either a single vector or a 2-D array where the columns
-             are the vectors
+            vector set 1. (y_true)
+            Either a single vector or a 2-D array where the columns
+             are the vectors. shape: (n_samples, n_vectors)
         v2 (ndarray): 
-            vector set 2. Either a single vector or a 2-D array where the columns
-             are the vectors
+            vector set 2. (y_pred)
+            Either a single vector or a 2-D array where the columns
+             are the vectors. shape: (n_samples, n_vectors)
         method (str):
-            'gram_schmidt': uses a gram-schmidt process to orthogonalize v1
-             off of v2. This method may have some minor numerical instability 
+            'serial': uses a gram-schmidt like iterative process to orthogonalize
+             v1 off of v2. This method may have some minor numerical instability 
              issues when v2 contains many (>100) vectors.
-            'OLS': uses OLS to orthogonalize v1 off of v2. This method is
-             numerically stable when v2 has many columns, and usually faster.
-             However, OLS can have issues when v2 is not full rank.
+            'OLS': uses OLS regression to orthogonalize v1 off of v2. This method 
+             is numerically stable when v2 has many columns, and usually faster.
+             However, OLS can have issues when v2 is not full rank or singular.
 
     
     Returns:
@@ -158,9 +152,7 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
     if v2.ndim < 2:
         v2 = v2[:,None]
     
-    # I'm pretty sure using PCA is fine for this, but it might be a good idea
-    # to look into QR decompositions, basic SVD, and whether mean subtracting
-    # actually matters to the outcome. Pretty sure this is fine though.
+    # I'm pretty sure using PCA is fine for this.
     from .decomposition import torch_pca
     comps, v2_PCs, singVals, EVR = torch_pca(
         X_in=v2, 
@@ -175,18 +167,14 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
     # decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
     # v2_PCs = decomp.fit_transform(v2)
 
-    if method == 'gram_schmidt':
-        # Serial orthogonalization. I think doing it serially isn't necessary 
-        # since we are orthogonalizing the v2 vectors. This method might have
-        # some numerical instability issues given it's similarity to a 
-        # Gram-Schmidt process, but maybe less because v2 is orthogonal.
-        # I'll leave optimization to a future me.
+    if method == 'serial':
+        # Serial orthogonalization.
         v1_orth = copy.deepcopy(v1)
         for ii in range(v2.shape[1]):
             proj_vec = proj(v1_orth , v2_PCs[:,ii])[0]
             v1_orth = v1_orth.squeeze() - proj_vec.squeeze()
     elif method == 'OLS':
-        # Orthogonal Least Squares.
+        # Ordinary Least Squares.
         X = torch.cat((v2_PCs, torch.ones((v2_PCs.shape[0], 1), dtype=v2_PCs.dtype, device=device)), dim=1)
         theta = torch.linalg.inv(X.T @ X) @ X.T @ v1
         y_rec = X @ theta
@@ -589,10 +577,10 @@ def similarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
     
     return d + eps
     
+
 ##########################################    
 ########### Linear Assignment ############
 ##########################################
-
 
 def best_permutation(mat1 , mat2 , method='pearson'):
     '''
