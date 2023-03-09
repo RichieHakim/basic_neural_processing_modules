@@ -117,15 +117,22 @@ def threshold(
     RH 2021
 
     Args:
-        array (np.ndarray):  the mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D gaussian
-        thresh_max (number, scalar): values in array above this are set to val_max
-        thresh_min (number, scalar): values in array below this are set to val_min
-        val_max (number, scalar): values in array above thresh_max are set to this
-        val_min (number, scalar): values in array above thresh_min are set to this
-        inPlace_pref (bool): whether to do the calculation 'in place', and change the local input variable directly
+        array (np.ndarray):  
+            the mean position (X, Y) - where high value expected. 0-indexed. Make second value 0 to make 1D gaussian
+        thresh_max (float): 
+            values in array above this are set to val_max
+        thresh_min (float): 
+            values in array below this are set to val_min
+        val_max (float): 
+            values in array above thresh_max are set to this
+        val_min (float): 
+            values in array above thresh_min are set to this
+        inPlace_pref (bool): 
+            whether to do the calculation 'in place', and change the local input variable directly
 
     Return:
-        output_array (np.ndarray): same as input array but with values thresheld
+        output_array (np.ndarray): 
+            same as input array but with values thresheld
     """
     if val_max is None:
         val_max = thresh_max
