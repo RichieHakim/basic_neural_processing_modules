@@ -23,7 +23,8 @@ from tqdm import tqdm
 from . import indexing
 
 import copy
-from time import time
+import time
+from functools import partial
 
 def proj(v1, v2):
     '''
@@ -37,6 +38,7 @@ def proj(v1, v2):
         v2 (ndarray): 
             vector set 2. Either a single vector or a 2-D array where the columns
              are the vectors
+            If None, v2 is set to v1
     
     Returns:
         proj_vec (ndarray): 
@@ -48,56 +50,79 @@ def proj(v1, v2):
     if isinstance(v1, np.ndarray):
         from opt_einsum import contract
         einsum = contract
-        norm = np.linalg.norm
+        norm = partial(np.linalg.norm, axis=0, keepdims=True)
     elif isinstance(v1, torch.Tensor):
         from torch import einsum
-        norm = torch.linalg.norm
+        norm = partial(torch.linalg.norm, dim=0, keepdim=True)
 
+    if v2 is None:
+        v2 = v1
     if v1.ndim < 2:
         v1 = v1[:,None]
     if v2.ndim < 2:
         v2 = v2[:,None]
 
-    u = v2 / norm(v2, axis=0)
-    proj_score = v1.T @ u
-    # this einsum can probably be optimized better
-    # proj_vec = np.einsum('ik,jk->ijk', u, proj_score)
+    assert v1.shape[0] == v2.shape[0], f"v1.shape[0] must equal v2.shape[0]. Got v1.shape[0]={v1.shape[0]} and v2.shape[0]={v2.shape[0]}"
+
+    u = v2 / norm(v2)
+    proj_score = v1.T @ u 
     proj_vec = einsum('ik,jk->ijk', u, proj_score)
 
-    return proj_vec , proj_score
+    return proj_vec, proj_score
 
-def vector_angle(v1, v2, deg_or_rad='deg'):
+def vector_angle(v1, v2=None, mode='cosine_similarity'):
     '''
-    Calculates the angle between two vectors.
-    RH 2021
+    Calculates the angle between two vector sets.
+    RH 2023
 
     Args:
         v1 (ndarray):
-            vector 1
+            vector set 1. Either a single vector or a 2-D array where the columns
+             are the vectors
         v2 (ndarray):
-            vector 2
-        deg_or_rad (str):
-            'deg' for degrees, 'rad' for radians
-    
+            vector set 2. Either a single vector or a 2-D array where the columns
+             are the vectors
+            If None, v2 is set to v1
+        mode (str):
+            'deg': returns angle in degrees
+            'rad': returns angle in radians
+            'cosine_similarity': returns cosine similarity
+
     Returns:
-        angle (scalar):
-            angle between v1 and v2
+        angle (ndarray or scalar):
+            angle between v1 and v2. shape: (v1.shape[1], v2.shape[1])
     '''
-    if type(v1) is np.ndarray:
+    if isinstance(v1, np.ndarray):
+        norm = partial(np.linalg.norm, axis=0, keepdims=True)
         arccos = np.arccos
-        norm = np.linalg.norm
         rad2deg = np.rad2deg
-    elif type(v1) is torch.Tensor:
+    elif isinstance(v1, torch.Tensor):
+        norm = partial(torch.linalg.norm, dim=0, keepdim=True)
         arccos = torch.acos
-        norm = torch.linalg.norm
         rad2deg = torch.rad2deg
 
-    if deg_or_rad == 'rad':
-        return arccos((v1@v2) / (norm(v1) * norm(v2)))
-    if deg_or_rad == 'deg':
-        return rad2deg(arccos((v1@v2) / (norm(v1) * norm(v2))))
+    if v2 is None:
+        v2 = v1
+    if v1.ndim < 2:
+        v1 = v1[:,None]
+    if v2.ndim < 2:
+        v2 = v2[:,None]
 
-def orthogonalize(v1, v2, method='OLS', device='cpu'):
+    assert v1.shape[0] == v2.shape[0], f"v1.shape[0] must equal v2.shape[0]. Got v1.shape[0]={v1.shape[0]} and v2.shape[0]={v2.shape[0]}"
+    
+    u1 = v1 / norm(v1)
+    u2 = v2 / norm(v2)
+    
+    if mode == 'cosine_similarity':
+        return u1.T @ u2
+    elif mode == 'deg':
+        return rad2deg(arccos(u1.T @ u2))
+    elif mode == 'rad':
+        return arccos(u1.T @ u2)
+    else:
+        raise ValueError(f"mode must be 'cosine_similarity', 'deg', or 'rad'. Got {mode}")
+
+def orthogonalize(v1, v2, method='OLS', device='cpu', thresh_EVR_PCA=1e-15):
     '''
     Orthogonalizes one or more vectors (columns of v1) relative to another set 
      of vectors (v2). Subtracts the projection of v1 onto v2 off of v1.
@@ -119,14 +144,19 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
             'OLS': uses OLS regression to orthogonalize v1 off of v2. This method 
              is numerically stable when v2 has many columns, and usually faster.
              However, OLS can have issues when v2 is not full rank or singular.
-
+        device (str):
+            Device to use for torch tensors. 
+            Default is 'cpu'.
+        thresh_EVR_PCA (scalar):
+            Threshold for the Explained Variance Ratio (EVR) of the PCA components.
+            Set so that it might act as a cutoff for redundant components.
+            If the EVR of a component is below this threshold, it is not used to
+             orthogonalize v1. This is useful when v2 is singular or nearly singular.
     
     Returns:
         v1_orth (ndarray): 
             vector set 1 with the projections onto vector set 2 subtracted off.
              Same size as v1.
-        v2_PCs (ndarray):
-            PCA is performed on v2 to orthogonalize it, so these are the PCs
         EVR (ndarray): 
             Explained Variance Ratio for each column of v1. 
             Amount of variance that all the vectors in v2 can explain for each 
@@ -135,6 +165,14 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
             as in pairwise_similarity(OLS(v2, v1)[1] , v1)**2
         EVR_total (scalar):
             total amount of variance explained in v1 by v2
+        pca_dict (dict):
+            dictionary containing the PCA outputs:
+                'comps': PCA components
+                'scores': PCA scores
+                'singVals': PCA singular values
+                'EVR': PCA Explained Variance Ratio
+                'PCs_above_thresh': boolean array indicating which PCs are above
+                 the threshold for EVR
     '''
     if isinstance(v1, np.ndarray):
         v1 = torch.as_tensor(v1)
@@ -154,7 +192,7 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
     
     # I'm pretty sure using PCA is fine for this.
     from .decomposition import torch_pca
-    comps, v2_PCs, singVals, EVR = torch_pca(
+    comps, pc_scores, singVals, pc_EVR = torch_pca(
         X_in=v2, 
         rank=v2.shape[1], 
         mean_sub=True,  
@@ -163,19 +201,28 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
         return_numpy=isinstance(v1, np.ndarray), 
         cuda_empty_cache=False
     )
-    
+    pca_dict = {
+        'comps': comps,
+        'scores': pc_scores,
+        'singVals': singVals,
+        'EVR': pc_EVR,
+        'PCs_above_thresh': pc_EVR > thresh_EVR_PCA,
+    }
+
+    pc_scores_aboveThreshold = pcsat = pc_scores[:, pca_dict['PCs_above_thresh']]
+
     # decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
-    # v2_PCs = decomp.fit_transform(v2)
+    # pc_scores = decomp.fit_transform(v2)
 
     if method == 'serial':
         # Serial orthogonalization.
         v1_orth = copy.deepcopy(v1)
-        for ii in range(v2.shape[1]):
-            proj_vec = proj(v1_orth , v2_PCs[:,ii])[0]
+        for ii in range(pcsat.shape[1]):
+            proj_vec = proj(v1_orth , pcsat[:,ii])[0]
             v1_orth = v1_orth.squeeze() - proj_vec.squeeze()
     elif method == 'OLS':
         # Ordinary Least Squares.
-        X = torch.cat((v2_PCs, torch.ones((v2_PCs.shape[0], 1), dtype=v2_PCs.dtype, device=device)), dim=1)
+        X = torch.cat((pcsat, torch.ones((pcsat.shape[0], 1), dtype=pcsat.dtype, device=device)), dim=1)
         theta = torch.linalg.inv(X.T @ X) @ X.T @ v1
         y_rec = X @ theta
         v1_orth = v1 - y_rec + X[:,-1][:,None] * theta[-1]  ## this adds back the bias term
@@ -185,11 +232,14 @@ def orthogonalize(v1, v2, method='OLS', device='cpu'):
 
     if return_numpy:
         v1_orth = v1_orth.cpu().numpy()
-        v2_PCs = v2_PCs.cpu().numpy()
         EVR = EVR.cpu().numpy()
         EVR_total = EVR_total.cpu().numpy()
 
-    return v1_orth, v2_PCs, EVR, EVR_total
+        for key in pca_dict.keys():
+            if isinstance(pca_dict[key], torch.Tensor):
+                pca_dict[key] = pca_dict[key].cpu().numpy()
+
+    return v1_orth, EVR, EVR_total, pca_dict
 
 
 @njit
