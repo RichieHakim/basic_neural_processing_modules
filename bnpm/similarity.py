@@ -191,25 +191,28 @@ def orthogonalize(v1, v2, method='OLS', device='cpu', thresh_EVR_PCA=1e-15):
         v2 = v2[:,None]
     
     # I'm pretty sure using PCA is fine for this.
-    from .decomposition import torch_pca
-    comps, pc_scores, singVals, pc_EVR = torch_pca(
-        X_in=v2, 
-        rank=v2.shape[1], 
-        mean_sub=True,  
-        device=device, 
-        return_cpu=False, 
-        return_numpy=isinstance(v1, np.ndarray), 
-        cuda_empty_cache=False
-    )
-    pca_dict = {
-        'comps': comps,
-        'scores': pc_scores,
-        'singVals': singVals,
-        'EVR': pc_EVR,
-        'PCs_above_thresh': pc_EVR > thresh_EVR_PCA,
-    }
-
-    pc_scores_aboveThreshold = pcsat = pc_scores[:, pca_dict['PCs_above_thresh']]
+    if v2.shape[1] > 1:
+        from .decomposition import torch_pca
+        comps, pc_scores, singVals, pc_EVR = torch_pca(
+            X_in=v2, 
+            rank=v2.shape[1], 
+            mean_sub=True,  
+            device=device, 
+            return_cpu=False, 
+            return_numpy=isinstance(v1, np.ndarray), 
+            cuda_empty_cache=False
+        )
+        pca_dict = {
+            'comps': comps,
+            'scores': pc_scores,
+            'singVals': singVals,
+            'EVR': pc_EVR,
+            'PCs_above_thresh': pc_EVR > thresh_EVR_PCA,
+        }
+        pc_scores_aboveThreshold = pcsat = pc_scores[:, pca_dict['PCs_above_thresh']]
+    else:
+        pcsat = v2
+        pca_dict = None
 
     # decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
     # pc_scores = decomp.fit_transform(v2)
@@ -235,9 +238,10 @@ def orthogonalize(v1, v2, method='OLS', device='cpu', thresh_EVR_PCA=1e-15):
         EVR = EVR.cpu().numpy()
         EVR_total = EVR_total.cpu().numpy()
 
-        for key in pca_dict.keys():
-            if isinstance(pca_dict[key], torch.Tensor):
-                pca_dict[key] = pca_dict[key].cpu().numpy()
+        if pca_dict is not None:
+            for key in pca_dict.keys():
+                if isinstance(pca_dict[key], torch.Tensor):
+                    pca_dict[key] = pca_dict[key].cpu().numpy()
 
     return v1_orth, EVR, EVR_total, pca_dict
 
