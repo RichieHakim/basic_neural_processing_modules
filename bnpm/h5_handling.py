@@ -58,7 +58,7 @@ def show_group_items(hObj):
 
 
 
-def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=False, indent_level=0):
+def show_item_tree(hObj=None , path=None, depth=None, show_metadata=True, print_metadata=False, indent_level=0):
     '''
     Recursive function that displays all the items 
      and groups in an h5 object or python dict
@@ -69,6 +69,8 @@ def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=Fa
             'hierarchical Object'. hdf5 object OR python dictionary
         path (Path or string):
             If not None, then path to h5 object is used instead of hObj
+        depth (int):
+            how many levels deep to show the tree
         show_metadata (bool): 
             whether or not to list metadata with items
         print_metadata (bool): 
@@ -84,9 +86,17 @@ def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=Fa
     '''
     import hdfdict
 
+    if depth is None:
+        depth = int(10000000000000000000)
+    else:
+        depth = int(depth)
+
+    if depth < 0:
+        return
+
     if path is not None:
         with h5py.File(path , 'r') as f:
-            show_item_tree(hObj=f, path=None, show_metadata=show_metadata, print_metadata=print_metadata, indent_level=indent_level)
+            show_item_tree(hObj=f, path=None, depth=depth-1, show_metadata=show_metadata, print_metadata=print_metadata, indent_level=indent_level)
     else:
         indent = f'  '*indent_level
         if hasattr(hObj, 'attrs') and show_metadata:
@@ -97,14 +107,14 @@ def show_item_tree(hObj=None , path=None, show_metadata=True , print_metadata=Fa
                     print(f'{indent}METADATA: {val}: shape={hObj.attrs[val].shape} , dtype={hObj.attrs[val].dtype}')
         
         for ii,val in enumerate(list(iter(hObj))):
-            if isinstance(hObj[val] , h5py.Group) or isinstance(hObj[val], hdfdict.hdfdict.LazyHdfDict):
+            if isinstance(hObj[val], h5py.Group) or isinstance(hObj[val], hdfdict.hdfdict.LazyHdfDict):
                 print(f'{indent}{ii+1}. {val}:----------------')
-                show_item_tree(hObj[val], show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
-            elif isinstance(hObj[val] , dict):
+                show_item_tree(hObj[val], depth=depth-1, show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
+            elif isinstance(hObj[val], dict):
                 print(f'{indent}{ii+1}. {val}:----------------')
-                show_item_tree(hObj[val], show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
+                show_item_tree(hObj[val], depth=depth-1, show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
             else:
-                if hasattr(hObj[val] , 'shape') and hasattr(hObj[val] , 'dtype'):
+                if hasattr(hObj[val], 'shape') and hasattr(hObj[val], 'dtype'):
                     print(f'{indent}{ii+1}. {val}:   shape={hObj[val].shape} , dtype={hObj[val].dtype}')
                 else:
                     print(f'{indent}{ii+1}. {val}:   type={type(hObj[val])}')
