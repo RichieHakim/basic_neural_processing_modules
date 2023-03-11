@@ -93,7 +93,7 @@ def import_s2p(dir_s2p):
     """
     Imports suite2p data
     """
-    dir_S2p = Path(dir_s2p).resolve()
+    dir_s2p = Path(dir_s2p).resolve()
 
     try:
         F = np.load(dir_s2p / 'F.npy')
