@@ -289,11 +289,12 @@ def trace_quality_metrics(
 
     # currently hardcoding the rolling baseline window to be 10 minutes
     # rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
-    dFoF_clipNaN = copy.copy(dFoF)
-    dFoF_clipNaN[dFoF_clipNaN <= clip_range[0]] = np.nan
-    dFoF_clipNaN[dFoF_clipNaN >= clip_range[1]] = np.nan
-    rolling_baseline = rolling_percentile_rq_multicore(dFoF_clipNaN, ptile=percentile_baseline, window=int(Fs*60*20 + 1))
-    baseline_var = var_numba(rolling_baseline[:,int(Fs*60*10):-int(Fs*60*10)])
+    # dFoF_clipNaN = copy.copy(dFoF)
+    # dFoF_clipNaN[dFoF_clipNaN <= clip_range[0]] = np.nan
+    # dFoF_clipNaN[dFoF_clipNaN >= clip_range[1]] = np.nan
+    dFoF_clipped = np.clip(dFoF, a_min=clip_range[0], a_max=clip_range[1])
+    rolling_baseline = rolling_percentile_rq_multicore(dFoF_clipped, ptile=percentile_baseline, window=int(Fs*60*20 + 1))
+    baseline_var = var_numba(rolling_baseline[:,int(Fs*60*5):-int(Fs*60*5)])
     # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
 
     max_dFoF = np.max(dFoF, axis=1)
