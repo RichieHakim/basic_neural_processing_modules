@@ -28,5 +28,7 @@ jupyter
 
 PyWavelets
 
+mat73
+
 #torch
 #torchvision

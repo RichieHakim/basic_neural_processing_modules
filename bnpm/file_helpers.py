@@ -212,7 +212,41 @@ def yaml_load(filename, mode='r', loader=yaml.FullLoader):
     """
     with open(filename, mode) as f:
         return yaml.load(f, Loader=loader)
-        
+    
+
+def matlab_load(filename, simplify_cells=True, kwargs_scipy={}, kwargs_mat73={}, verbose=False):
+    """
+    Loads a matlab file.
+    Uses scipy.io.loadmat if .mat file is not version 7.3.
+    Uses mat73.loadmat if .mat file is version 7.3.
+    RH 2023
+
+    Args:
+        filename (str):
+            Path to matlab file.
+        simplify_cells (bool):
+            If True and file is not version 7.3, then
+             simplifies cells to numpy arrays.
+        kwargs_scipy (dict):
+            Keyword arguments to pass to scipy.io.loadmat.
+        kwargs_mat73 (dict):
+            Keyword arguments to pass to mat73.loadmat.
+        verbose (bool):
+            If True, prints information about file.
+    """
+    assert isinstance(filename, str), 'Filename must be a string.'
+    assert filename.endswith('.mat'), 'File must be .mat file.'
+
+    try:
+        import scipy.io
+        out = scipy.io.loadmat(filename, simplify_cells=simplify_cells, **kwargs_scipy)
+    except NotImplementedError as e:
+        print(f'File {filename} is version 7.3. Loading with mat73.') if verbose else None
+        import mat73
+        out = mat73.loadmat(filename, **kwargs_mat73)
+        print(f'Loaded {filename} with mat73.') if verbose else None
+    return out
+
 
 def hash_file(path, type_hash='MD5', buffer_size=65536):
     """
