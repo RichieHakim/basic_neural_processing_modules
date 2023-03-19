@@ -346,8 +346,6 @@ def event_triggered_traces(
         idx_triggers (list of int, np.ndarray, or torch.Tensor):
             1-D boolean array or 1-D index array.
             True values or idx values are trigger events.
-            If 'trigger_signal_is_idx' is True, then
-             'trigger_signal' is assumed to be an index array.
         win_bounds (size 2 integer list, tuple, or np.ndarray):
             2 value integer array. win_bounds[0] should
              be negative and is the number of samples prior
@@ -392,6 +390,14 @@ def event_triggered_traces(
         if all([isinstance(i, int) for i in idx_triggers]): 
             warn("idx_triggers is list but not all elements are integers. Converting to torch.long dtype.")        
         
+    ## if idx_triggers is length 0, return empty arrays
+    if len(idx_triggers)==0:
+        print("idx_triggers is length 0. Returning empty arrays.") if verbose>0 else None
+        arr_out = np.empty((0, win_bounds[1]-win_bounds[0], *arr.shape[:dim], *arr.shape[dim+1:]))
+        xAxis_out = np.empty((0, win_bounds[1]-win_bounds[0]))
+        windows_out = np.empty((0, win_bounds[1]-win_bounds[0]))
+        return arr_out, xAxis_out, windows_out
+    
     dtype_in = 'np' if isinstance(arr, np.ndarray) else 'torch' if isinstance(arr, torch.Tensor) else 'unknown'
     arr = torch.as_tensor(arr)  ## convert to tensor
     xAxis = torch.arange(win_bounds[0], win_bounds[1], dtype=torch.long)  ## x-axis for each window relative to trigger
@@ -510,6 +516,10 @@ def make_sorted_event_triggered_average(
         win_bounds=win_bounds, 
         dim=dim,       
     )
+
+    ## if there are no triggers, return empty arrays and Nones
+    if len(idx_triggers)==0:
+        return None, None, None, None, et_traces, xAxis, windows
 
     cv_idx = cross_validation.group_split(1, et_traces.shape[1], cv_group_size, test_size=test_frac)
 
