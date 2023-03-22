@@ -248,7 +248,7 @@ def rolling_percentile_pd(
     Args:
         X (numpy.ndarray OR pd.core.frame.DataFrame):
             Input array of signals. Calculation done over
-            dim 1 (rows) by default.
+            dim 1 (rows).
         ptile (scalar):
             Percentile. 0-100.
         window (scalar):
@@ -283,7 +283,7 @@ def rolling_percentile_pd(
         kwargs_rolling['closed'] = None
 
     from functools import partial
-    _rolling_ptile_pd_helper_partial = partial(_rolling_ptile_pd_helper, win=window, ptile=ptile, kwargs_rolling=kwargs_rolling, interpolation=interpolation)
+    _rolling_ptile_pd_helper_partial = partial(_rolling_ptile_pd_helper, win=int(window), ptile=ptile, kwargs_rolling=kwargs_rolling, interpolation=interpolation)
 
     if multiprocessing_pref:
         from .parallel_helpers import map_parallel
@@ -310,8 +310,8 @@ def _rolling_ptile_pd_helper(X, win, ptile, kwargs_rolling, interpolation='linea
         ptile/100, 
         numeric_only=True, 
         interpolation=interpolation, 
-        engine='numba', 
-        engine_kwargs={'nopython': True, 'nogil': True, 'parallel': True}
+        # engine='numba', 
+        # engine_kwargs={'nopython': True, 'nogil': True, 'parallel': True}
     ).to_numpy()
 
 def rolling_percentile_rq(x_in, window, ptile=10, stride=1, center=True):
