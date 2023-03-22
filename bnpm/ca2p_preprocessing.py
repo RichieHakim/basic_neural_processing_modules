@@ -19,6 +19,8 @@ def make_dFoF(
     neuropil_fraction=0.7, 
     percentile_baseline=30, 
     rolling_percentile_window=None,
+    centered_roll=True,
+    stride_roll=1,
     channelOffset_correction=0,
     multicore_pref=False, 
     verbose=True,
@@ -40,7 +42,18 @@ def make_dFoF(
             value, 0-100, of percentile to be subtracted off from signals
         rolling_percentile_window (int):
             window size for rolling percentile. 
+            NOTE: this value will be divided by stride_roll.
             If None, then a single percentile is calculated for the entire trace.
+        centered_roll (bool):
+            If True, then the rolling percentile is calculated with a centered window.
+            If False, then the rolling percentile is calculated with a trailing window
+             where the right edge of the window is the current timepoint.
+        stride_roll (int):
+            Stride for rolling percentile.
+            NOTE: rolling_percentile_window will be divided by this value.
+            If 1, then the rolling percentile is calculated
+             at every timepoint. If 2, then the rolling percentile is calculated at every
+             other timepoint, etc.
         channelOffset_correction (float):
             value to be added to F and Fneu to correct for channel offset
         verbose (bool): 
@@ -59,6 +72,8 @@ def make_dFoF(
 
     tic = time.time()
 
+    stride_roll = int(stride_roll)
+
     F = torch.as_tensor(F, dtype=torch.float32) + channelOffset_correction
     Fneu = torch.as_tensor(Fneu, dtype=torch.float32) + channelOffset_correction if Fneu is not None else 0
 
@@ -71,14 +86,17 @@ def make_dFoF(
         F_baseline = percentile_numba(F_neuSub.numpy(), ptile=percentile_baseline) if multicore_pref else np.percentile(F_neuSub.numpy() , percentile_baseline , axis=1)
     else:
         from .timeSeries import rolling_percentile_pd
+        idx_strided = np.arange(0, F_neuSub.shape[1], stride_roll, dtype=np.int64)
         F_baseline = rolling_percentile_pd(
-            F_neuSub.numpy(), 
+            F_neuSub.numpy()[:,idx_strided],
             ptile=percentile_baseline, 
-            window=rolling_percentile_window, 
+            window=int(rolling_percentile_window / stride_roll), 
             multiprocessing_pref=multicore_pref, 
-            prog_bar=verbose
+            prog_bar=verbose,
+            center=centered_roll,
         )
     F_baseline = torch.as_tensor(F_baseline, dtype=torch.float32)
+    F_baseline = torch.tile(F_baseline[:,:,None], (1,1,stride_roll)).reshape((F_baseline.shape[0],-1))[:,:F_neuSub.shape[1]] if stride_roll>1 else F_baseline
 
     dF = F_neuSub - F_baseline[:,None] if F_baseline.ndim==1 else F_neuSub - F_baseline
     dFoF = dF / F_baseline[:,None] if F_baseline.ndim==1 else dF / F_baseline
