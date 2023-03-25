@@ -1,10 +1,12 @@
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
-
 import torch
+from tqdm import tqdm
 
 import time
+import multiprocessing as mp
+import gc
 
 from numba import jit, njit, prange
 
@@ -19,8 +21,9 @@ def make_dFoF(
     neuropil_fraction=0.7, 
     percentile_baseline=30, 
     rolling_percentile_window=None,
-    centered_roll=True,
-    stride_roll=1,
+    roll_centered=True,
+    roll_stride=1,
+    roll_interpolation='linear',
     channelOffset_correction=0,
     multicore_pref=False, 
     verbose=True,
@@ -44,16 +47,20 @@ def make_dFoF(
             window size for rolling percentile. 
             NOTE: this value will be divided by stride_roll.
             If None, then a single percentile is calculated for the entire trace.
-        centered_roll (bool):
+        roll_centered (bool):
             If True, then the rolling percentile is calculated with a centered window.
             If False, then the rolling percentile is calculated with a trailing window
              where the right edge of the window is the current timepoint.
-        stride_roll (int):
+        roll_stride (int):
             Stride for rolling percentile.
             NOTE: rolling_percentile_window will be divided by this value.
             If 1, then the rolling percentile is calculated
              at every timepoint. If 2, then the rolling percentile is calculated at every
              other timepoint, etc.
+        roll_interpolation (str):
+            Interpolation method for rolling percentile.
+            Options: 'linear', 'nearest'
+            See pandas.DataFrame.rolling for more details
         channelOffset_correction (float):
             value to be added to F and Fneu to correct for channel offset
         verbose (bool): 
@@ -72,7 +79,7 @@ def make_dFoF(
 
     tic = time.time()
 
-    stride_roll = int(stride_roll)
+    roll_stride = int(roll_stride)
 
     F = torch.as_tensor(F, dtype=torch.float32) + channelOffset_correction
     Fneu = torch.as_tensor(Fneu, dtype=torch.float32) + channelOffset_correction if Fneu is not None else 0
@@ -86,17 +93,17 @@ def make_dFoF(
         F_baseline = percentile_numba(F_neuSub.numpy(), ptile=percentile_baseline) if multicore_pref else np.percentile(F_neuSub.numpy() , percentile_baseline , axis=1)
     else:
         from .timeSeries import rolling_percentile_pd
-        idx_strided = np.arange(0, F_neuSub.shape[1], stride_roll, dtype=np.int64)
         F_baseline = rolling_percentile_pd(
-            F_neuSub.numpy()[:,idx_strided],
+            F_neuSub.numpy()[:,::roll_stride],
             ptile=percentile_baseline, 
-            window=int(rolling_percentile_window / stride_roll), 
+            window=int(rolling_percentile_window / roll_stride), 
             multiprocessing_pref=multicore_pref, 
             prog_bar=verbose,
-            center=centered_roll,
+            center=roll_centered,
+            interpolation=roll_interpolation,
         )
     F_baseline = torch.as_tensor(F_baseline, dtype=torch.float32)
-    F_baseline = torch.tile(F_baseline[:,:,None], (1,1,stride_roll)).reshape((F_baseline.shape[0],-1))[:,:F_neuSub.shape[1]] if stride_roll>1 else F_baseline
+    F_baseline = torch.tile(F_baseline[:,:,None], (1,1,roll_stride)).reshape((F_baseline.shape[0],-1))[:,:F_neuSub.shape[1]] if roll_stride>1 else F_baseline
 
     dF = F_neuSub - F_baseline[:,None] if F_baseline.ndim==1 else F_neuSub - F_baseline
     dFoF = dF / F_baseline[:,None] if F_baseline.ndim==1 else dF / F_baseline
@@ -436,6 +443,56 @@ def get_metadata(path_to_tif):
     md = vol.metadata().split("\n")
     print(md)
     return md
+
+def import_tiffs_SI(
+    paths, 
+    downsample_factors=[1,1,1],
+    n_workers=-1, 
+    verbose=True
+):
+    """
+    Imports a tif file using ScanImageTiffReader
+    RH 2021
+
+    Args:
+        paths (list):
+            List of paths to tif files.
+        downsample_factors (list):
+            List of downsample factors for each dimension.
+            [frames, height, width]
+            Calls .image_processing.bin_array(frames, downsample_factors, function=partial(np.mean, axis=0))
+        n_workers (int):
+            Number of workers to use for parallel processing.
+        verbose (bool):
+            Whether to show tqdm progress bar.
+
+    Returns:
+        vol (list):
+            List of ScanImageTiffReader objects.
+    """
+    from ScanImageTiffReader import ScanImageTiffReader
+    from .parallel_helpers import map_parallel
+    from .image_processing import bin_array
+    from functools import partial
+
+    n_workers = mp.cpu_count() if n_workers == -1 else int(n_workers)
+
+    def get_frames(path):
+        vol = ScanImageTiffReader(path)
+        frames = vol.data()
+        vol.close()
+        frames = bin_array(frames, downsample_factors, function=partial(np.mean, axis=0))
+        del vol
+        gc.collect()
+        gc.collect()
+        return frames
+    
+    if n_workers > 0:
+        out = map_parallel(get_frames, [paths], workers=n_workers, method='multithreading', prog_bar=verbose)
+    else:
+        out = [get_frames(path) for path in tqdm(paths, disable=not verbose)]
+
+    return out
 
 
 ####################################################
