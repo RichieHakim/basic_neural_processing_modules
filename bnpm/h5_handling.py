@@ -115,9 +115,9 @@ def show_item_tree(hObj=None , path=None, depth=None, show_metadata=True, print_
                 show_item_tree(hObj[val], depth=depth-1, show_metadata=show_metadata, print_metadata=print_metadata , indent_level=indent_level+1)
             else:
                 if hasattr(hObj[val], 'shape') and hasattr(hObj[val], 'dtype'):
-                    print(f'{indent}{ii+1}. {val}:   shape={hObj[val].shape} , dtype={hObj[val].dtype}')
+                    print(f'{indent}{ii+1}. {val}:    '.ljust(20) + f'shape={hObj[val].shape} ,'.ljust(20) + f'dtype={hObj[val].dtype}')
                 else:
-                    print(f'{indent}{ii+1}. {val}:   type={type(hObj[val])}')
+                    print(f'{indent}{ii+1}. {val}:    '.ljust(20) + f'type={type(hObj[val])}')
 
 
 def make_h5_tree(dict_obj , h5_obj , group_string='', use_compression=False, track_order=True):
