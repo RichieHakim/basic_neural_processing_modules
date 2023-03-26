@@ -72,10 +72,8 @@ def convolve_along_axis(
         kernel = np.ascontiguousarray(kernel)
         if axis==0:
             output_list = parallel_helpers.map_parallel(convFun_axis0, [range(array.shape[1])], method='multithreading', workers=-1, prog_bar=verbose)
-            # output_list = parallel_helpers.multithreading(convFun_axis0, range(array.shape[1]), workers=None)
         if axis==1:
             output_list = parallel_helpers.map_parallel(convFun_axis1, [range(array.shape[0])], method='multithreading', workers=-1, prog_bar=verbose)
-            # output_list = parallel_helpers.multithreading(convFun_axis1, range(array.shape[0]), workers=None)
         
         if verbose:
             print(f'ThreadPool elapsed time : {round(time.time() - tic , 2)} s. Now unpacking list into array.')
