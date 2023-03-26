@@ -128,7 +128,8 @@ def phase_correlation_helper(
     im_moving,
     mask_fft=None, 
     compute_maskFFT: bool=False, 
-    template_precomputed: bool=False
+    template_precomputed: bool=False,
+    eps: float=1e-17,
 ):
     if im_template.ndim == 2:
         im_template = im_template[None, ...]
@@ -150,14 +151,15 @@ def phase_correlation_helper(
         fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims)) if not template_precomputed else im_template
         fft_moving = torch.fft.fft2(im_moving, dim=dims)
 
-    R = fft_template * fft_moving
+    R = fft_template[:,None,:,:] * fft_moving[None,:,:,:]
 
     if compute_maskFFT:
-        R[mask_fft != 0] /= torch.abs(R)[mask_fft != 0]
+        # R[mask_fft[None, ...] != 0] /= torch.abs(R)[mask_fft[None, ...] != 0]
+        R /= torch.abs(R) + eps
     else:
         R /= torch.abs(R)
     
-    cc = torch.fft.fftshift(torch.fft.ifft2(R, dim=dims), dim=dims).real
+    cc = torch.fft.fftshift(torch.fft.ifft2(R, dim=dims), dim=dims).real.squeeze()
     
     return cc if not return_2D else cc[0]
 def phase_correlation(
@@ -203,6 +205,7 @@ def phase_correlation(
         cc (np.ndarray):
             Phase correlation coefficient.
             Middle of image is zero-shift.
+            Last two dims are frame height and width.
     """
     if isinstance(im_template, np.ndarray):
         im_template = torch.from_numpy(im_template).to(device)
@@ -213,6 +216,9 @@ def phase_correlation(
         im_moving = torch.from_numpy(im_moving).to(device)
     if isinstance(mask_fft, np.ndarray):
         mask_fft = torch.from_numpy(mask_fft).to(device)
+    if isinstance(mask_fft, torch.Tensor):
+        if mask_fft.device != device:
+            mask_fft = mask_fft.to(device)
 
     cc = phase_correlation_helper(
         im_template=im_template,
@@ -233,7 +239,7 @@ def phaseCorrelationImage_to_shift_helper(cc_im):
     height, width = cc_im.shape[-2:]
     vals_max, idx = torch.max(cc_im.reshape(cc_im_shape[0], cc_im_shape[1]*cc_im_shape[2]), dim=1)
     shift_x_raw = idx % cc_im_shape[2]
-    shift_y_raw = idx // cc_im_shape[2] % cc_im_shape[1]
+    shift_y_raw = torch.floor(idx / cc_im_shape[2]) % cc_im_shape[1]
     shifts_y_x = torch.stack(((torch.floor(torch.as_tensor(height)/2) - shift_y_raw) , (torch.ceil(torch.as_tensor(width)/2) - shift_x_raw)), dim=1)
     return shifts_y_x, vals_max
 def phaseCorrelationImage_to_shift(cc_im):
@@ -245,14 +251,93 @@ def phaseCorrelationImage_to_shift(cc_im):
         cc_im (np.ndarray):
             Phase correlation image.
             Middle of image is zero-shift.
+            Shape: (height, width) or (batch, height, width)
 
     Returns:
         shifts (np.ndarray):
             Pixel shift values (y, x).
     """
+    assert cc_im.ndim in [2,3], "cc_im must be 2D or 3D"
     cc_im = torch.as_tensor(cc_im)
     shifts_y_x, cc_max = phaseCorrelationImage_to_shift_helper(cc_im)
     return shifts_y_x, cc_max
+
+
+def make_Fourier_mask(
+    frame_shape_y_x=(512,512),
+    bandpass_spatialFs_bounds=(1/128, 1/3),
+    order_butter=5,
+    mask=None,
+    dtype_fft=torch.complex64,
+    plot_pref=False,
+    verbose=False,
+):
+    """
+    Make a Fourier domain mask for the phase correlation.
+    Used in BWAIN.
+
+    Args:
+        frame_shape_y_x (Tuple[int]):
+            Shape of the images that will be passed through
+                this class.
+        bandpass_spatialFs_bounds (tuple): 
+            (lowcut, highcut) in spatial frequency
+            A butterworth filter is used to make the mask.
+        order_butter (int):
+            Order of the butterworth filter.
+        mask (np.ndarray):
+            If not None, use this mask instead of making one.
+        plot_pref (bool):
+            If True, plot the absolute value of the mask.
+
+    Returns:
+        mask_fft (torch.Tensor):
+            Mask in the Fourier domain.
+    """
+    from .other_peoples_code import get_nd_butterworth_filter
+    
+    if (isinstance(mask, (np.ndarray, torch.Tensor))) or ((mask != 'None') and (mask is not None)):
+        mask = torch.as_tensor(mask, dtype=dtype_fft)
+        mask = mask / mask.sum()
+        mask_fftshift = torch.fft.fftshift(mask)
+        print(f'User provided mask of shape: {mask.shape} was normalized to sum=1, fftshift-ed, and converted to a torch.Tensor')
+    else:
+        wfilt_h = get_nd_butterworth_filter(
+            shape=frame_shape_y_x, 
+            factor=bandpass_spatialFs_bounds[0], 
+            order=order_butter, 
+            high_pass=True, 
+            real=False,
+        )
+        wfilt_l = get_nd_butterworth_filter(
+            shape=frame_shape_y_x, 
+            factor=bandpass_spatialFs_bounds[1], 
+            order=order_butter, 
+            high_pass=False, 
+            real=False,
+        )
+
+        kernel = torch.as_tensor(
+            wfilt_h * wfilt_l,
+            dtype=dtype_fft,
+        )
+
+        mask = kernel / kernel.sum()
+        # self.mask_fftshift = torch.fft.fftshift(self.mask)
+        mask_fftshift = mask
+        mask_fftshift = mask_fftshift.contiguous()
+
+        if plot_pref and plot_pref!='False':
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(
+                torch.abs(kernel.cpu()).numpy(), 
+                # clim=[0,1],
+            )
+        if verbose:
+            print(f'Created Fourier domain mask. self.mask_fftshift.shape: {mask_fftshift.shape}. Images input to find_translation_shifts will now be masked in the FFT domain.')
+
+    return mask_fftshift
 
 
 def find_translation_shifts(im1, im2, mask_fft=None, device='cpu', dtype=torch.float16):
