@@ -447,12 +447,13 @@ def get_metadata(path_to_tif):
 def import_tiffs_SI(
     paths, 
     downsample_factors=[1,1,1],
-    n_workers=-1, 
-    verbose=True
+    clip_zero=False,
+    dtype=None,
+    verbose=True,
 ):
     """
     Imports a tif file using ScanImageTiffReader
-    RH 2021
+    RH 2023
 
     Args:
         paths (list):
@@ -461,8 +462,10 @@ def import_tiffs_SI(
             List of downsample factors for each dimension.
             [frames, height, width]
             Calls .image_processing.bin_array(frames, downsample_factors, function=partial(np.mean, axis=0))
-        n_workers (int):
-            Number of workers to use for parallel processing.
+        clip_zero (bool):
+            Whether to clip negative values to zero.
+        dtype (np.dtype):
+            Data type to cast to.
         verbose (bool):
             Whether to show tqdm progress bar.
 
@@ -471,28 +474,199 @@ def import_tiffs_SI(
             List of ScanImageTiffReader objects.
     """
     from ScanImageTiffReader import ScanImageTiffReader
-    from .parallel_helpers import map_parallel
     from .image_processing import bin_array
     from functools import partial
 
-    n_workers = mp.cpu_count() if n_workers == -1 else int(n_workers)
+    ## warn if dtype is unsigned integer type and clip_zero is False
+    if (dtype is not None) and (np.issubdtype(dtype, np.unsignedinteger)) and (not clip_zero):
+        print("Warning: dtype is unsigned integer type and clip_zero is False. This will result in overflow.")
 
     def get_frames(path):
         vol = ScanImageTiffReader(path)
-        frames = vol.data()
+        n_frames = 1 if len(vol.shape()) < 3 else vol.shape()[0]  # single page tiffs
+        frames = vol.data(beg=0, end=n_frames)
         vol.close()
-        frames = bin_array(frames, downsample_factors, function=partial(np.mean, axis=0))
         del vol
+        frames = np.clip(frames, 0, None) if clip_zero else frames
+        frames = bin_array(frames, downsample_factors, function=partial(np.mean, axis=0)) if np.any(np.array(downsample_factors) > 1) else frames
+        frames = frames.astype(dtype) if (dtype is not None) and (frames.dtype != dtype) else frames
         gc.collect()
         gc.collect()
         return frames
     
-    if n_workers > 0:
-        out = map_parallel(get_frames, [paths], workers=n_workers, method='multithreading', prog_bar=verbose)
-    else:
-        out = [get_frames(path) for path in tqdm(paths, disable=not verbose)]
+    out = [get_frames(path) for path in tqdm(paths, disable=not verbose)] if isinstance(paths, list) else get_frames(paths)
 
     return out
+
+def dense_stack_to_sparse_stack_SI(
+    stack_in, 
+    num_frames_per_slice=60, 
+    num_slices=25, 
+    num_volumes=10, 
+    step_size_um=0.8, 
+    frames_to_discard_per_slice=30, 
+    sparse_step_size_um=4
+):
+    """
+    Converts a dense stack of images into a sparse stack of images.
+    Depends on the indexing used by ScanImage for z-stacks.
+    RH 2023
+
+    Args:
+        stack_in (np.ndarray):
+            Input stack of images.
+        num_frames_per_slice (int):
+            Number of frames per slice.
+            From SI z-stack params.
+        num_slices (int):
+            Number of slices.
+            From SI z-stack params.
+        num_volumes (int):
+            Number of volumes.
+            From SI z-stack params.
+        step_size_um (float):
+            Step size in microns.
+            From SI z-stack params.
+        frames_to_discard_per_slice (int):
+            Number of frames to discard per slice.
+        sparse_step_size_um (float):
+            Desired step size in microns for the sparse stack.
+    """
+    range_slices = num_slices * step_size_um
+    range_idx_half = int((range_slices / 2) // sparse_step_size_um)
+    step_numIdx = int(sparse_step_size_um // step_size_um)
+    idx_center = int(num_slices // 2)
+    idx_slices = [idx_center + n for n in np.arange(-range_idx_half*step_numIdx, range_idx_half*step_numIdx + 1, step_numIdx, dtype=np.int64)]
+    assert (min(idx_slices) >= 0) and (max(idx_slices) <= num_slices), f"RH ERROR: The range of slice indices expected is greater than the number of slices available: {idx_slices}"
+    positions_idx = [(idx - idx_center)*step_size_um for idx in idx_slices]
+    
+    slices_rs = np.reshape(stack_in, (num_frames_per_slice, num_slices, num_volumes, stack_in.shape[1], stack_in.shape[2]), order='F');
+    slices_rs = slices_rs[frames_to_discard_per_slice:,:,:,:,:];
+    slices_rs = np.mean(slices_rs, axis=(0, 2))
+
+    stack_out = slices_rs[idx_slices]
+    return stack_out, positions_idx, idx_slices
+
+
+def find_zShifts(
+    zstack,
+    positions_idx=None,
+    path_to_tiff=None,
+    frames=None,
+    clip_zero=False,
+    downsample_factors=[1,1,1],
+    dtype=np.uint16,
+    bandpass_spatialFs_bounds=(0.02, 0.3),
+    order_butter=5,
+    use_GPU=True,
+    batch_size=70,
+    resample_factor=100,
+    sig=4.0,
+    verbose=True,
+):
+    """
+    Finds the z-shift of each frame in a stack of frames relative to a z-stack.
+    RH 2023
+
+    Args:
+        zstack (np.ndarray):
+            Z-stack of images.
+            Shape: [num_frames, height, width]
+        positions_idx (list):
+            List of z-positions for each frame in zstack.
+            Shape: zstack.shape[0]
+            Can be output of dense_stack_to_sparse_stack_SI().
+        path_to_tiff (str):
+            Path to tiff file.
+        frames (np.ndarray):
+            Stack of images.
+            Shape: [num_frames, height, width]
+        clip_zero (bool):
+            Whether to clip values below zero.
+            Only used if path_to_tiff is not None.
+            Used in import_tiffs_SI().
+        downsample_factors (list):
+            List of factors to downsample each dimension of frames by.
+            Only used if path_to_tiff is not None.
+            Used in import_tiffs_SI().
+        dtype (np.dtype):
+            Data type to convert frames to.
+            Only used if path_to_tiff is not None.
+            Used in import_tiffs_SI().
+        bandpass_spatialFs_bounds (tuple):
+            Bounds of bandpass filter in spatial frequencies.
+            Used in make_Fourier_mask().
+        order_butter (int):
+            Order of butterworth filter.
+            Used in make_Fourier_mask().
+        use_GPU (bool):
+            Whether to use GPU.
+        batch_size (int):
+            Number of frames to process at once.
+            Use smaller values if GPU or CPU memory is an issue.
+        resample_factor (int):
+            Factor to resample frames by.
+            Used to up/resample the z-axis values.
+        sig (float):
+            Sigma of gaussian kernel used to smooth the z-axis values.
+            Used in math_functions.gaussian().
+        verbose (bool):
+            Whether to print progress and plot stuff.
+    """
+    from .image_processing import make_Fourier_mask, phaseCorrelationImage_to_shift, phase_correlation
+    from .torch_helpers import clear_cuda_cache, set_device
+    from .indexing import make_batches
+    from .timeSeries import convolve_along_axis
+    from .math_functions import gaussian
+
+    assert positions_idx is not None, "RH ERROR: Must provide positions_idx"
+
+    if frames is None:
+        frames = import_tiffs_SI(
+            path_to_tiff, 
+            downsample_factors=downsample_factors,
+            clip_zero=clip_zero,
+            dtype=dtype,
+            verbose=verbose,
+        )
+    
+    mask_fft = make_Fourier_mask(
+        frame_shape_y_x=frames[0].shape,
+        bandpass_spatialFs_bounds=bandpass_spatialFs_bounds,
+        order_butter=order_butter,
+        plot_pref=verbose,
+        verbose=verbose,
+    )
+
+    clear_cuda_cache()
+    DEVICE = set_device(use_GPU=use_GPU, verbose=verbose)
+
+    def frames_to_zShift(frames_toUse, zstack_maskFFT):
+        def shift_helper(cc):
+            return torch.stack([phaseCorrelationImage_to_shift(c)[1] for c in cc], dim=0).T
+        shifts = torch.cat([shift_helper(phase_correlation(
+            im_template=zstack_maskFFT,
+            im_moving=batch,
+            template_precomputed=True,
+            device=DEVICE,
+        )) for batch in make_batches(frames_toUse.astype(np.float32), batch_size=batch_size)], dim=0)
+        return shifts
+
+    zstack_maskFFT = torch.as_tensor(np.conj(np.fft.fft2(zstack, axes=(-2,-1)) * mask_fft.numpy())).to(DEVICE).type(torch.complex64)
+
+    z_cc = frames_to_zShift(frames, zstack_maskFFT[:]).cpu().numpy()
+
+    z_cc_conv = convolve_along_axis(z_cc[:], gaussian(x=np.linspace(-int(sig), int(sig), num=int(sig*2)+1, endpoint=True), sig=sig, plot_pref=False), axis=1, mode='same')
+
+    xAxis = np.linspace(0, z_cc_conv.shape[1]-1, num=z_cc_conv.shape[1]*int(resample_factor), endpoint=True)
+    z_cc_interp = scipy.interpolate.interp1d(np.linspace(0, z_cc_conv.shape[1]-1, num=z_cc_conv.shape[1], endpoint=True), z_cc_conv, kind='quadratic', axis=1)(xAxis)
+
+    pos_idx_sub = np.array(positions_idx[:])
+    zShift_interp = scipy.interpolate.interp1d(np.linspace(0, len(pos_idx_sub)-1, num=len(pos_idx_sub), endpoint=True), np.array(positions_idx[:]))(np.linspace(0, len(pos_idx_sub)-1, num=len(pos_idx_sub)*int(resample_factor), endpoint=True))
+
+    positions_interp = zShift_interp[np.argmax(z_cc_interp, axis=1)]
+
+    return positions_interp, zShift_interp, z_cc_interp
 
 
 ####################################################
