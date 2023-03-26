@@ -152,12 +152,7 @@ def phase_correlation_helper(
         fft_moving = torch.fft.fft2(im_moving, dim=dims)
 
     R = fft_template[:,None,:,:] * fft_moving[None,:,:,:]
-
-    if compute_maskFFT:
-        # R[mask_fft[None, ...] != 0] /= torch.abs(R)[mask_fft[None, ...] != 0]
-        R /= torch.abs(R) + eps
-    else:
-        R /= torch.abs(R)
+    R /= torch.abs(R) + eps
     
     cc = torch.fft.fftshift(torch.fft.ifft2(R, dim=dims), dim=dims).real.squeeze()
     
