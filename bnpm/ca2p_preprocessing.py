@@ -666,6 +666,12 @@ def find_zShifts(
 
     positions_interp = zShift_interp[np.argmax(z_cc_interp, axis=1)]
 
+    if verbose:
+        plt.figure()
+        plt.plot(z_cc[0])
+        plt.plot(z_cc_conv[0])
+        plt.plot(xAxis, z_cc_interp[0])
+
     return positions_interp, zShift_interp, z_cc_interp
 
 
