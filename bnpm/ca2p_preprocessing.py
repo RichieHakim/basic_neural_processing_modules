@@ -436,12 +436,12 @@ def get_chan1_offset(path_to_tif):
 
     print(f'chan1_offset= {chan1_offset}')
     return chan1_offset
-def get_metadata(path_to_tif):
+def get_metadata(path_to_tif, verbose=False):
     from ScanImageTiffReader import ScanImageTiffReader
     
     vol=ScanImageTiffReader(path_to_tif)
     md = vol.metadata().split("\n")
-    print(md)
+    print(md) if verbose else None
     return md
 
 def import_tiffs_SI(
@@ -550,7 +550,7 @@ def dense_stack_to_sparse_stack_SI(
 
 def find_zShifts(
     zstack,
-    positions_idx=None,
+    positions_z=None,
     path_to_tiff=None,
     frames=None,
     clip_zero=False,
@@ -572,7 +572,7 @@ def find_zShifts(
         zstack (np.ndarray):
             Z-stack of images.
             Shape: [num_frames, height, width]
-        positions_idx (list):
+        positions_z (list):
             List of z-positions for each frame in zstack.
             Shape: zstack.shape[0]
             Can be output of dense_stack_to_sparse_stack_SI().
@@ -619,7 +619,7 @@ def find_zShifts(
     from .timeSeries import convolve_along_axis
     from .math_functions import gaussian
 
-    assert positions_idx is not None, "RH ERROR: Must provide positions_idx"
+    assert positions_z is not None, "RH ERROR: Must provide positions_z"
 
     if frames is None:
         frames = import_tiffs_SI(
@@ -661,8 +661,8 @@ def find_zShifts(
     xAxis = np.linspace(0, z_cc_conv.shape[1]-1, num=z_cc_conv.shape[1]*int(resample_factor), endpoint=True)
     z_cc_interp = scipy.interpolate.interp1d(np.linspace(0, z_cc_conv.shape[1]-1, num=z_cc_conv.shape[1], endpoint=True), z_cc_conv, kind='quadratic', axis=1)(xAxis)
 
-    pos_idx_sub = np.array(positions_idx[:])
-    zShift_interp = scipy.interpolate.interp1d(np.linspace(0, len(pos_idx_sub)-1, num=len(pos_idx_sub), endpoint=True), np.array(positions_idx[:]))(np.linspace(0, len(pos_idx_sub)-1, num=len(pos_idx_sub)*int(resample_factor), endpoint=True))
+    pos_idx_sub = np.array(positions_z[:])
+    zShift_interp = scipy.interpolate.interp1d(np.linspace(0, len(pos_idx_sub)-1, num=len(pos_idx_sub), endpoint=True), np.array(positions_z[:]))(np.linspace(0, len(pos_idx_sub)-1, num=len(pos_idx_sub)*int(resample_factor), endpoint=True))
 
     positions_interp = zShift_interp[np.argmax(z_cc_interp, axis=1)]
 
