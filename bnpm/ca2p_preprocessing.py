@@ -436,7 +436,7 @@ def get_chan1_offset(path_to_tif):
 
     print(f'chan1_offset= {chan1_offset}')
     return chan1_offset
-def get_metadata(path_to_tif, verbose=False):
+def get_ScanImage_tiff_metadata(path_to_tif, verbose=False):
     from ScanImageTiffReader import ScanImageTiffReader
     
     vol=ScanImageTiffReader(path_to_tif)
@@ -500,12 +500,14 @@ def import_tiffs_SI(
 
 def dense_stack_to_sparse_stack_SI(
     stack_in, 
+    scanimage_metadata=None,
+    frames_to_discard_per_slice=30, 
+    sparse_step_size_um=4,
     num_frames_per_slice=60, 
     num_slices=25, 
     num_volumes=10, 
     step_size_um=0.8, 
-    frames_to_discard_per_slice=30, 
-    sparse_step_size_um=4
+    verbose=True,
 ):
     """
     Converts a dense stack of images into a sparse stack of images.
@@ -515,6 +517,19 @@ def dense_stack_to_sparse_stack_SI(
     Args:
         stack_in (np.ndarray):
             Input stack of images.
+            Shape: [frames, height, width]
+        scanimage_metadata (list of str):
+            Metadata from ScanImage tiff file. Expected to be a list of strings.
+            This list can be obtained using get_ScanImage_tiff_metadata().
+             fill in the following args:
+                - num_frames_per_slice
+                - num_slices
+                - num_volumes
+                - step_size_um
+        frames_to_discard_per_slice (int):
+            Number of frames to discard per slice.
+        sparse_step_size_um (float):
+            Desired step size in microns for the sparse stack.
         num_frames_per_slice (int):
             Number of frames per slice.
             From SI z-stack params.
@@ -527,25 +542,60 @@ def dense_stack_to_sparse_stack_SI(
         step_size_um (float):
             Step size in microns.
             From SI z-stack params.
-        frames_to_discard_per_slice (int):
-            Number of frames to discard per slice.
-        sparse_step_size_um (float):
-            Desired step size in microns for the sparse stack.
+
+    Returns:
+        stack_out (np.ndarray):
+            Output stack of images.
+            Shape: [frames, height, width]
+        positions_z (np.ndarray):
+            Z positions of each frame in the sparse stack.
+            Shape: [frames]
+        idx_slices (np.ndarray):
+            Indices that were subsampled from the dense stack along the z-axis.
     """
+    if scanimage_metadata is not None:
+        meta_strings = {
+            'num_frames_per_slice': 'SI.hStackManager.framesPerSlice',
+            'num_slices': 'SI.hStackManager.actualNumSlices',
+            'num_volumes': 'SI.hStackManager.actualNumVolumes',
+            'step_size_um': 'SI.hStackManager.actualStackZStepSize',
+        }
+        meta_values = {key: [float(t[t.find('= ')+2:]) for t in scanimage_metadata if t[:len(m)]==m][0] for key, m in meta_strings.items()}
+        num_frames_per_slice = int(meta_values['num_frames_per_slice'])
+        num_slices = int(meta_values['num_slices'])
+        num_volumes = int(meta_values['num_volumes'])
+        step_size_um = float(meta_values['step_size_um'])
+
+        if verbose:
+            print(f"Args found from scanimage_metadata:")
+            print(f"{'  num_frames_per_slice = ':<24}" + f"{num_frames_per_slice}") 
+            print(f"{'  num_slices = ':<24}" + f"{num_slices}") 
+            print(f"{'  num_volumes = ':<24}" + f"{num_volumes}") 
+            print(f"{'  step_size_um = ':<24}" + f"{step_size_um}") 
+            print('')
+
     range_slices = num_slices * step_size_um
     range_idx_half = int((range_slices / 2) // sparse_step_size_um)
     step_numIdx = int(sparse_step_size_um // step_size_um)
     idx_center = int(num_slices // 2)
     idx_slices = [idx_center + n for n in np.arange(-range_idx_half*step_numIdx, range_idx_half*step_numIdx + 1, step_numIdx, dtype=np.int64)]
     assert (min(idx_slices) >= 0) and (max(idx_slices) <= num_slices), f"RH ERROR: The range of slice indices expected is greater than the number of slices available: {idx_slices}"
-    positions_idx = [(idx - idx_center)*step_size_um for idx in idx_slices]
+    positions_z = [(idx - idx_center)*step_size_um for idx in idx_slices]
+    positions_z = [np.round(z, decimals=10) for z in positions_z]
     
-    slices_rs = np.reshape(stack_in, (num_frames_per_slice, num_slices, num_volumes, stack_in.shape[1], stack_in.shape[2]), order='F');
-    slices_rs = slices_rs[frames_to_discard_per_slice:,:,:,:,:];
+    slices_rs = np.reshape(stack_in, (num_frames_per_slice, num_slices, num_volumes, stack_in.shape[1], stack_in.shape[2]), order='F')
+    slices_rs = slices_rs[frames_to_discard_per_slice:,:,:,:,:]
     slices_rs = np.mean(slices_rs, axis=(0, 2))
 
     stack_out = slices_rs[idx_slices]
-    return stack_out, positions_idx, idx_slices
+
+    if verbose:
+        print(f"{'stack_in.shape = ':<24}" + f"{stack_in.shape}") 
+        print(f"{'stack_out.shape = ':<24}" + f"{stack_out.shape}") 
+        print(f"{'positions_z = ':<24}" + ''.join([f'{z}, ' for z in positions_z])) 
+        print(f"{'idx_slices = ':<24}" + f"{idx_slices}")
+
+    return stack_out, positions_z, idx_slices
 
 
 def find_zShifts(
