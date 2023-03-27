@@ -18,7 +18,7 @@ def gaussian(x=None, mu=0, sig=1, plot_pref=False):
         params_gaus (dict): dictionary containing the input params
     '''
     if x is None:
-        x = np.linspace(-sig*5, sig*5, sig*7, endpoint=True)
+        x = np.linspace(-sig*5, sig*5, int(sig*7), endpoint=True)
 
     gaus = 1/(np.sqrt(2*np.pi)*sig)*np.exp((-((x-mu)/sig) **2)/2)
 
