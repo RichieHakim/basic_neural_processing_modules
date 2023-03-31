@@ -586,7 +586,7 @@ def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same', correct_edge_ef
         correct_edge_effects=correct_edge_effects,
         multicore_pref=True, 
         verbose=False
-        )
+    )
     
     return arr_conv
 
