@@ -568,10 +568,10 @@ def dense_stack_to_sparse_stack_SI(
 
         if verbose:
             print(f"Args found from scanimage_metadata:")
-            print(f"{'  num_frames_per_slice = ':<24}" + f"{num_frames_per_slice}") 
-            print(f"{'  num_slices = ':<24}" + f"{num_slices}") 
-            print(f"{'  num_volumes = ':<24}" + f"{num_volumes}") 
-            print(f"{'  step_size_um = ':<24}" + f"{step_size_um}") 
+            print(f"{'  num_frames_per_slice = ':<25}" + f"{num_frames_per_slice}") 
+            print(f"{'  num_slices = ':<25}" + f"{num_slices}") 
+            print(f"{'  num_volumes = ':<25}" + f"{num_volumes}") 
+            print(f"{'  step_size_um = ':<25}" + f"{step_size_um}") 
             print('')
 
     range_slices = num_slices * step_size_um
@@ -590,10 +590,10 @@ def dense_stack_to_sparse_stack_SI(
     stack_out = slices_rs[idx_slices]
 
     if verbose:
-        print(f"{'stack_in.shape = ':<24}" + f"{stack_in.shape}") 
-        print(f"{'stack_out.shape = ':<24}" + f"{stack_out.shape}") 
-        print(f"{'positions_z = ':<24}" + ''.join([f'{z}, ' for z in positions_z])) 
-        print(f"{'idx_slices = ':<24}" + f"{idx_slices}")
+        print(f"{'stack_in.shape = ':<25}" + f"{stack_in.shape}") 
+        print(f"{'stack_out.shape = ':<25}" + f"{stack_out.shape}") 
+        print(f"{'positions_z = ':<25}" + ''.join([f'{z}, ' for z in positions_z])) 
+        print(f"{'idx_slices = ':<25}" + f"{idx_slices}")
 
     return stack_out, positions_z, idx_slices
 
@@ -688,7 +688,7 @@ def find_zShifts(
         verbose=verbose,
     )
 
-    clear_cuda_cache()
+    clear_cuda_cache() if use_GPU else None
     DEVICE = set_device(use_GPU=use_GPU, verbose=verbose)
 
     def frames_to_zShift(frames_toUse, zstack_maskFFT):
@@ -716,11 +716,13 @@ def find_zShifts(
 
     positions_interp = zShift_interp[np.argmax(z_cc_interp, axis=1)]
 
+    clear_cuda_cache() if use_GPU else None
+
     if verbose:
         plt.figure()
-        plt.plot(z_cc[0])
-        plt.plot(z_cc_conv[0])
-        plt.plot(xAxis, z_cc_interp[0])
+        plt.plot(positions_z, z_cc[0])
+        plt.plot(positions_z, z_cc_conv[0])
+        plt.plot(zShift_interp, z_cc_interp[0])
 
     return positions_interp, zShift_interp, z_cc_interp
 
