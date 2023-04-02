@@ -503,6 +503,7 @@ def dense_stack_to_sparse_stack_SI(
     scanimage_metadata=None,
     frames_to_discard_per_slice=30, 
     sparse_step_size_um=4,
+    reduction=np.mean,
     num_frames_per_slice=60, 
     num_slices=25, 
     num_volumes=10, 
@@ -530,6 +531,9 @@ def dense_stack_to_sparse_stack_SI(
             Number of frames to discard per slice.
         sparse_step_size_um (float):
             Desired step size in microns for the sparse stack.
+        reduction (function):
+            Function to reduce the frames in each slice.
+            Must be able to accept an axis argument.
         num_frames_per_slice (int):
             Number of frames per slice.
             From SI z-stack params.
@@ -585,7 +589,7 @@ def dense_stack_to_sparse_stack_SI(
     
     slices_rs = np.reshape(stack_in, (num_frames_per_slice, num_slices, num_volumes, stack_in.shape[1], stack_in.shape[2]), order='F')
     slices_rs = slices_rs[frames_to_discard_per_slice:,:,:,:,:]
-    slices_rs = np.mean(slices_rs, axis=(0, 2))
+    slices_rs = reduction(slices_rs, axis=(0, 2))
 
     stack_out = slices_rs[idx_slices]
 
