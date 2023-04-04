@@ -484,7 +484,7 @@ def import_tiffs_SI(
     def get_frames(path):
         vol = ScanImageTiffReader(path)
         n_frames = 1 if len(vol.shape()) < 3 else vol.shape()[0]  # single page tiffs
-        frames = vol.data(beg=0, end=n_frames)
+        frames = vol.data(beg=0, end=n_frames) if n_frames > 1 else vol.data()
         vol.close()
         del vol
         frames = np.clip(frames, 0, None) if clip_zero else frames
