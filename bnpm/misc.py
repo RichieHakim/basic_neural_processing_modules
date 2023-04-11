@@ -250,6 +250,43 @@ def compare_file_hashes(
 
     return all(results_matching.values()), results_matching, paths_matching
 
+def write_to_log(
+    path_log, 
+    text, 
+    mode='a', 
+    start_on_new_line=True, 
+    pref_print=True, 
+    pref_save=True
+):
+    """
+    Writes text to a log file.
+    RH 2022
+
+    Args:
+        path_log (str):
+            Path to log file.
+        text (str):
+            Text to write to log file.
+        mode (str):
+            Mode to open log file in.
+            'a' for append, 'w' for write.
+        start_on_new_line (bool):
+            Whether or not to start on a new line.
+        pref_print (bool):
+            Whether or not to print text to console.
+        pref_save (bool):
+            Whether or not to save text to log file.
+
+    Returns:
+        None
+    """
+    if pref_print:
+        print(text)
+    if pref_save:
+        with open(path_log, mode=mode) as log:
+            if start_on_new_line==True:
+                log.write('\n')
+            log.write(text)
 
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
