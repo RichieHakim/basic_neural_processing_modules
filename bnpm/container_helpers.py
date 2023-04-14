@@ -75,6 +75,7 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
     """
     Flattens a dictionary of dictionaries into a 
      single dictionary.
+    NOTE: Turns all keys into strings.
     Stolen from https://stackoverflow.com/a/6027615
     RH 2022
 
@@ -95,7 +96,7 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
 
     items = []
     for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
+        new_key = str(parent_key) + str(sep) + str(k) if parent_key else str(k)
         if isinstance(v, MutableMapping):
             items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
