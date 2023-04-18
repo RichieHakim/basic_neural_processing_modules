@@ -260,7 +260,7 @@ def phaseCorrelationImage_to_shift(cc_im):
 
 def make_Fourier_mask(
     frame_shape_y_x=(512,512),
-    bandpass_spatialFs_bounds=(1/128, 1/3),
+    bandpass_spatialFs_bounds=[1/128, 1/3],
     order_butter=5,
     mask=None,
     dtype_fft=torch.complex64,
@@ -290,6 +290,9 @@ def make_Fourier_mask(
             Mask in the Fourier domain.
     """
     from .other_peoples_code import get_nd_butterworth_filter
+
+    bandpass_spatialFs_bounds = list(bandpass_spatialFs_bounds)
+    bandpass_spatialFs_bounds[0] = max(bandpass_spatialFs_bounds[0], 1e-9)
     
     if (isinstance(mask, (np.ndarray, torch.Tensor))) or ((mask != 'None') and (mask is not None)):
         mask = torch.as_tensor(mask, dtype=dtype_fft)
