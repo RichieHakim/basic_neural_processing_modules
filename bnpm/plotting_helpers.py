@@ -244,6 +244,8 @@ def rand_cmap(
     import colorsys
     import numpy as np
 
+    assert nlabels > 0, 'Number of labels must be greater than 0'
+
 
     if type not in ('bright', 'soft', 'random'):
         print ('Please choose "bright" or "soft" for type')
