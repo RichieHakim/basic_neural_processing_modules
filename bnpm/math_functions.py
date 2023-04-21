@@ -63,37 +63,6 @@ def generalised_logistic_function(
     return a + (k-a) / (c + q*np.exp(-b*(x-mu)))**(1/v)
 
 
-# def bounded_exponential(x, bounds=[1/10,10], base=2):
-#     """
-#     Bounded exponential function
-#     Computes an exponential function where when
-#      x is 0, the output is bounds[0], and when
-#      x is 1, the output is bounds[1]. The relative
-#      probability of outputting bounds[0[ over bounds[1]
-#      is base.
-#     Useful for randomly sampling over large ranges of
-#      values with an exponential resolution.
-#     RH 2021
-
-#     Args:
-#         x (float or np.ndarray): 
-#             Float or 1-D array of the x-axis
-#         bounds (list):
-#             List of two floats, the lower and upper
-#              bounds
-#         base (float):  
-#             The relative probability of outputting
-#              bounds[0] over bounds[1]
-    
-#     Returns:
-#         output (float or np.ndarray):
-#             The bounded exponential output
-#     """
-    
-#     range_additive = bounds[1] - bounds[0]
-
-#     return (((base**x - 1)/(base-1)) * range_additive) + bounds[0]
-
 def bounded_logspace(start, stop, num,):
     """
     Like np.logspace, but with a defined start and
@@ -118,9 +87,9 @@ def bounded_logspace(start, stop, num,):
     return exp ** np.linspace(np.log(start)/np.log(exp), np.log(stop)/np.log(exp), num, endpoint=True)
 
 
-def polar2real(mag, angle):
+def polar2cartesian(mag, angle):
     """
-    Converts a polar coordinates to real coordinates
+    Converts a polar coordinates to cartesian coordinates
     RH 2021
 
     Args:
@@ -138,14 +107,14 @@ def polar2real(mag, angle):
         exp = np.exp
     return mag * exp(1j*angle)
 
-def real2polar(x):
+def cartesian2polar(x):
     """
-    Converts a real coordinates to polar coordinates
+    Converts a cartesian coordinates to polar coordinates
     RH 2021
 
     Args:
         x (float or np.ndarray or torch.Tensor):
-            Real coordinates
+            Cartesian coordinates
         
     Returns:
         Magnitude (float or np.ndarray or torch.Tensor):
@@ -222,3 +191,90 @@ def linex(x, mu=1, a=1, b=1, c=1, d=1, e=1, f=1, g=1):
     # return c*(torch.exp(a*(x**d-mu**(d))) - a*(x**d-mu**(d)) - 1)**b
     return a*(b*(torch.exp(c*(x-mu))**d) - e*(x-mu)**f - 1)**g
     # return ((a*(x-mu)**c) - a*(x-mu)**(d) - 1)**b
+
+
+def szudzik_encode(a, b):
+    """
+    Szudzik's function for encoding two integers into one.
+    Output is a unique hash for each pair of integers.
+    RH 2023
+
+    Args:
+        a (int or np.ndarray or torch.Tensor):
+            First integer array.
+            Must be non-negative.
+        b (int or np.ndarray or torch.Tensor):
+            Second integer array
+            Must be non-negative.
+
+    Returns:
+        output (int or np.ndarray or torch.Tensor):
+            Encoded integer array
+    """
+
+    if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+        zeros_like = np.zeros_like
+        dtype = np.uint64
+        assert np.issubdtype(a.dtype, np.integer) and np.issubdtype(b.dtype, np.integer), "a and b must be integer types"
+        assert np.all(a >= 0) and np.all(b >= 0), "a and b must be non-negative"
+    elif isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor):
+        zeros_like = torch.zeros_like
+        dtype = torch.int64
+        assert a.dtype.is_floating_point==False and b.dtype.is_floating_point==False, "a and b must be integer types"
+        assert torch.all(a >= 0) and torch.all(b >= 0), "a and b must be non-negative"
+    else:
+        raise TypeError("a and b must be both np.ndarray or both torch.Tensor")
+    
+    assert a.shape == b.shape, "a and b must have the same shape"
+
+    m = a >= b  ## mask for when a >= b
+    target = zeros_like(a, dtype=dtype)
+    target[m] = a[m] * a[m] + a[m] + b[m]
+    target[~m] = a[~m] + b[~m] * b[~m]
+    return target
+
+def szudzik_decode(z):
+    """
+    Szudzik's function for decoding one integer into two.
+    Output is a unique hash pair for each input integer.
+    RH 2023
+
+    Args:
+        z (int or np.ndarray or torch.Tensor):
+            Encoded integer array
+
+    Returns:
+        a (int or np.ndarray or torch.Tensor):
+            First integer array.
+            Must be non-negative.
+        b (int or np.ndarray or torch.Tensor):
+            Second integer array
+            Must be non-negative.
+    """
+
+    if isinstance(z, np.ndarray):
+        zeros_like = np.zeros_like
+        dtype = np.uint64
+        floor = np.floor
+        sqrt = np.sqrt
+        assert np.issubdtype(z.dtype, np.integer), "z must be integer type"
+    elif isinstance(z, torch.Tensor):
+        zeros_like = torch.zeros_like
+        dtype = torch.int64
+        floor = torch.floor
+        sqrt = torch.sqrt
+        assert z.dtype.is_floating_point==False, "z must be integer type"
+    else:
+        raise TypeError("z must be np.ndarray or torch.Tensor")
+    
+    w = floor(sqrt(z))
+    w = w.astype(dtype) if isinstance(w, np.ndarray) else w.type(dtype)
+
+    a = zeros_like(z, dtype=dtype)
+    b = zeros_like(z, dtype=dtype)
+    m = z >= w * w + w
+    a[m] = w[m]
+    b[m] = z[m] - w[m] * w[m] - w[m]
+    a[~m] = z[~m] - w[~m] * w[~m]
+    b[~m] = w[~m]
+    return a, b

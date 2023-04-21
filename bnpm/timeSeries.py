@@ -9,7 +9,7 @@ import torch
 from . import parallel_helpers
 from .parallel_helpers import multiprocessing_pool_along_axis
 from . import cross_validation
-from .math_functions import polar2real, real2polar, gaussian
+from .math_functions import polar2cartesian, cartesian2polar, gaussian
 from . import indexing
 
 
@@ -684,10 +684,10 @@ def phase_shift(signal, shift_angle=90, deg_or_rad='deg', axis=0):
     angle_mask = cat(([-ones(half_len_minus), ones(half_len_plus)])) * shift_angle
 
     signal_fft = fft(signal, axis=axis)
-    mag, ang = real2polar(signal_fft)
+    mag, ang = cartesian2polar(signal_fft)
     ang_shifted = ang + angle_mask
 
-    signal_fft_shifted = polar2real(mag, ang_shifted)
+    signal_fft_shifted = polar2cartesian(mag, ang_shifted)
     signal_shifted = ifft(signal_fft_shifted, axis=axis)
     return signal_shifted
 
