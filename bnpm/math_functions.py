@@ -214,14 +214,18 @@ def szudzik_encode(a, b):
 
     if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
         zeros_like = np.zeros_like
-        dtype = np.uint64
+        dtype = np.int64
         assert np.issubdtype(a.dtype, np.integer) and np.issubdtype(b.dtype, np.integer), "a and b must be integer types"
         assert np.all(a >= 0) and np.all(b >= 0), "a and b must be non-negative"
+        a = a.astype(np.int64)
+        b = b.astype(np.int64)
     elif isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor):
         zeros_like = torch.zeros_like
         dtype = torch.int64
         assert a.dtype.is_floating_point==False and b.dtype.is_floating_point==False, "a and b must be integer types"
         assert torch.all(a >= 0) and torch.all(b >= 0), "a and b must be non-negative"
+        a = a.type(torch.int64)
+        b = b.type(torch.int64)
     else:
         raise TypeError("a and b must be both np.ndarray or both torch.Tensor")
     
@@ -254,7 +258,7 @@ def szudzik_decode(z):
 
     if isinstance(z, np.ndarray):
         zeros_like = np.zeros_like
-        dtype = np.uint64
+        dtype = np.int64
         floor = np.floor
         sqrt = np.sqrt
         assert np.issubdtype(z.dtype, np.integer), "z must be integer type"
