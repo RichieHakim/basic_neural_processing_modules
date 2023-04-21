@@ -123,7 +123,7 @@ def batch_run(paths_scripts,
     n_jobs = max(len(paths_scripts), len(params_list), len(sbatch_config_list))
     if max_n_jobs is not None:
         if n_jobs > max_n_jobs:
-            raise ValueError(f'Too many jobs requested: max_n_jobs={n_jobs} > n_jobs={max_n_jobs}')
+            raise ValueError(f'Too many jobs requested: max_n_jobs={max_n_jobs} > n_jobs={n_jobs}')
 
     def rep_inputs(item, n_jobs):
         if len(item)==1 and (n_jobs>1):
