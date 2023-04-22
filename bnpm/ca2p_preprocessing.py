@@ -348,28 +348,28 @@ def trace_quality_metrics(
             Rolling baseline of F_neuSub.
             From 'make_dFoF' above. If None, then
              will be calculated from F_neuSub.
-        percentile_baseline:
-            percentile to use as 'baseline'/'quiescence'.
-            Use same value as in 'make_dFoF' above
-        window_rolling_baseline:
+        percentile_baseline (int, 0 to 100):
+            percentile to use as 'baseline'
+        window_rolling_baseline (int):
             Window to use for rolling baseline.
-        Fs:
+            In samples.
+        Fs (float):
             Framerate of imaging
-        plot_pref:
+        plot_pref (bool):
             Whether to plot the traces and metrics
         thresh:
             Dictionary of thresholds to use.
             If None, then use default values:
-                'var_ratio': 1,
-                'EV_F_by_Fneu': 0.6,
+                'var_ratio__Fneu_over_F': 1,
+                'EV__F_by_Fneu': 0.6,
                 'base_FneuSub': 0,
                 'base_F': 50,
-                'peter_noise_levels': 12,
+                'nsr_autoregressive': 12,
+                'noise_derivMAD': 100,
                 'max_dFoF': 50,
                 'baseline_var': 1,
-        clip_range (tuple of floats):
-            Range of values to clip dFoF to for calculating
-             peter_noise_levels and baseline_var.
+        device (str):
+            Device to use for torch tensors. 'cpu' or 'cuda'.
     
     Returns:
         tqm: dict with the following fields:
@@ -386,7 +386,6 @@ def trace_quality_metrics(
         good_ROIs:
             ROIs that did not meet the exclusion creteria
     '''
-    from .timeSeries import rolling_percentile_rq_multicore
     from .similarity import pairwise_orthogonalization_torch
 
     if F_baseline_roll is None:
