@@ -287,6 +287,8 @@ def derivative_MAD(
         return_cpu (bool):
             Whether to return the results on the cpu.
     """
+    n = (n,) if isinstance(n, int) else n
+
     ## make robust to torch tensor or numpy array inputs of X
     x = torch.as_tensor(X, dtype=torch.float32, device=device)
     
@@ -308,71 +310,18 @@ def derivative_MAD(
     return x_deriv_MAD
 
 
-def snr_derivative_MAD(
-    X, 
-    dt=1, 
-    n_noise=2,
-    axis=1, 
-    device='cpu',
-    return_numpy=True,
-    return_cpu=True,
-):
-    """
-    Calculate the SNR of a signal based on the median absolute
-     deviation of the nth derivatives of the signal.
-    Signal is defined as the MAD of the 0th derivative, and noise
-     is defined as the MAD of the nth derivative.
-    See derivative_MAD function for more details.
-    RH 2023
-    
-    Args:
-        X (np.ndarray or torch.Tensor):
-            Signal to calculate the SNR of.
-        dt (float):
-            Time step between samples of the signal. 1/frame_rate.
-        n_noise (int):
-            The nth derivative to calculate the MAD of to estimate the noise level.
-        axis (int):
-            Axis along which to calculate the MAD of the nth derivatives.
-        device (str):
-            Device to use for torch tensors. 'cpu' or 'cuda'.
-        return_numpy (bool):
-            Whether to return the results as a numpy array.
-        return_cpu (bool):
-            Whether to return the results on the cpu.
-
-    Returns:
-        snr (np.ndarray or torch.Tensor):
-            Signal to noise ratio of the signal.
-        absolute noise (np.ndarray or torch.Tensor):
-            Median absolute deviation of the nth derivatives of the signal.
-    """
-    x_deriv_MAD = derivative_MAD(
-        X, 
-        n=[0] + [n_noise],
-        dt=dt, 
-        axis=axis, 
-        center=True, 
-        standardize=False,
-        device=device,
-        return_numpy=return_numpy,
-        return_cpu=return_cpu,
-    )
-    
-    snr = x_deriv_MAD[0] / x_deriv_MAD[1]
-
-    return snr, x_deriv_MAD[1]
-
-
-
 def trace_quality_metrics(
-    F, Fneu, dFoF, dF, F_neuSub, F_baseline,
+    F,
+    Fneu,
+    dFoF,
+    F_neuSub,
+    F_baseline_roll=None,
     percentile_baseline=30,
     Fs=30,
     plot_pref=True, 
     thresh=None,
-    clip_range=(-1,1)
-    ):
+    device='cpu',
+):
     '''
     Some simple quality metrics for calcium imaging traces. Designed to
     work with Suite2p's outputs (F, Fneu) and the make_dFoF function
@@ -436,99 +385,113 @@ def trace_quality_metrics(
         good_ROIs:
             ROIs that did not meet the exclusion creteria
     '''
-    from .timeSeries import percentile_numba, var_numba, rolling_percentile_rq_multicore
+    from .timeSeries import rolling_percentile_rq_multicore
+    from .similarity import pairwise_orthogonalization_torch
 
-    var_F = var_numba(F)
-    var_Fneu = var_numba(Fneu)
-    var_FneuSub = var_numba(F_neuSub)
+    F = torch.as_tensor(F, dtype=torch.float32, device=device)
+    Fneu = torch.as_tensor(Fneu, dtype=torch.float32, device=device)
+    dFoF = torch.as_tensor(dFoF, dtype=torch.float32, device=device)
+    F_neuSub = torch.as_tensor(F_neuSub, dtype=torch.float32, device=device)
+    F_baseline_roll = torch.as_tensor(F_baseline_roll, dtype=torch.float32, device=device) if F_baseline_roll is not None else None
 
-    var_F[var_F==0] = np.nan
-    var_ratio = var_Fneu / var_F
+    var_F = torch.var(F, dim=1)
+    var_Fneu = torch.var(Fneu, dim=1)
 
-    EV_F_by_Fneu = 1 - (var_FneuSub / var_F)
-
-    base_FneuSub = percentile_numba(F_neuSub, percentile_baseline)
-    base_F = percentile_numba(F, percentile_baseline)
-
+    var_ratio__Fneu_over_F = var_Fneu / var_F
     
-    dFoF_clip = np.clip(dFoF, clip_range[0], clip_range[1])
+    # var_FneuSub = torch.var(F_neuSub, dim=1)
+    # EV__F_by_Fneu = 1 - (var_FneuSub / var_F)
+    _, EV__F_by_Fneu, _, _ = pairwise_orthogonalization_torch(
+        v1=F.T,
+        v2=Fneu.T,
+        center=True,
+        device=device,
+    )
 
-    peter_noise = peter_noise_levels(np.ascontiguousarray(dFoF_clip), Fs)
-    # peter_noise = np.median(np.abs(np.diff(dFoF, axis=1)), axis=1) # Use this line of code if numba is acting up
-    peter_noise[np.abs(peter_noise) > 1e3] = np.nan
+    # F_baseline = torch.quantile(F, percentile_baseline/100, dim=1, keepdim=True)
+    # FneuSub_baseline = torch.quantile(F_neuSub, percentile_baseline/100, dim=1, keepdim=True)
+    ## For some reason, torch.quantile is absurdly slow. So we'll use kthvalue instead
+    k = int(F.shape[1] * percentile_baseline / 100)
+    F_baseline = torch.kthvalue(F, k, dim=1, keepdim=True).values
+    FneuSub_baseline = torch.kthvalue(F_neuSub, k, dim=1, keepdim=True).values
+    
+    snr_ar, _, _ = snr_autoregressive(
+        x=dFoF,
+        axis=1, 
+        center=True, 
+        standardize=True, 
+        device=device,
+        return_numpy=False,
+        return_cpu=False,
+    )
+    nsr_ar = 1 / snr_ar
+    noise_derivMAD = derivative_MAD(
+        X=dFoF, 
+        n=2,
+        dt=1/Fs, 
+        axis=1,
+        center=True, 
+        standardize=False,
+        device=device,
+        return_numpy=False,
+        return_cpu=False,
+    )[0]
 
-    rich_nsr = 1 / snr_autoregressive(dFoF_clip, center=True, standardize=False)[0]
+    if F_baseline_roll is None:
+        F_baseline_roll = rolling_percentile_rq_multicore(
+            F_neuSub,
+            ptile=percentile_baseline,
+            window_size=int(Fs*60*10+1)
+        )
+    F_baseline_roll_mean = torch.mean(F_baseline_roll, dim=1, keepdim=True)
+    dFbrmOverFbrm = (F_baseline_roll - F_baseline_roll_mean) / F_baseline_roll_mean
+    baseline_var = torch.var(dFbrmOverFbrm, dim=1)
 
+    max_dFoF = torch.max(dFoF, dim=1).values
 
-    # currently hardcoding the rolling baseline window to be 10 minutes
-    # rolling_baseline = rolling_percentile_pd(dFoF, ptile=percentile_baseline, window=int(Fs*60*2 + 1))
-    # dFoF_clipNaN = copy.copy(dFoF)
-    # dFoF_clipNaN[dFoF_clipNaN <= clip_range[0]] = np.nan
-    # dFoF_clipNaN[dFoF_clipNaN >= clip_range[1]] = np.nan
-    dFoF_clipped = np.clip(dFoF, a_min=clip_range[0], a_max=clip_range[1])
-    rolling_baseline = rolling_percentile_rq_multicore(dFoF_clipped, ptile=percentile_baseline, window=int(Fs*60*20 + 1))
-    baseline_var = var_numba(rolling_baseline[:,int(Fs*60*5):-int(Fs*60*5)])
-    # baseline_range = max_numba(rolling_baseline) - min_numba(rolling_baseline)
-
-    max_dFoF = np.max(dFoF, axis=1)
 
     metrics = {
-        'var_ratio': var_ratio,
-        'EV_F_by_Fneu': EV_F_by_Fneu,
-        'base_FneuSub': base_FneuSub,
-        'base_F': base_F,
-        'peter_noise_levels': peter_noise,
-        'rich_nsr': rich_nsr,
-        'max_dFoF': max_dFoF,
-        'baseline_var': baseline_var,
+        'var_ratio__Fneu_over_F': var_ratio__Fneu_over_F.cpu().numpy().squeeze(),
+        'EV__F_by_Fneu': EV__F_by_Fneu.cpu().numpy().squeeze(),
+        'base_FneuSub': FneuSub_baseline.cpu().numpy().squeeze(),
+        'base_F': F_baseline.cpu().numpy().squeeze(),
+        'nsr_autoregressive': nsr_ar.cpu().numpy().squeeze(),
+        'noise_derivMAD': noise_derivMAD.cpu().numpy().squeeze(),
+        'max_dFoF': max_dFoF.cpu().numpy().squeeze(),
+        'baseline_var': baseline_var.cpu().numpy().squeeze(),
     }
-
-    # ############# HARD-CODED exclusion criteria ###############
-    if thresh is None:
-        thresh = {
-                    'var_ratio': 1,
-                    'EV_F_by_Fneu': 0.6,
-                    'base_FneuSub': 0,
-                    'base_F': 50,
-                    'peter_noise_levels': 12,
-                    'rich_nsr': 2,
-                    'max_dFoF': 50,
-                    'baseline_var': 1,
-                }
-    # thresh = {
-    # 'var_ratio': 3,
-    # 'EV_F_by_Fneu': 1,
-    # 'base_FneuSub': -1000,
-    # 'base_F': -1000,
-    # 'peter_noise_levels': 500,
-    # 'rich_nsr': 1,
-    # 'max_dFoF': 3000,
-    # 'baseline_var': 1,
-    # }
-
+    thresh = {
+        'var_ratio__Fneu_over_F': 1,
+        'EV__F_by_Fneu': 0.6,
+        'base_FneuSub': 0,
+        'base_F': 50,
+        'nsr_autoregressive': 12,
+        'noise_derivMAD': 100,
+        'max_dFoF': 50,
+        'baseline_var': 1,
+    } if thresh is None else thresh
     sign = {
-    'var_ratio': 1,
-    'EV_F_by_Fneu': 1,
-    'base_FneuSub': -1,
-    'base_F': -1,
-    'peter_noise_levels': 1,
-    'rich_nsr': 1,
-    'max_dFoF': 1,
-    'baseline_var': 1,
+        'var_ratio__Fneu_over_F': 1,
+        'EV__F_by_Fneu': 1,
+        'base_FneuSub': -1,
+        'base_F': -1,
+        'nsr_autoregressive': 1,
+        'noise_derivMAD': 1,
+        'max_dFoF': 1,
+        'baseline_var': 1,
     }
 
     # Exclude ROIs
-    n_ROIs = len(list(metrics.values())[0])
-    good_ROIs = np.ones(n_ROIs)
+    good_ROIs = np.ones(dFoF.shape[0], dtype=bool)
     classifications = dict()
-    for ii, val in enumerate(metrics):
-        if sign[val]==1:
-            to_exclude = (metrics[val] > thresh[val]) + np.isnan(metrics[val]) # note that if NaN then excluded
-        if sign[val]==-1:
-            to_exclude = (metrics[val] < thresh[val]) + np.isnan(metrics[val])
+    for ii, met in enumerate(metrics):
+        if sign[met]==1:
+            to_exclude = (metrics[met] > thresh[met]) + np.isnan(metrics[met]) # note that if NaN then excluded
+        if sign[met]==-1:
+            to_exclude = (metrics[met] < thresh[met]) + np.isnan(metrics[met])
 
-        classifications[val] = 1-to_exclude
-        good_ROIs[to_exclude] = 0
+        classifications[met] = np.logical_not(to_exclude)
+        good_ROIs[to_exclude] = False
 
     # drop everything into a dict
     tqm = {
@@ -541,24 +504,24 @@ def trace_quality_metrics(
     # plot
     if plot_pref:
         fig, axs = plt.subplots(len(tqm['metrics']), figsize=(7,10))
-        for ii, val in enumerate(tqm['metrics']):
-            if val=='peter_noise_levels':
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
+        for ii, met in enumerate(tqm['metrics']):
+            if met=='peter_noise_levels':
+                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==1)[0]], 300, histtype='step')
+                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==0)[0]], 300, histtype='step')
                 axs[ii].set_xlim([0,20])
-            # elif val=='baseline_var':
-            #     axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
-            #     axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
+            # elif met=='baseline_var':
+            #     axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==1)[0]], 300, histtype='step')
+            #     axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==0)[0]], 300, histtype='step')
             #     axs[ii].set_xlim(right=50)
             #     # axs[ii].set_xscale('log')
             else:
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
-                # axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
+                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==1)[0]], 300, histtype='step')
+                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==0)[0]], 300, histtype='step')
 
-            axs[ii].title.set_text(f"{val}: {np.sum(tqm['classifications'][val]==0)} excl")
+            axs[ii].title.set_text(f"{met}: {np.sum(tqm['classifications'][met]==0)} excl")
             axs[ii].set_yscale('log')
 
-            axs[ii].plot(np.array([tqm['thresh'][val],tqm['thresh'][val]])  ,  np.array([0,100]), 'k')
+            axs[ii].plot(np.array([tqm['thresh'][met],tqm['thresh'][met]])  ,  np.array([0,100]), 'k')
         fig.legend(('thresh', 'included','excluded'))
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
