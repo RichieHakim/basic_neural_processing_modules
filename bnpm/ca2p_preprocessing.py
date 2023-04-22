@@ -317,6 +317,7 @@ def trace_quality_metrics(
     F_neuSub,
     F_baseline_roll=None,
     percentile_baseline=30,
+    window_rolling_baseline=30*60*15,
     Fs=30,
     plot_pref=True, 
     thresh=None,
@@ -350,6 +351,8 @@ def trace_quality_metrics(
         percentile_baseline:
             percentile to use as 'baseline'/'quiescence'.
             Use same value as in 'make_dFoF' above
+        window_rolling_baseline:
+            Window to use for rolling baseline.
         Fs:
             Framerate of imaging
         plot_pref:
@@ -391,7 +394,7 @@ def trace_quality_metrics(
         F_baseline_roll = rolling_percentile_pd(
             F_neuSub.cpu().numpy()[:,::1] if isinstance(F_neuSub, torch.Tensor) else F_neuSub[:,::1],
             ptile=percentile_baseline, 
-            window=int(Fs * 60 * 15 / 1), 
+            window=int(window_rolling_baseline), 
             multiprocessing_pref=True, 
             center=True,
             interpolation='linear',
