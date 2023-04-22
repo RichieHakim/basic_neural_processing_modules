@@ -329,26 +329,24 @@ def trace_quality_metrics(
     RH 2021
 
     Args:
-        F: 
+        F (np.ndarray or torch.Tensor):
             Fluorescence traces. 
             From S2p. shape=[Neurons, Time]
-        Fneu: 
+        Fneu (np.ndarray or torch.Tensor):
             Fluorescence Neuropil traces. 
             From S2p. shape=[Neurons, Time]
-        dFoF:
+        dFoF (np.ndarray or torch.Tensor):
             Normalized changes in fluorescence ('dF/F').
             From 'make_dFoF' above.
             ((F-Fneu) - F_base) / F_base . Where F_base is
             something like percentile((F-Fneu), 30)
-        dF:
-            Changes in fluorescence.
-            From 'make_dFoF' above. ((F-Fneu) - F_base)
-        F_neuSub:
+        F_neuSub (np.ndarray or torch.Tensor):
             Neuropil subtracted fluorescence.
             From 'make_dFoF' above
-        F_baseline:
-            currently unused.
-            From 'make_dFoF' above
+        F_baseline_roll (np.ndarray or torch.Tensor):
+            Rolling baseline of F_neuSub.
+            From 'make_dFoF' above. If None, then
+             will be calculated from F_neuSub.
         percentile_baseline:
             percentile to use as 'baseline'/'quiescence'.
             Use same value as in 'make_dFoF' above
@@ -388,17 +386,28 @@ def trace_quality_metrics(
     from .timeSeries import rolling_percentile_rq_multicore
     from .similarity import pairwise_orthogonalization_torch
 
+    if F_baseline_roll is None:
+        from .timeSeries import rolling_percentile_pd
+        F_baseline_roll = rolling_percentile_pd(
+            F_neuSub.cpu().numpy()[:,::1] if isinstance(F_neuSub, torch.Tensor) else F_neuSub[:,::1],
+            ptile=percentile_baseline, 
+            window=int(Fs * 60 * 15 / 1), 
+            multiprocessing_pref=True, 
+            center=True,
+            interpolation='linear',
+        )
+
     F = torch.as_tensor(F, dtype=torch.float32, device=device)
     Fneu = torch.as_tensor(Fneu, dtype=torch.float32, device=device)
     dFoF = torch.as_tensor(dFoF, dtype=torch.float32, device=device)
     F_neuSub = torch.as_tensor(F_neuSub, dtype=torch.float32, device=device)
-    F_baseline_roll = torch.as_tensor(F_baseline_roll, dtype=torch.float32, device=device) if F_baseline_roll is not None else None
+    F_baseline_roll = torch.as_tensor(F_baseline_roll, dtype=torch.float32, device=device)
 
     var_F = torch.var(F, dim=1)
     var_Fneu = torch.var(Fneu, dim=1)
 
     var_ratio__Fneu_over_F = var_Fneu / var_F
-    
+
     # var_FneuSub = torch.var(F_neuSub, dim=1)
     # EV__F_by_Fneu = 1 - (var_FneuSub / var_F)
     _, EV__F_by_Fneu, _, _ = pairwise_orthogonalization_torch(
@@ -437,12 +446,6 @@ def trace_quality_metrics(
         return_cpu=False,
     )[0]
 
-    if F_baseline_roll is None:
-        F_baseline_roll = rolling_percentile_rq_multicore(
-            F_neuSub,
-            ptile=percentile_baseline,
-            window_size=int(Fs*60*10+1)
-        )
     F_baseline_roll_mean = torch.mean(F_baseline_roll, dim=1, keepdim=True)
     dFbrmOverFbrm = (F_baseline_roll - F_baseline_roll_mean) / F_baseline_roll_mean
     baseline_var = torch.var(dFbrmOverFbrm, dim=1)
