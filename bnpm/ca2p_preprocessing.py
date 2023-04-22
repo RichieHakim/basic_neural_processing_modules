@@ -200,7 +200,9 @@ def snr_autoregressive(
     axis=1, 
     center=True, 
     standardize=True, 
-    roll_or_shift='shift'
+    device='cpu',
+    return_numpy=True,
+    return_cpu=True,
 ):
     """
     Calculate the SNR of an autoregressive signal.
@@ -220,9 +222,6 @@ def snr_autoregressive(
         standardize (bool, optional):
             Whether to standardize the data before calculating the SNR.
               Defaults to True.
-        roll_or_shift (str, optional):
-            Whether to use np.roll or bnpm.indexing.shift_pad to roll the 
-             data. Defaults to 'shift'.
 
     Returns:
         snr (np.ndarray):
@@ -232,21 +231,23 @@ def snr_autoregressive(
         n (np.ndarray):
             1D array of shape (n_traces,) containing the noise variance of each trace.
     """
-    from functools import partial
-
-    x_norm = x.copy()
+    x_norm = torch.as_tensor(x, dtype=torch.float32, device=device)
 
     if center:
-        x_norm = x_norm - np.mean(x_norm, axis=axis, keepdims=True)
+        x_norm = x_norm - torch.mean(x_norm, axis=axis, keepdims=True)
     if standardize:
-        x_norm = x_norm / np.std(x_norm, axis=axis, keepdims=True)
+        x_norm = x_norm / torch.std(x_norm, axis=axis, keepdims=True)
 
-    var = ((x_norm**2).sum(axis) / x_norm.shape[axis])  ## total variance of each trace
+    var = ((x_norm**2).sum(axis) / (x_norm.shape[axis]-1))  ## total variance of each trace
     
-    shifter = partial(shift_pad, pad_val=0) if roll_or_shift=='shift' else np.roll
-    s = ((x_norm * shifter(x_norm, 1, axis=axis)).sum(axis) / x_norm.shape[axis])  ## signal variance of each trace based on assumption that trace = signal + noise, signal is autoregressive, noise is not autoregressive
+    s = ((x_norm[:,1:] * x_norm[:,:-1]).sum(axis) / (x_norm.shape[axis]-2))  ## signal variance of each trace based on assumption that trace = signal + noise, signal is autoregressive, noise is not autoregressive
     n = var - s
     snr = s / n
+
+    if return_numpy:
+        snr, s, n = snr.cpu().numpy(), s.cpu().numpy(), n.cpu().numpy()
+    elif return_cpu:
+        snr, s, n = snr.cpu(), s.cpu(), n.cpu()
 
     return snr, s, n
 
@@ -305,7 +306,7 @@ def derivative_MAD(
     ## return as numpy array if desired
     if return_numpy:
         x_deriv_MAD = [x_deriv_MAD_i.cpu().numpy() for x_deriv_MAD_i in x_deriv_MAD]
-    if (not return_cpu) and (device!='cpu'):
+    elif return_cpu:
         x_deriv_MAD = [x_deriv_MAD_i.cpu() for x_deriv_MAD_i in x_deriv_MAD]
     
     return x_deriv_MAD
