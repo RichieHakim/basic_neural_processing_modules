@@ -13,6 +13,7 @@ from numba import jit, njit, prange
 from pathlib import Path
 
 # from .timeSeries import percentile_numba, var_numba, rolling_percentile_pd, rolling_percentile_rq_multicore, min_numba, max_numba
+from .indexing import shift_pad
 
 
 def make_dFoF(
@@ -194,28 +195,178 @@ def peter_noise_levels(dFoF, frame_rate):
     noise_levels = noise_levels / np.sqrt(frame_rate) * 100    # scale noise levels to percent
     return noise_levels
 
-def snr_autoregressive(x, axis=1, center=True, standardize=True):
+def snr_autoregressive(
+    x, 
+    axis=1, 
+    center=True, 
+    standardize=True, 
+    roll_or_shift='shift'
+):
     """
     Calculate the SNR of an autoregressive signal.
     Relies on the assumption that the magnitude of the signal
      can be estimated as the correlation of a signal and
      its autoregressive component (corr(sig, roll(sig, 1))).
-    
+    RH 2023
+
+    Args:
+        x (np.ndarray): 
+            2D array of shape (n_traces, n_samples)
+        axis (int, optional):
+            Axis along which to calculate the SNR. Defaults to 1.
+        center (bool, optional):
+            Whether to center the data before calculating the SNR.
+            Defaults to True.
+        standardize (bool, optional):
+            Whether to standardize the data before calculating the SNR.
+              Defaults to True.
+        roll_or_shift (str, optional):
+            Whether to use np.roll or bnpm.indexing.shift_pad to roll the 
+             data. Defaults to 'shift'.
+
+    Returns:
+        snr (np.ndarray):
+            1D array of shape (n_traces,) containing the SNR of each trace.
+        s (np.ndarray):
+            1D array of shape (n_traces,) containing the signal variance of each trace.
+        n (np.ndarray):
+            1D array of shape (n_traces,) containing the noise variance of each trace.
     """
+    from functools import partial
+
+    x_norm = x.copy()
+
     if center:
-        x_norm = x - np.mean(x, axis=axis, keepdims=True)
-    else:
-        x_norm = x
+        x_norm = x_norm - np.mean(x_norm, axis=axis, keepdims=True)
     if standardize:
-        x_norm = x_norm / np.std(x, axis=axis, keepdims=True)
-    else:
-        x_norm = x_norm
+        x_norm = x_norm / np.std(x_norm, axis=axis, keepdims=True)
+
     var = ((x_norm**2).sum(axis) / x_norm.shape[axis])  ## total variance of each trace
-    sig = ((x_norm * np.roll(x_norm, 1, axis=axis)).sum(axis) / x_norm.shape[axis])  ## signal variance of each trace based on assumption that trace = signal + noise, signal is autoregressive, noise is not autoregressive
     
-    noise = var - sig
+    shifter = partial(shift_pad, pad_val=0) if roll_or_shift=='shift' else np.roll
+    s = ((x_norm * shifter(x_norm, 1, axis=axis)).sum(axis) / x_norm.shape[axis])  ## signal variance of each trace based on assumption that trace = signal + noise, signal is autoregressive, noise is not autoregressive
+    n = var - s
+    snr = s / n
+
+    return snr, s, n
+
+
+def derivative_MAD(
+    X, 
+    n=(0,1,2),
+    dt=1, 
+    axis=1, 
+    center=True, 
+    standardize=False,
+    device='cpu',
+    return_numpy=True,
+    return_cpu=True,
+):
+    """
+    Calculate the median absolute deviance of the nth derivatives of a signal.
+    This is a generalization of Peter Rupperecht's noise level calculation for
+     CASCADE by PTRRupprecht (github.com/PTRRupprecht/CASCADE).
+    RH 2023
     
-    return sig / noise, sig, noise
+    Args:
+        X (np.ndarray or torch.Tensor): 
+            Signal to calculate the MAD of the nth derivatives of.
+        n (tuple):
+            Tuple of integers specifying the nth derivatives to calculate.
+        dt (float):
+            Time step between samples of the signal. 1/frame_rate.
+        axis (int):
+            Axis along which to calculate the MAD of the nth derivatives.
+        center (bool):
+            Whether to center the signal before calculating the MAD.
+            Should generally be True
+        standardize (bool):
+            Whether to standardize the signal before calculating the MAD.
+            Should generally be False
+        device (str):
+            Device to use for torch tensors. 'cpu' or 'cuda'.
+        return_numpy (bool):
+            Whether to return the results as a numpy array.
+        return_cpu (bool):
+            Whether to return the results on the cpu.
+    """
+    ## make robust to torch tensor or numpy array inputs of X
+    x = torch.as_tensor(X, dtype=torch.float32, device=device)
+    
+    x_norm = x - torch.mean(x, axis=axis, keepdim=True) if center else x
+    x_norm = x_norm / torch.std(x, axis=axis, keepdim=True) if standardize else x_norm
+
+    ## calculate the nth derivatives of the signal
+    x_deriv = [torch.diff(x_norm, n=n_i, dim=axis) for n_i in n]
+
+    ## calculate the median absolute deviation of the nth derivatives
+    x_deriv_MAD = [torch.median(torch.abs(x_deriv_i), axis=axis)[0] / (dt**-1) for x_deriv_i in x_deriv]
+
+    ## return as numpy array if desired
+    if return_numpy:
+        x_deriv_MAD = [x_deriv_MAD_i.cpu().numpy() for x_deriv_MAD_i in x_deriv_MAD]
+    if (not return_cpu) and (device!='cpu'):
+        x_deriv_MAD = [x_deriv_MAD_i.cpu() for x_deriv_MAD_i in x_deriv_MAD]
+    
+    return x_deriv_MAD
+
+
+def snr_derivative_MAD(
+    X, 
+    dt=1, 
+    n_noise=2,
+    axis=1, 
+    device='cpu',
+    return_numpy=True,
+    return_cpu=True,
+):
+    """
+    Calculate the SNR of a signal based on the median absolute
+     deviation of the nth derivatives of the signal.
+    Signal is defined as the MAD of the 0th derivative, and noise
+     is defined as the MAD of the nth derivative.
+    See derivative_MAD function for more details.
+    RH 2023
+    
+    Args:
+        X (np.ndarray or torch.Tensor):
+            Signal to calculate the SNR of.
+        dt (float):
+            Time step between samples of the signal. 1/frame_rate.
+        n_noise (int):
+            The nth derivative to calculate the MAD of to estimate the noise level.
+        axis (int):
+            Axis along which to calculate the MAD of the nth derivatives.
+        device (str):
+            Device to use for torch tensors. 'cpu' or 'cuda'.
+        return_numpy (bool):
+            Whether to return the results as a numpy array.
+        return_cpu (bool):
+            Whether to return the results on the cpu.
+
+    Returns:
+        snr (np.ndarray or torch.Tensor):
+            Signal to noise ratio of the signal.
+        absolute noise (np.ndarray or torch.Tensor):
+            Median absolute deviation of the nth derivatives of the signal.
+    """
+    x_deriv_MAD = derivative_MAD(
+        X, 
+        n=[0] + [n_noise],
+        dt=dt, 
+        axis=axis, 
+        center=True, 
+        standardize=False,
+        device=device,
+        return_numpy=return_numpy,
+        return_cpu=return_cpu,
+    )
+    
+    snr = x_deriv_MAD[0] / x_deriv_MAD[1]
+
+    return snr, x_deriv_MAD[1]
+
+
 
 def trace_quality_metrics(
     F, Fneu, dFoF, dF, F_neuSub, F_baseline,
@@ -405,7 +556,7 @@ def trace_quality_metrics(
             #     # axs[ii].set_xscale('log')
             else:
                 axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==1)[0]], 300, histtype='step')
-                axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
+                # axs[ii].hist(tqm['metrics'][val][np.where(good_ROIs==0)[0]], 300, histtype='step')
 
             axs[ii].title.set_text(f"{val}: {np.sum(tqm['classifications'][val]==0)} excl")
             axs[ii].set_yscale('log')
