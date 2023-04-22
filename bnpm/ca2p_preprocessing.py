@@ -360,14 +360,14 @@ def trace_quality_metrics(
         thresh:
             Dictionary of thresholds to use.
             If None, then use default values:
-                'var_ratio__Fneu_over_F': 1,
-                'EV__F_by_Fneu': 0.6,
-                'base_FneuSub': 0,
-                'base_F': 50,
-                'nsr_autoregressive': 12,
-                'noise_derivMAD': 100,
-                'max_dFoF': 50,
-                'baseline_var': 1,
+                'var_ratio__Fneu_over_F': 0.5,
+                'EV__F_by_Fneu': 0.5,
+                'base_FneuSub': 75,
+                'base_F': 200,
+                'nsr_autoregressive': 6,
+                'noise_derivMAD': 0.03,
+                'max_dFoF': 10,
+                'baseline_var': 0.01,
         device (str):
             Device to use for torch tensors. 'cpu' or 'cuda'.
     
@@ -466,14 +466,14 @@ def trace_quality_metrics(
         'baseline_var': baseline_var.cpu().numpy().squeeze(),
     }
     thresh = {
-        'var_ratio__Fneu_over_F': 1,
-        'EV__F_by_Fneu': 0.6,
-        'base_FneuSub': 0,
-        'base_F': 50,
-        'nsr_autoregressive': 12,
-        'noise_derivMAD': 100,
-        'max_dFoF': 50,
-        'baseline_var': 1,
+        'var_ratio__Fneu_over_F': 0.5,
+        'EV__F_by_Fneu': 0.5,
+        'base_FneuSub': 75,
+        'base_F': 200,
+        'nsr_autoregressive': 6,
+        'noise_derivMAD': 0.03,
+        'max_dFoF': 10,
+        'baseline_var': 0.01,
     } if thresh is None else thresh
     sign = {
         'var_ratio__Fneu_over_F': 1,
