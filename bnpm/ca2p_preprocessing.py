@@ -423,7 +423,7 @@ def trace_quality_metrics(
     # F_baseline = torch.quantile(F, percentile_baseline/100, dim=1, keepdim=True)
     # FneuSub_baseline = torch.quantile(F_neuSub, percentile_baseline/100, dim=1, keepdim=True)
     ## For some reason, torch.quantile is absurdly slow. So we'll use kthvalue instead
-    k = int(F.shape[1] * percentile_baseline / 100)
+    k = int(np.round((F.shape[1]-1) * percentile_baseline / 100)) + 1  ## kthvalue is 1-indexed
     F_baseline = torch.kthvalue(F, k, dim=1, keepdim=True).values
     FneuSub_baseline = torch.kthvalue(F_neuSub, k, dim=1, keepdim=True).values
     
