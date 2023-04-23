@@ -359,15 +359,16 @@ def trace_quality_metrics(
             Whether to plot the traces and metrics
         thresh:
             Dictionary of thresholds to use.
+            Defined as tuples of (min, max) values.
             If None, then use default values:
-                'var_ratio__Fneu_over_F': 0.5,
-                'EV__F_by_Fneu': 0.5,
-                'base_FneuSub': 75,
-                'base_F': 200,
-                'nsr_autoregressive': 6,
-                'noise_derivMAD': 0.03,
-                'max_dFoF': 10,
-                'baseline_var': 0.01,
+                'var_ratio__Fneu_over_F': (0, 0.5),
+                'EV__F_by_Fneu': (0, 0.5),
+                'base_FneuSub': (75, 1500),
+                'base_F': (200, 2000),
+                'nsr_autoregressive': (0, 6),
+                'noise_derivMAD': (0, 0.02),
+                'max_dFoF': (0, 10),
+                'baseline_var': (0, 0.01),
         device (str):
             Device to use for torch tensors. 'cpu' or 'cuda'.
     
@@ -475,26 +476,12 @@ def trace_quality_metrics(
         'max_dFoF': 10,
         'baseline_var': 0.01,
     } if thresh is None else thresh
-    sign = {
-        'var_ratio__Fneu_over_F': 1,
-        'EV__F_by_Fneu': 1,
-        'base_FneuSub': -1,
-        'base_F': -1,
-        'nsr_autoregressive': 1,
-        'noise_derivMAD': 1,
-        'max_dFoF': 1,
-        'baseline_var': 1,
-    }
 
     # Exclude ROIs
     good_ROIs = np.ones(dFoF.shape[0], dtype=bool)
     classifications = dict()
     for ii, met in enumerate(metrics):
-        if sign[met]==1:
-            to_exclude = (metrics[met] > thresh[met]) + np.isnan(metrics[met]) # note that if NaN then excluded
-        if sign[met]==-1:
-            to_exclude = (metrics[met] < thresh[met]) + np.isnan(metrics[met])
-
+        to_exclude = (metrics[met] < thresh[met][0]) + (thresh[met][1] < metrics[met]) + np.isnan(metrics[met]) # note that if NaN then excluded
         classifications[met] = np.logical_not(to_exclude)
         good_ROIs[to_exclude] = False
 
@@ -502,7 +489,6 @@ def trace_quality_metrics(
     tqm = {
         "metrics": metrics,
         "thresh": thresh,
-        "sign": sign,
         "classifications": classifications,
     }
 
@@ -510,18 +496,8 @@ def trace_quality_metrics(
     if plot_pref:
         fig, axs = plt.subplots(len(tqm['metrics']), figsize=(7,10))
         for ii, met in enumerate(tqm['metrics']):
-            if met=='peter_noise_levels':
-                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==1)[0]], 300, histtype='step')
-                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==0)[0]], 300, histtype='step')
-                axs[ii].set_xlim([0,20])
-            # elif met=='baseline_var':
-            #     axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==1)[0]], 300, histtype='step')
-            #     axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==0)[0]], 300, histtype='step')
-            #     axs[ii].set_xlim(right=50)
-            #     # axs[ii].set_xscale('log')
-            else:
-                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==1)[0]], 300, histtype='step')
-                axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==0)[0]], 300, histtype='step')
+            axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==1)[0]], 300, histtype='step')
+            axs[ii].hist(tqm['metrics'][met][np.where(good_ROIs==0)[0]], 300, histtype='step')
 
             axs[ii].title.set_text(f"{met}: {np.sum(tqm['classifications'][met]==0)} excl")
             axs[ii].set_yscale('log')
