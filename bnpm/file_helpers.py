@@ -8,28 +8,110 @@ import zipfile
 from tqdm import tqdm
 
 
-def prepare_filepath_for_saving(path, mkdir=False, allow_overwrite=True):
+def prepare_path(path, mkdir=False, exist_ok=True):
     """
-    Checks if a file path is valid.
-    RH 2022
+    Checks if a directory or filepath for validity for different
+     purposes: saving, loading, etc.
+    If exists:
+        If exist_ok=True: all good
+        If exist_ok=False: raises error
+    If doesn't exist:
+        If file:
+            If parent directory exists:
+                All good
+            If parent directory doesn't exist:
+                If mkdir=True: creates parent directory
+                If mkdir=False: raises error
+        If directory:
+            If mkdir=True: creates directory
+            If mkdir=False: raises error
+   
+    Returns a resolved path.
+    RH 2023
 
     Args:
         path (str):
             Path to check.
         mkdir (bool):
             If True, creates parent directory if it does not exist.
-        allow_overwrite (bool):
+        exist_ok (bool):
             If True, allows overwriting of existing file.
+
+    Returns:
+        path (str):
+            Resolved path.
     """
-    Path(path).parent.mkdir(parents=True, exist_ok=True) if mkdir else None
-    assert allow_overwrite or not Path(path).exists(), f'{path} already exists.'
-    assert Path(path).parent.exists(), f'{Path(path).parent} does not exist.'
-    assert Path(path).parent.is_dir(), f'{Path(path).parent} is not a directory.'
+    ## check if path is valid
+    try:
+        path_obj = Path(path).resolve()
+    except FileNotFoundError as e:
+        print(f'Invalid path: {path}')
+        raise e
+    
+    ## check if path object exists
+    flag_exists = path_obj.exists()
+
+    ## determine if path is a directory or file
+    if flag_exists:
+        flag_dirFileNeither = 'dir' if path_obj.is_dir() else 'file' if path_obj.is_file() else 'neither'  ## 'neither' should never happen since path.is_file() or path.is_dir() should be True if path.exists()
+        assert flag_dirFileNeither != 'neither', f'Path: {path} is neither a file nor a directory.'
+        assert exist_ok, f'{path} already exists and exist_ok=False.'
+    else:
+        flag_dirFileNeither = 'dir' if path_obj.suffix == '' else 'file'  ## rely on suffix to determine if path is a file or directory
+
+    ## if path exists and is a file or directory
+    # all good. If exist_ok=False, then this should have already been caught above.
+    
+    ## if path doesn't exist and is a file
+    ### if parent directory exists        
+    # all good
+    ### if parent directory doesn't exist
+    #### mkdir if mkdir=True and raise error if mkdir=False
+    if not flag_exists and flag_dirFileNeither == 'file':
+        if Path(path).parent.exists():
+            pass ## all good
+        elif mkdir:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+        else:
+            assert False, f'File: {path} does not exist, Parent directory: {Path(path).parent} does not exist, and mkdir=False.'
+        
+    ## if path doesn't exist and is a directory
+    ### mkdir if mkdir=True and raise error if mkdir=False
+    if not flag_exists and flag_dirFileNeither == 'dir':
+        if mkdir:
+            Path(path).mkdir(parents=True, exist_ok=True)
+        else:
+            assert False, f'{path} does not exist and mkdir=False.'
+
+    ## if path is neither a file nor a directory
+    ### raise error
+    if flag_dirFileNeither == 'neither':
+        assert False, f'{path} is neither a file nor a directory. This should never happen. Check this function for bugs.'
+
+    return str(path_obj)
+
+### Custom functions for preparing paths for saving and loading files and directories
+def prepare_filepath_for_saving(filepath, mkdir=False, allow_overwrite=True):
+    return prepare_path(filepath, mkdir=mkdir, exist_ok=allow_overwrite)
+def prepare_filepath_for_loading(filepath, must_exist=True):
+    path = prepare_path(filepath, mkdir=False, exist_ok=must_exist)
+    if must_exist:
+        assert Path(path).is_file(), f'{path} is not a file.'
+    return path
+def prepare_directory_for_saving(directory, mkdir=False, exist_ok=True):
+    """Rarely used."""
+    return prepare_path(directory, mkdir=mkdir, exist_ok=exist_ok)
+def prepare_directory_for_loading(directory, must_exist=True):
+    """Rarely used."""
+    path = prepare_path(directory, mkdir=False, exist_ok=must_exist)
+    if must_exist:
+        assert Path(path).is_dir(), f'{path} is not a directory.'
+    return path
 
 
 def pickle_save(
     obj, 
-    path_save, 
+    filepath, 
     mode='wb', 
     zipCompress=False, 
     mkdir=False, 
@@ -45,7 +127,7 @@ def pickle_save(
     Args:
         obj (object):
             Object to save.
-        path_save (str):
+        filepath (str):
             Path to save object to.
         mode (str):
             Mode to open file in.
@@ -71,7 +153,7 @@ def pickle_save(
                 12: zipfile.ZIP_BZIP2 (bzip2 compression) (usually not as good as ZIP_DEFLATED)
                 14: zipfile.ZIP_LZMA (lzma compression) (usually better than ZIP_DEFLATED but slower)
     """
-    prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
+    path = prepare_filepath_for_saving(filepath, mkdir=mkdir, allow_overwrite=allow_overwrite)
 
     if len(kwargs_zipfile)==0:
         kwargs_zipfile = {
@@ -79,14 +161,14 @@ def pickle_save(
         }
 
     if zipCompress:
-        with zipfile.ZipFile(path_save, 'w', **kwargs_zipfile) as f:
+        with zipfile.ZipFile(path, 'w', **kwargs_zipfile) as f:
             f.writestr('data', pickle.dumps(obj))
     else:
-        with open(path_save, mode) as f:
+        with open(path, mode) as f:
             pickle.dump(obj, f)
 
 def pickle_load(
-    filename, 
+    filepath, 
     zipCompressed=False,
     mode='rb'
 ):
@@ -96,7 +178,7 @@ def pickle_load(
     RH 2022
 
     Args:
-        filename (str):
+        filepath (str):
             Path to pickle file.
         zipCompressed (bool):
             If True, then file is assumed to be a .zip file.
@@ -109,15 +191,16 @@ def pickle_load(
         obj (object):
             Object loaded from pickle file.
     """
+    path = prepare_filepath_for_loading(filepath, must_exist=True)
     if zipCompressed:
-        with zipfile.ZipFile(filename, 'r') as f:
+        with zipfile.ZipFile(path, 'r') as f:
             return pickle.loads(f.read('data'))
     else:
-        with open(filename, mode) as f:
+        with open(path, mode) as f:
             return pickle.load(f)
 
 
-def json_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=True):
+def json_save(obj, filepath, indent=4, mode='w', mkdir=False, allow_overwrite=True):
     """
     Saves an object to a json file.
     Uses json.dump.
@@ -126,7 +209,7 @@ def json_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=T
     Args:
         obj (object):
             Object to save.
-        path_save (str):
+        filepath (str):
             Path to save object to.
         mode (str):
             Mode to open file in.
@@ -139,17 +222,17 @@ def json_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=T
         allow_overwrite (bool):
             If True, allows overwriting of existing file.        
     """
-    prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
-    with open(path_save, mode) as f:
+    path = prepare_filepath_for_saving(filepath, mkdir=mkdir, allow_overwrite=allow_overwrite)
+    with open(path, mode) as f:
         json.dump(obj, f, indent=indent)
 
-def json_load(filename, mode='r'):
+def json_load(filepath, mode='r'):
     """
     Loads a json file.
     RH 2022
 
     Args:
-        filename (str):
+        filepath (str):
             Path to pickle file.
         mode (str):
             Mode to open file in.
@@ -158,11 +241,12 @@ def json_load(filename, mode='r'):
         obj (object):
             Object loaded from pickle file.
     """
-    with open(filename, mode) as f:
+    path = prepare_filepath_for_loading(filepath, must_exist=True)
+    with open(path, mode) as f:
         return json.load(f)
 
 
-def yaml_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=True):
+def yaml_save(obj, filepath, indent=4, mode='w', mkdir=False, allow_overwrite=True):
     """
     Saves an object to a yaml file.
     Uses yaml.dump.
@@ -171,7 +255,7 @@ def yaml_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=T
     Args:
         obj (object):
             Object to save.
-        path_save (str):
+        filepath (str):
             Path to save object to.
         mode (str):
             Mode to open file in.
@@ -184,17 +268,17 @@ def yaml_save(obj, path_save, indent=4, mode='w', mkdir=False, allow_overwrite=T
         allow_overwrite (bool):
             If True, allows overwriting of existing file.        
     """
-    prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
-    with open(path_save, mode) as f:
+    path = prepare_filepath_for_saving(filepath, mkdir=mkdir, allow_overwrite=allow_overwrite)
+    with open(path, mode) as f:
         yaml.dump(obj, f, indent=indent)
 
-def yaml_load(filename, mode='r', loader=yaml.FullLoader):
+def yaml_load(filepath, mode='r', loader=yaml.FullLoader):
     """
     Loads a yaml file.
     RH 2022
 
     Args:
-        filename (str):
+        filepath (str):
             Path to pickle file.
         mode (str):
             Mode to open file in.
@@ -210,11 +294,18 @@ def yaml_load(filename, mode='r', loader=yaml.FullLoader):
         obj (object):
             Object loaded from pickle file.
     """
-    with open(filename, mode) as f:
+    path = prepare_filepath_for_loading(filepath, must_exist=True)
+    with open(path, mode) as f:
         return yaml.load(f, Loader=loader)
     
 
-def matlab_load(filename, simplify_cells=True, kwargs_scipy={}, kwargs_mat73={}, verbose=False):
+def matlab_load(
+    filepath, 
+    simplify_cells=True, 
+    kwargs_scipy={}, 
+    kwargs_mat73={}, 
+    verbose=False
+):
     """
     Loads a matlab file.
     Uses scipy.io.loadmat if .mat file is not version 7.3.
@@ -222,7 +313,7 @@ def matlab_load(filename, simplify_cells=True, kwargs_scipy={}, kwargs_mat73={},
     RH 2023
 
     Args:
-        filename (str):
+        filepath (str):
             Path to matlab file.
         simplify_cells (bool):
             If True and file is not version 7.3, then
@@ -234,17 +325,17 @@ def matlab_load(filename, simplify_cells=True, kwargs_scipy={}, kwargs_mat73={},
         verbose (bool):
             If True, prints information about file.
     """
-    assert isinstance(filename, str), 'Filename must be a string.'
-    assert filename.endswith('.mat'), 'File must be .mat file.'
+    path = prepare_filepath_for_loading(filepath, must_exist=True)
+    assert path.endswith('.mat'), 'File must be .mat file.'
 
     try:
         import scipy.io
-        out = scipy.io.loadmat(filename, simplify_cells=simplify_cells, **kwargs_scipy)
+        out = scipy.io.loadmat(path, simplify_cells=simplify_cells, **kwargs_scipy)
     except NotImplementedError as e:
-        print(f'File {filename} is version 7.3. Loading with mat73.') if verbose else None
+        print(f'File {path} is version 7.3. Loading with mat73.') if verbose else None
         import mat73
-        out = mat73.loadmat(filename, **kwargs_mat73)
-        print(f'Loaded {filename} with mat73.') if verbose else None
+        out = mat73.loadmat(path, **kwargs_mat73)
+        print(f'Loaded {path} with mat73.') if verbose else None
     return out
 
 
@@ -352,6 +443,8 @@ def download_file(
     import os
     import requests
 
+    path_save = prepare_filepath_for_saving(path_save, mkdir=mkdir, allow_overwrite=allow_overwrite)
+
     # Check if file already exists locally
     if check_local_first:
         if os.path.isfile(path_save):
@@ -450,8 +543,9 @@ def is_valid_hash(hash_hex, hash_type='MD5'):
 
 
 def extract_zip(
-    path_zip,
+    path_zipFile,
     path_extract=None,
+    mkdir=True,
     verbose=True,
 ):
     """
@@ -459,7 +553,7 @@ def extract_zip(
     RH 2022
 
     Args:
-        path_zip (str):
+        path_zipFile (str):
             Path to zip file.
         path_extract (str):
             Path to extract zip file to.
@@ -467,13 +561,15 @@ def extract_zip(
         verbose (int):
             Whether to print progress.
     """
+    path_zipFile = prepare_filepath_for_loading(path_zipFile, must_exist=True)
     import zipfile
     if path_extract is None:
-        path_extract = str(Path(path_zip).parent)
+        path_extract = str(Path(path_zipFile).parent)
+    path_extract = prepare_directory_for_saving(path_extract, mkdir=mkdir, allow_overwrite=True)
 
-    print(f'Extracting {path_zip} to {path_extract}.') if verbose else None
+    print(f'Extracting {path_zipFile} to {path_extract}.') if verbose else None
 
-    with zipfile.ZipFile(path_zip, 'r') as zip_ref:
+    with zipfile.ZipFile(path_zipFile, 'r') as zip_ref:
         zip_ref.extractall(path_extract)
 
     print('Completed zip extraction.') if verbose else None
