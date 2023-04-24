@@ -160,26 +160,71 @@ def deep_update_dict(dictionary, key, new_val=None, new_key=None, in_place=False
         return d
 
 
-def dict_shared_items(d1, d2):
+def dict_shared_items(
+    d1, 
+    d2, 
+    fn_check_equality=None, 
+    error_if_equality_check_fails=True, 
+    verbose=False
+):
     """
     Returns the matching items between two dictionaries.
     Searches for d1 items within d2.
-    RH 2022
+    RH 2023
+
+    Args:
+        d1 (Dict):
+            first dictionary
+        d2 (Dict):
+            second dictionary
+        fn_check_equality (function):
+            function to use to check equality.
+            If None, then equality is checked with ==.
+            If not None, then the function should take two
+             arguments and return True if they are equal.
+        error_if_equality_check_fails (bool):
+            whether to raise an error if the equality check fails.
+            If False and verbose==True, then a warning is printed
+             instead.
+        verbose (bool):
+            whether to print warnings if the equality check fails.
+
+    Returns:
+        output (Dict):
+            dictionary of matching items
     """
-    return {k: d1[k] for k in d1 if k in d2 and d1[k] == d2[k]}
+    def check_equality(v1, v2):
+        try:
+            if fn_check_equality is not None:
+                out = fn_check_equality(v1, v2)
+            else:
+                if v1 == v2:
+                    out = True
+                else:
+                    out = False
+        except ValueError as e:
+            if error_if_equality_check_fails:
+                raise e
+            else:
+                print(f'WARNING: {e}') if verbose else None
+                out = False
+        return out
+    
+    return {k: d1[k] for k in d1 if k in d2 and check_equality(d1[k], d2[k])}
 def dict_diff_items(d1, d2):
     """
     Returns the differing items between two dictionaries.
     Searches for d1 items within d2.
     RH 2022
-    """    
+    """
     return {k: d1[k] for k in d1 if k in d2 and d1[k] != d2[k]}
 def dict_missing_keys(d1, d2):
     """
-    Returns the keys in d1 that are missing in d2
+    Returns the keys in d1 that are missing in d2.
+    Symmetric difference between d1 and d2 keys.
     RH 2022
-    """    
-    return {k for k,v in d1.items() if k not in d2}
+    """
+    return set(d1.keys()).symmetric_difference(set(d2.keys()))
 
 
 def find_differences_across_dictionaries(dicts):
@@ -208,6 +253,19 @@ def find_differences_across_dictionaries(dicts):
 
     ## flatten params to ease matching functions
     params_flat = [flatten_dict(param) for param in dicts]
+
+    ## assert that set of all keys in each dict is exactly the same
+    sets_of_keys = set([tuple(sorted(param.keys())) for param in params_flat])
+    if len(sets_of_keys) > 1:
+        import itertools
+        ## use itertools to compare all combinations of sets_of_keys and find the differences
+        combos = list(itertools.combinations(sets_of_keys, 2))
+        diffs = []
+        for combo in combos:
+             diffs.append(set(combo[0]).symmetric_difference(set(combo[1])))
+        ## collapse diffs into a single set
+        diffs = set([item for sublist in diffs for item in sublist])
+    assert len(sets_of_keys) == 1, f"RH ERROR, the following keys are not the same across all dictionaries: {diffs}"
 
     ## find unchanging params
     params_unchanging = copy.deepcopy(params_flat)
