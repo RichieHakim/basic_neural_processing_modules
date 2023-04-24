@@ -9,7 +9,6 @@ import torchvision
 from tqdm.notebook import tqdm
 
 from . import indexing
-from . import torch_helpers
 
 
 def find_registration_transformation(
@@ -58,8 +57,25 @@ def find_registration_transformation(
             Can be applied using cv2.warpAffine or 
              cv2.warpPerspective.
     """
-    warp_mode = cv2.MOTION_HOMOGRAPHY
-    warp_matrix = np.eye(3, 3, dtype=np.float32)
+    ## assert that the inputs are numpy arrays of dtype np.uint8
+    assert isinstance(im_template, np.ndarray) and im_template.dtype == np.uint8
+    assert isinstance(im_moving, np.ndarray) and im_moving.dtype == np.uint8    
+
+    if warp_mode == 'MOTION_HOMOGRAPHY':
+        warp_mode = cv2.MOTION_HOMOGRAPHY
+        warp_matrix = np.eye(3, 3, dtype=np.float32)
+    elif warp_mode == 'MOTION_AFFINE':
+        warp_mode = cv2.MOTION_AFFINE
+        warp_matrix = np.eye(2, 3, dtype=np.float32)
+    elif warp_mode == 'MOTION_EUCLIDEAN':
+        warp_mode = cv2.MOTION_EUCLIDEAN
+        warp_matrix = np.eye(2, 3, dtype=np.float32)
+    elif warp_mode == 'MOTION_TRANSLATION':
+        warp_mode = cv2.MOTION_TRANSLATION
+        warp_matrix = np.eye(2, 3, dtype=np.float32)
+    else:
+        raise ValueError(f"warp_mode {warp_mode} not recognized")
+    
 
     criteria = (
         cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
@@ -110,15 +126,31 @@ def apply_warp_transform(
         im_out (np.ndarray):
             Output image
     """
-    im_out = cv2.warpPerspective(
-        src=im_in,
-        M=warp_matrix,
-        dsize=(im_in.shape[1], im_in.shape[0]), 
-        dst=copy.copy(im_in), 
-        flags=interpolation_method, 
-        borderMode=borderMode, 
-        borderValue=borderValue
-    )
+    if warp_matrix.shape == (2, 3):
+        im_out = cv2.warpAffine(
+            src=im_in,
+            M=warp_matrix,
+            dsize=(im_in.shape[1], im_in.shape[0]),
+            dst=copy.copy(im_in),
+            flags=interpolation_method + cv2.WARP_INVERSE_MAP,
+            borderMode=borderMode,
+            borderValue=borderValue
+        )
+        
+    elif warp_matrix.shape == (3, 3):
+        im_out = cv2.warpPerspective(
+            src=im_in,
+            M=warp_matrix,
+            dsize=(im_in.shape[1], im_in.shape[0]), 
+            dst=copy.copy(im_in), 
+            flags=interpolation_method + cv2.WARP_INVERSE_MAP, 
+            borderMode=borderMode, 
+            borderValue=borderValue
+        )
+
+    else:
+        raise ValueError(f"warp_matrix.shape {warp_matrix.shape} not recognized. Must be (2, 3) or (3, 3)")
+    
     return im_out
 
 
