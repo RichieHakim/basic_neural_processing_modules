@@ -410,6 +410,7 @@ def trace_quality_metrics(
     var_Fneu = torch.var(Fneu, dim=1)
 
     var_ratio__Fneu_over_F = var_Fneu / var_F
+    var_ratio__Fneu_over_F[torch.isinf(var_ratio__Fneu_over_F)] = 0
 
     # var_FneuSub = torch.var(F_neuSub, dim=1)
     # EV__F_by_Fneu = 1 - (var_FneuSub / var_F)
