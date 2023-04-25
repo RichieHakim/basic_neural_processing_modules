@@ -154,6 +154,58 @@ def apply_warp_transform(
     return im_out
 
 
+def affine_matrix_to_flow_field(warp_matrix, x, y, return_remappingIdx=False):
+    """
+    Convert an affine warp matrix (2x3) into a flow field (2D).
+    RH 2023
+    
+    Args:
+        warp_matrix (np.ndarray or torch.Tensor): 
+            Warp matrix of shape (2, 3).
+        x (int): 
+            Width of the desired flow field.
+        y (int): 
+            Height of the desired flow field.
+        return_remappingIdx (bool):
+            Whether to return the remapping indices.
+            These are just the flow field + the x and y coordinates.
+    
+    Returns:
+        field (np.ndarray or torch.Tensor): 
+            Flow field of shape (x, y, 2) representing the x and y displacements.
+    """
+    assert warp_matrix.shape == (2, 3), f"warp_matrix.shape {warp_matrix.shape} not recognized. Must be (2, 3)"
+    assert isinstance(x, int) and isinstance(y, int), f"x and y must be integers"
+    assert x > 0 and y > 0, f"x and y must be positive"
+
+    if isinstance(warp_matrix, torch.Tensor):
+        stack, meshgrid, arange, hstack, ones, float32 = torch.stack, torch.meshgrid, torch.arange, torch.hstack, torch.ones, torch.float32
+        stack_partial = lambda x: stack(x, dim=0)
+    elif isinstance(warp_matrix, np.ndarray):
+        stack, meshgrid, arange, hstack, ones, float32 = np.stack, np.meshgrid, np.arange, np.hstack, np.ones, np.float32
+        stack_partial = lambda x: stack(x, axis=0)
+    else:
+        raise ValueError(f"warp_matrix must be a torch.Tensor or np.ndarray")
+
+    # create the grid
+    mesh = stack_partial(meshgrid(arange(x, dtype=np.float32), arange(y, dtype=np.float32)))
+    mesh_coords = hstack((mesh.reshape(2,-1).T, ones((x*y, 1))))
+    # mesh_coords = np.concatenate((mesh, np.ones((1, y, x))), axis=0).reshape(3, -1).T
+    
+    # warp the grid
+    mesh_coords_warped = mesh_coords @ warp_matrix.T
+    
+    # reshape the warped grid
+    remapIdx = mesh_coords_warped.T.reshape(2, y, x)
+
+    # compute the flow field if desired
+    if return_remappingIdx:
+        return remapIdx
+    else:
+        field = remapIdx - mesh
+        return field
+
+
 @torch.jit.script
 def phase_correlation_helper(
     im_template,
