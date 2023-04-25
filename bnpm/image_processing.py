@@ -22,7 +22,7 @@ def find_registration_transformation(
 ):
     """
     Find the transformation between two images.
-    Only homography is supported for now.
+    Wrapper function for cv2.findTransformECC
     RH 2022
 
     Args:
@@ -105,6 +105,7 @@ def apply_warp_transform(
 ):
     """
     Apply a warp transform to an image.
+    Wrapper function for cv2.warpAffine and cv2.warpPerspective
     RH 2022
 
     Args:
@@ -188,9 +189,8 @@ def affine_matrix_to_flow_field(warp_matrix, x, y, return_remappingIdx=False):
         raise ValueError(f"warp_matrix must be a torch.Tensor or np.ndarray")
 
     # create the grid
-    mesh = stack_partial(meshgrid(arange(x, dtype=np.float32), arange(y, dtype=np.float32)))
+    mesh = stack_partial(meshgrid(arange(x, dtype=float32), arange(y, dtype=float32)))
     mesh_coords = hstack((mesh.reshape(2,-1).T, ones((x*y, 1))))
-    # mesh_coords = np.concatenate((mesh, np.ones((1, y, x))), axis=0).reshape(3, -1).T
     
     # warp the grid
     mesh_coords_warped = mesh_coords @ warp_matrix.T
