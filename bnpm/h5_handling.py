@@ -308,6 +308,9 @@ def merge_dict_into_h5_file(d, filepath=None, h5Obj=None,):
     """
     Merge a dictionary into an existing HDF5 file identified
      by a file path.
+    This function wraps a recursive function that goes through
+     each hierarchical level of the input dictionary and merges
+     it into the appropriate HDF5 group.
 
     Args:
         d (dict): 
