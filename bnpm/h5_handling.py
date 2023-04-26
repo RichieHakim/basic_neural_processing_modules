@@ -279,3 +279,53 @@ def LazyHdfDict_to_dict(hdfdictObj):
         
     return dict(hdfdictObj)
             
+
+def merge_helper(d, group):
+    """
+    Merge a dictionary into an existing HDF5 file identified
+     by an h5py.File object.
+
+    Args:
+        d (dict): 
+            The dictionary containing the data to be merged.
+        group (h5py.Group): 
+            The HDF5 group to which the data should be merged.
+    """
+    for key, value in d.items():
+        if isinstance(value, dict):
+            # If the value is a dictionary, check if the group already exists, and either skip it or merge the data
+            if key in group:
+                merge_helper(value, group[key])
+            else:
+                subgroup = group.create_group(key)
+                merge_helper(value, subgroup)
+        else:
+            # If the value is not a dictionary, convert it to a numpy array and create a dataset
+            if key in group:
+                del group[key]
+            group.create_dataset(key, data=value)
+def merge_dict_into_h5_file(d, filepath=None, h5Obj=None,):
+    """
+    Merge a dictionary into an existing HDF5 file identified
+     by a file path.
+
+    Args:
+        d (dict): 
+            The dictionary containing the data to be merged.
+        filepath (str): 
+            The file path of the HDF5 file.
+            Do not specify if hObj is specified.
+        h5Obj (h5py.File):
+            An h5py.File object.
+            Do not specify if filepath is specified.
+    """
+    if filepath is None and h5Obj is None:
+        raise ValueError('Either filepath or h5Obj must be specified.')
+    elif filepath is not None and h5Obj is not None:
+        raise ValueError('Only one of filepath or h5Obj must be specified.')
+    
+    elif filepath is not None:
+        with h5py.File(filepath, 'a') as file:
+            merge_helper(d, file)
+    elif h5Obj is not None:
+        merge_helper(d, h5Obj)
