@@ -155,7 +155,13 @@ def apply_warp_transform(
     return im_out
 
 
-def affine_matrix_to_flow_field(warp_matrix, x, y, return_remappingIdx=False):
+def affine_matrix_to_flow_field(
+    warp_matrix, 
+    x, 
+    y, 
+    return_remappingIdx=False,
+    normalize=False,
+):
     """
     Convert an affine warp matrix (2x3) into a flow field (2D).
     RH 2023
@@ -170,6 +176,9 @@ def affine_matrix_to_flow_field(warp_matrix, x, y, return_remappingIdx=False):
         return_remappingIdx (bool):
             Whether to return the remapping indices.
             These are just the flow field + the x and y coordinates.
+        normalize (bool):
+            Whether to normalize the flow field or remapping indices
+             relative to the image size.
     
     Returns:
         field (np.ndarray or torch.Tensor): 
@@ -180,10 +189,10 @@ def affine_matrix_to_flow_field(warp_matrix, x, y, return_remappingIdx=False):
     assert x > 0 and y > 0, f"x and y must be positive"
 
     if isinstance(warp_matrix, torch.Tensor):
-        stack, meshgrid, arange, hstack, ones, float32 = torch.stack, torch.meshgrid, torch.arange, torch.hstack, torch.ones, torch.float32
+        stack, meshgrid, arange, hstack, ones, float32, array = torch.stack, torch.meshgrid, torch.arange, torch.hstack, torch.ones, torch.float32, torch.as_tensor
         stack_partial = lambda x: stack(x, dim=0)
     elif isinstance(warp_matrix, np.ndarray):
-        stack, meshgrid, arange, hstack, ones, float32 = np.stack, np.meshgrid, np.arange, np.hstack, np.ones, np.float32
+        stack, meshgrid, arange, hstack, ones, float32, array = np.stack, np.meshgrid, np.arange, np.hstack, np.ones, np.float32, np.array
         stack_partial = lambda x: stack(x, axis=0)
     else:
         raise ValueError(f"warp_matrix must be a torch.Tensor or np.ndarray")
@@ -193,16 +202,21 @@ def affine_matrix_to_flow_field(warp_matrix, x, y, return_remappingIdx=False):
     mesh_coords = hstack((mesh.reshape(2,-1).T, ones((x*y, 1))))
     
     # warp the grid
-    mesh_coords_warped = mesh_coords @ warp_matrix.T
+    mesh_coords_warped = (mesh_coords @ warp_matrix.T)
     
     # reshape the warped grid
     remapIdx = mesh_coords_warped.T.reshape(2, y, x)
+    if normalize:
+        remapIdx = remapIdx / array([x, y])[:, None, None]
 
     # compute the flow field if desired
     if return_remappingIdx:
         return remapIdx
     else:
-        field = remapIdx - mesh
+        if normalize:
+            field = remapIdx - ((mesh) / array([x, y])[:, None, None])
+        else:
+            field = remapIdx - (mesh)
         return field
 
 
