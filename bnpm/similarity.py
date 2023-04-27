@@ -217,18 +217,21 @@ def orthogonalize(v1, v2, method='OLS', device='cpu', thresh_EVR_PCA=1e-15):
     # decomp = sklearn.decomposition.PCA(n_components=v2.shape[1])
     # pc_scores = decomp.fit_transform(v2)
 
+    v1_means = torch.mean(v1, dim=0)
     if method == 'serial':
         # Serial orthogonalization.
-        v1_orth = copy.deepcopy(v1)
+        v1_orth = copy.deepcopy(v1 - v1_means)
         for ii in range(pcsat.shape[1]):
             proj_vec = proj(v1_orth , pcsat[:,ii])[0]
             v1_orth = v1_orth.squeeze() - proj_vec.squeeze()
     elif method == 'OLS':
         # Ordinary Least Squares.
         X = torch.cat((pcsat, torch.ones((pcsat.shape[0], 1), dtype=pcsat.dtype, device=device)), dim=1)
-        theta = torch.linalg.inv(X.T @ X) @ X.T @ v1
+        theta = torch.linalg.inv(X.T @ X) @ X.T @ (v1 - v1_means)
         y_rec = X @ theta
         v1_orth = v1 - y_rec + X[:,-1][:,None] * theta[-1]  ## this adds back the bias term
+
+    v1_orth = v1_orth + v1_means
 
     EVR = 1 - (torch.var(v1_orth, dim=0) / torch.var(v1, dim=0))
     EVR_total = 1 - ( torch.sum(torch.var(v1_orth, dim=0), dim=0) / torch.sum(torch.var(v1, dim=0), dim=0) )
