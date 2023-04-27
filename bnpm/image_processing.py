@@ -155,7 +155,7 @@ def apply_warp_transform(
     return im_out
 
 
-def affine_matrix_to_flow_field(
+def warp_matrix_to_flow_field(
     warp_matrix, 
     x, 
     y, 
@@ -163,12 +163,12 @@ def affine_matrix_to_flow_field(
     normalize=False,
 ):
     """
-    Convert an affine warp matrix (2x3) into a flow field (2D).
+    Convert an warp matrix (2x3 or 3x3) into a flow field (2D).
     RH 2023
     
     Args:
         warp_matrix (np.ndarray or torch.Tensor): 
-            Warp matrix of shape (2, 3).
+            Warp matrix of shape (2, 3) [affine] or (3, 3) [homography].
         x (int): 
             Width of the desired flow field.
         y (int): 
@@ -184,7 +184,7 @@ def affine_matrix_to_flow_field(
         field (np.ndarray or torch.Tensor): 
             Flow field of shape (x, y, 2) representing the x and y displacements.
     """
-    assert warp_matrix.shape == (2, 3), f"warp_matrix.shape {warp_matrix.shape} not recognized. Must be (2, 3)"
+    assert warp_matrix.shape in [(2, 3), (3, 3)], f"warp_matrix.shape {warp_matrix.shape} not recognized. Must be (2, 3) or (3, 3)"
     assert isinstance(x, int) and isinstance(y, int), f"x and y must be integers"
     assert x > 0 and y > 0, f"x and y must be positive"
 
@@ -203,6 +203,7 @@ def affine_matrix_to_flow_field(
     
     # warp the grid
     mesh_coords_warped = (mesh_coords @ warp_matrix.T)
+    mesh_coords_warped = mesh_coords_warped[:, :2] / mesh_coords_warped[:, 2:3] if warp_matrix.shape == (3, 3) else mesh_coords_warped  ## if homography, divide by z
     
     # reshape the warped grid
     remapIdx = mesh_coords_warped.T.reshape(2, y, x)
