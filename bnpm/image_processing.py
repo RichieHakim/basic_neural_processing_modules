@@ -1,4 +1,5 @@
 import multiprocessing as mp
+from functools import partial
 
 import numpy as np
 import cv2
@@ -58,8 +59,8 @@ def find_registration_transformation(
              cv2.warpPerspective.
     """
     ## assert that the inputs are numpy arrays of dtype np.uint8
-    assert isinstance(im_template, np.ndarray) and im_template.dtype == np.uint8
-    assert isinstance(im_moving, np.ndarray) and im_moving.dtype == np.uint8    
+    # assert isinstance(im_template, np.ndarray) and im_template.dtype == np.uint8, f"im_template must be a numpy array of dtype np.uint8. Got {type(im_template)} of dtype {im_template.dtype}"
+    # assert isinstance(im_moving, np.ndarray) and im_moving.dtype == np.uint8, f"im_moving must be a numpy array of dtype np.uint8. Got {type(im_moving)} of dtype {im_moving.dtype}"
 
     if warp_mode == 'MOTION_HOMOGRAPHY':
         warp_mode = cv2.MOTION_HOMOGRAPHY
@@ -159,8 +160,6 @@ def warp_matrix_to_flow_field(
     warp_matrix, 
     x, 
     y, 
-    return_remappingIdx=False,
-    normalize=False,
 ):
     """
     Convert an warp matrix (2x3 or 3x3) into a flow field (2D).
@@ -173,16 +172,11 @@ def warp_matrix_to_flow_field(
             Width of the desired flow field.
         y (int): 
             Height of the desired flow field.
-        return_remappingIdx (bool):
-            Whether to return the remapping indices.
-            These are just the flow field + the x and y coordinates.
-        normalize (bool):
-            Whether to normalize the flow field or remapping indices
-             relative to the image size.
-    
+        
     Returns:
         field (np.ndarray or torch.Tensor): 
-            Flow field of shape (x, y, 2) representing the x and y displacements.
+            Flow field of shape (x, y, 2) representing the x and y displacements
+             in pixels.
     """
     assert warp_matrix.shape in [(2, 3), (3, 3)], f"warp_matrix.shape {warp_matrix.shape} not recognized. Must be (2, 3) or (3, 3)"
     assert isinstance(x, int) and isinstance(y, int), f"x and y must be integers"
@@ -207,18 +201,211 @@ def warp_matrix_to_flow_field(
     
     # reshape the warped grid
     remapIdx = mesh_coords_warped.T.reshape(2, y, x)
-    if normalize:
-        remapIdx = remapIdx / array([x, y])[:, None, None]
 
-    # compute the flow field if desired
-    if return_remappingIdx:
-        return remapIdx
-    else:
-        if normalize:
-            field = remapIdx - ((mesh) / array([x, y])[:, None, None])
-        else:
-            field = remapIdx - (mesh)
-        return field
+    # permute the axes to (x, y, 2)
+    remapIdx = remapIdx.permute(1, 2, 0) if isinstance(warp_matrix, torch.Tensor) else remapIdx.transpose(1, 2, 0)
+
+    # return remapIdx
+    # compute the flow field
+    return remappingIdx_to_flowField(remapIdx)
+
+
+def apply_flowField_to_images(
+    images,
+    flow_field,
+    backend="torch",
+    interpolation_method='linear',
+    border_mode='constant',
+    border_value=0,
+    device='cpu',
+):
+    """
+    Apply a flow field to a set of images.
+    RH 2023
+
+    Args:
+        images (np.ndarray or torch.Tensor):
+            Images to be warped.
+            Shape (N, C, H, W) or (C, H, W) or (H, W).
+        flow_field (np.ndarray or torch.Tensor):
+            Flow field to be applied.
+            Shape (H, W, 2).
+        backend (str):
+            Backend to use. Either "torch" or "cv2".
+        interpolation_method (str):
+            Interpolation method to use. See cv2.remap or 
+             torch.nn.functional.grid_sample for details.
+        borderMode (str):
+            Border mode to use. See cv2.remap for details.
+        borderValue (float):
+            Border value to use. See cv2.remap for details.
+
+    Returns:
+        warped_images (np.ndarray or torch.Tensor):
+            Warped images.
+            Shape (N, C, H, W) or (C, H, W).
+    """
+    # Check inputs
+    assert isinstance(images, (np.ndarray, torch.Tensor)), f"images must be a np.ndarray or torch.Tensor"
+    assert isinstance(flow_field, (np.ndarray, torch.Tensor)), f"flow_field must be a np.ndarray or torch.Tensor"
+    if images.ndim == 2:
+        images = images[None, None, :, :]
+    elif images.ndim == 3:
+        images = images[None, :, :, :]
+    elif images.ndim != 4:
+        raise ValueError(f"images must be a 2D, 3D, or 4D array. Got shape {images.shape}")
+    assert flow_field.ndim == 3, f"flow_field must be a 3D array of shape (H, W, 2). Got shape {flow_field.shape}"
+    assert images.shape[-2] == flow_field.shape[0], f"images H ({images.shape[-2]}) must match flow_field H ({flow_field.shape[0]})"
+    assert images.shape[-1] == flow_field.shape[1], f"images W ({images.shape[-1]}) must match flow_field W ({flow_field.shape[1]})"
+
+    # Check backend
+    if backend not in ["torch", "cv2"]:
+        raise ValueError("Invalid backend. Supported backends are 'torch' and 'cv2'.")
+    if backend == 'torch':
+        if isinstance(images, np.ndarray):
+            images = torch.as_tensor(images, device=device, dtype=torch.float32)
+        elif isinstance(images, torch.Tensor):
+            images = images.to(device=device).type(torch.float32)
+        if isinstance(flow_field, np.ndarray):
+            flow_field = torch.as_tensor(flow_field, device=device, dtype=torch.float32)
+        elif isinstance(flow_field, torch.Tensor):
+            flow_field = flow_field.to(device=device).type(torch.float32)
+        interpolation = {
+            'linear': 'bilinear',
+            'nearest': 'nearest',
+            'cubic': 'bicubic',
+            'lanczos': 'lanczos',
+        }[interpolation_method]
+        border = {
+            'constant': 'zeros',
+            'reflect': 'reflection',
+            'replicate': 'replication',
+            'wrap': 'circular',
+        }[border_mode]
+        ## Convert flow field to normalized grid
+        normgrid = cv2FlowField_to_pytorchFlowField(flow_field)
+
+        # Apply flow field
+        warped_images = torch.nn.functional.grid_sample(
+            images, 
+            normgrid[None,...],
+            mode=interpolation, 
+            padding_mode=border, 
+            align_corners=True,  ## align_corners=True is the default in cv2.remap. See documentation for details.
+        )
+
+    elif backend == 'cv2':
+        assert isinstance(images, np.ndarray), f"images must be a np.ndarray when using backend='cv2'"
+        assert isinstance(flow_field, np.ndarray), f"flow_field must be a np.ndarray when using backend='cv2'"
+        interpolation = {
+            'linear': cv2.INTER_LINEAR,
+            'nearest': cv2.INTER_NEAREST,
+            'cubic': cv2.INTER_CUBIC,
+            'lanczos': cv2.INTER_LANCZOS4,
+        }[interpolation_method]
+        borderMode = {
+            'constant': cv2.BORDER_CONSTANT,
+            'reflect': cv2.BORDER_REFLECT,
+            'replicate': cv2.BORDER_REPLICATE,
+            'wrap': cv2.BORDER_WRAP,
+        }[border_mode]
+        ## Convert flow field to remapping indices
+        ri = flowField_to_remappingIdx(flow_field)
+
+        # Apply flow field
+        def remap(ims):
+            out = np.stack([cv2.remap(
+                im,
+                ri[..., 0], 
+                ri[..., 1], 
+                interpolation=interpolation, 
+                borderMode=borderMode, 
+                borderValue=border_value,
+            ) for im in ims], axis=0)
+            return out
+        warped_images = np.stack([remap(im) for im in images], axis=0)
+
+    return warped_images.squeeze()
+
+
+def make_idx_grid(im):
+    """
+    Helper function to make a grid of indices for an image.
+    Used in flowField_to_remappingIdx and remappingIdx_to_flowField.
+    """
+    if isinstance(im, torch.Tensor):
+        stack, meshgrid, arange = partial(torch.stack, dim=-1), partial(torch.meshgrid, indexing='xy'), partial(torch.arange, device=im.device, dtype=im.dtype)
+    elif isinstance(im, np.ndarray):
+        stack, meshgrid, arange = partial(np.stack, axis=-1), partial(np.meshgrid, indexing='xy'), partial(np.arange, dtype=im.dtype)
+    return stack(meshgrid(arange(im.shape[1]), arange(im.shape[0]))) # (H, W, 2). Last dimension is (x, y).
+def flowField_to_remappingIdx(ff):
+    """
+    Convert a flow field to a remapping index.
+    RH 2023
+
+    Args:
+        ff (np.ndarray or torch.Tensor): 
+            Flow field.
+            Describes the displacement of each pixel.
+            Shape (H, W, 2). Last dimension is (x, y).
+
+    Returns:
+        ri (np.ndarray or torch.Tensor):
+            Remapping index.
+            Describes the index of the pixel in the original
+             image that should be mapped to the new pixel.
+            Shape (H, W, 2)
+    """
+    ri = ff + make_idx_grid(ff)
+    return ri
+def remappingIdx_to_flowField(ri):
+    """
+    Convert a remapping index to a flow field.
+    RH 2023
+
+    Args:
+        ri (np.ndarray or torch.Tensor):
+            Remapping index.
+            Describes the index of the pixel in the original
+             image that should be mapped to the new pixel.
+            Shape (H, W, 2). Last dimension is (x, y).
+
+    Returns:
+        ff (np.ndarray or torch.Tensor):
+            Flow field.
+            Describes the displacement of each pixel.
+            Shape (H, W, 2)
+    """
+    ff = ri - make_idx_grid(ri)
+    return ff
+def cv2FlowField_to_pytorchFlowField(ff):
+    """
+    Convert a flow field from the OpenCV format to the PyTorch format.
+    cv2 format: Displacement is in pixels relative to the top left pixel
+     of the image.
+    PyTorch format: Displacement is in pixels relative to the center of
+     the image.
+    RH 2023
+
+    Args:
+        ff (np.ndarray or torch.Tensor): 
+            Flow field.
+            Describes the displacement of each pixel.
+            Shape (H, W, 2). Last dimension is (x, y).
+
+    Returns:
+        ff (np.ndarray or torch.Tensor):
+            Flow field.
+            Describes the displacement of each pixel.
+            Shape (H, W, 2). Last dimension is (x, y).
+    """
+    assert isinstance(ff, torch.Tensor), f"ff must be a torch.Tensor. Got {type(ff)}"
+    ri = flowField_to_remappingIdx(ff)
+    im_shape = torch.flipud(torch.as_tensor(ri.shape[:2], dtype=torch.float32, device=ri.device))  ## (W, H)
+    normgrid = ((ri / (im_shape[None, None, :] - 1)) - 0.5) * 2  ## PyTorch's grid_sample expects grid values in [-1, 1] because it's a relative offset from the center pixel. CV2's remap expects grid values in [0, 1] because it's an absolute offset from the top-left pixel.
+    ## note also that pytorch's grid_sample expects align_corners=True to correspond to cv2's default behavior.
+    return normgrid
+
 
 
 @torch.jit.script
@@ -459,7 +646,12 @@ def find_translation_shifts(im1, im2, mask_fft=None, device='cpu', dtype=torch.f
     y_x, cc_max = phaseCorrelationImage_to_shift(cc)
     return y_x.cpu().numpy(), cc_max.cpu().numpy()
 
-def mask_image_border(im, border_inner, border_outer, mask_value=0):
+def mask_image_border(
+    im, 
+    border_outer=None, 
+    border_inner=None, 
+    mask_value=0
+):
     """
     Mask an image with a border.
     RH 2022
@@ -467,13 +659,13 @@ def mask_image_border(im, border_inner, border_outer, mask_value=0):
     Args:
         im (np.ndarray):
             Input image.
-        border_inner (int):
-            Inner border width.
-            Number of pixels in the center to mask.
-            Value is the edge length of the center square.
         border_outer (int):
             Outer border width.
-            Number of pixels in the border to mask.
+            Number of pixels along the border to mask.
+        border_inner (int):
+            Inner border width.
+            Number of pixels in the center to mask. Will be a square.
+            Value is the edge length of the center square.
         mask_value (float):
             Value to mask with.
     
@@ -486,17 +678,19 @@ def mask_image_border(im, border_inner, border_outer, mask_value=0):
     center_y = cy = int(np.floor(height/2))
     center_x = cx = int(np.floor(width/2))
 
-    ## make edge_lengths
-    center_edge_length = cel = int(np.ceil(border_inner/2))
-    outer_edge_length = oel = int(border_outer)
-
     ## Mask the center
-    im[cy-cel:cy+cel, cx-cel:cx+cel] = mask_value
+    if border_inner is not None:
+        ## make edge_lengths
+        center_edge_length = cel = int(np.ceil(border_inner/2)) if border_inner is not None else 0
+        im[cy-cel:cy+cel, cx-cel:cx+cel] = mask_value
     ## Mask the border
-    im[:oel, :] = mask_value
-    im[-oel:, :] = mask_value
-    im[:, :oel] = mask_value
-    im[:, -oel:] = mask_value
+    if border_outer is not None:
+        ## make edge_lengths
+        outer_edge_length = oel = int(border_outer) if border_outer is not None else 0
+        im[:oel, :] = mask_value
+        im[-oel:, :] = mask_value
+        im[:, :oel] = mask_value
+        im[:, -oel:] = mask_value
     return im
 
 def clahe(im, grid_size=50, clipLimit=0, normalize=True):
