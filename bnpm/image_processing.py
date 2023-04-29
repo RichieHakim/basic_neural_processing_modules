@@ -1,5 +1,5 @@
-import multiprocessing as mp
 from functools import partial
+import typing
 
 import numpy as np
 import cv2
@@ -8,8 +8,10 @@ import copy
 import torch
 import torchvision
 from tqdm.notebook import tqdm
+import scipy.interpolate
+import scipy.sparse
 
-from . import indexing
+from . import indexing, featurization, parallel_helpers
 
 
 def find_registration_transformation(
@@ -29,8 +31,10 @@ def find_registration_transformation(
     Args:
         im_template (np.ndarray):
             Template image
+            dtype must be: np.uint8 or np.float32
         im_moving (np.ndarray):
             Moving image
+            dtype must be: np.uint8 or np.float32
         warp_mode (str):
             warp mode.
             See cv2.findTransformECC for more info.
@@ -59,8 +63,15 @@ def find_registration_transformation(
              cv2.warpPerspective.
     """
     ## assert that the inputs are numpy arrays of dtype np.uint8
-    # assert isinstance(im_template, np.ndarray) and im_template.dtype == np.uint8, f"im_template must be a numpy array of dtype np.uint8. Got {type(im_template)} of dtype {im_template.dtype}"
-    # assert isinstance(im_moving, np.ndarray) and im_moving.dtype == np.uint8, f"im_moving must be a numpy array of dtype np.uint8. Got {type(im_moving)} of dtype {im_moving.dtype}"
+    assert isinstance(im_template, np.ndarray) and (im_template.dtype == np.uint8 or im_template.dtype == np.float32), f"im_template must be a numpy array of dtype np.uint8 or np.float32. Got {type(im_template)} of dtype {im_template.dtype}"
+    assert isinstance(im_moving, np.ndarray) and (im_moving.dtype == np.uint8 or im_moving.dtype == np.float32), f"im_moving must be a numpy array of dtype np.uint8 or np.float32. Got {type(im_moving)} of dtype {im_moving.dtype}"
+    ## cast mask to bool then to uint8
+    if mask is not None:
+        assert isinstance(mask, np.ndarray), f"mask must be a numpy array. Got {type(mask)}"
+        if np.issubdtype(mask.dtype, np.bool_) or np.issubdtype(mask.dtype, np.uint8):
+            pass
+        else:
+            mask = (mask != 0).astype(np.uint8)
 
     if warp_mode == 'MOTION_HOMOGRAPHY':
         warp_mode = cv2.MOTION_HOMOGRAPHY
@@ -76,6 +87,10 @@ def find_registration_transformation(
         warp_matrix = np.eye(2, 3, dtype=np.float32)
     else:
         raise ValueError(f"warp_mode {warp_mode} not recognized")
+    
+    ## make gaussFiltSize odd
+    gaussFiltSize = int(np.ceil(gaussFiltSize))
+    gaussFiltSize = gaussFiltSize + (gaussFiltSize % 2 == 0)
     
 
     criteria = (
@@ -193,7 +208,7 @@ def warp_matrix_to_flow_field(
 
     # create the grid
     mesh = stack_partial(meshgrid(arange(x, dtype=float32), arange(y, dtype=float32)))
-    mesh_coords = hstack((mesh.reshape(2,-1).T, ones((x*y, 1))))
+    mesh_coords = hstack((mesh.reshape(2,-1).T, ones((x*y, 1), dtype=float32)))
     
     # warp the grid
     mesh_coords_warped = (mesh_coords @ warp_matrix.T)
@@ -233,12 +248,16 @@ def apply_flowField_to_images(
         backend (str):
             Backend to use. Either "torch" or "cv2".
         interpolation_method (str):
-            Interpolation method to use. See cv2.remap or 
-             torch.nn.functional.grid_sample for details.
+            Interpolation method to use.
+            Can be: 'linear', 'nearest', 'cubic', 'lanczos'
+            See cv2.remap or torch.nn.functional.grid_sample for details.
         borderMode (str):
-            Border mode to use. See cv2.remap for details.
+            Border mode to use.
+            Can be: 'constant', 'reflect', 'replicate', 'wrap'
+            See cv2.remap for details.
         borderValue (float):
-            Border value to use. See cv2.remap for details.
+            Border value to use.
+            See cv2.remap for details.
 
     Returns:
         warped_images (np.ndarray or torch.Tensor):
@@ -326,6 +345,110 @@ def apply_flowField_to_images(
         warped_images = np.stack([remap(im) for im in images], axis=0)
 
     return warped_images.squeeze()
+
+
+def remap_sparse_images(
+    ims_sparse: typing.Union[scipy.sparse.spmatrix, typing.List[scipy.sparse.spmatrix]],
+    remap_field: np.ndarray,
+    method: str = 'linear',
+    fill_value: float = 0,
+    dtype: typing.Union[str, np.dtype] = None,
+    safe: bool = True,
+    n_workers: int = -1,
+) -> typing.List[scipy.sparse.csr_matrix]:
+    """
+    Remaps a list of sparse images using the given remap field.
+
+    Args:
+        ims_sparse (scipy.sparse.spmatrix or List[scipy.sparse.spmatrix]): 
+            A single sparse image or a list of sparse images.
+        remap_field (np.ndarray): 
+            An array of shape (H, W, 2) representing the remap field. It
+             should be the same size as the images in ims_sparse.
+        method (str): 
+            Interpolation method to use. 
+            See scipy.interpolate.griddata.
+            Options are 'linear', 'nearest', 'cubic'.
+        fill_value (float, optional): 
+            Value used to fill points outside the convex hull. 
+        dtype (np.dtype): 
+            The data type of the resulting sparse images. 
+            Default is None, which will use the data type of the input
+             sparse images.
+        safe (bool): 
+            If True, checks if the image is 0D or 1D and applies a tiny
+             Gaussian blur to increase the image width.
+        n_workers (int): 
+            Number of parallel workers to use. 
+            Default is -1, which uses all available CPU cores.
+
+    Returns:
+        ims_sparse_out (List[scipy.sparse.csr_matrix]): 
+            A list of remapped sparse images.
+
+    Raises:
+        AssertionError: If the image and flow field have different spatial dimensions.
+    """
+    
+    # Ensure ims_sparse is a list of sparse matrices
+    ims_sparse = [ims_sparse] if not isinstance(ims_sparse, list) else ims_sparse
+
+    # Assert that all images are sparse matrices
+    assert all([scipy.sparse.issparse(im) for im in ims_sparse]), "All images must be sparse matrices."
+    
+    # Assert and retrieve dimensions
+    dims_ims = ims_sparse[0].shape
+    dims_remap = remap_field.shape
+    assert dims_ims == dims_remap[:-1], "Image and flow field should have same spatial dimensions."
+    
+    dtype = ims_sparse[0].dtype if dtype is None else dtype
+    
+    if safe:
+        conv2d = featurization.Toeplitz_convolution2d(
+            x_shape=(dims_ims[0], dims_ims[1]),
+            k=np.array([[0   , 1e-8, 0   ],
+                        [1e-8, 1,    1e-8],
+                        [0   , 1e-8, 0   ]], dtype=dtype),
+            dtype=dtype,
+        )
+    def warp_sparse_image(
+        im_sparse: scipy.sparse.csr_matrix,
+        remap_field: np.ndarray,
+        method: str = method,
+        fill_value: float = fill_value,
+        safe: bool = safe
+    ) -> scipy.sparse.csr_matrix:
+        
+        # Convert sparse image to COO format
+        im_coo = scipy.sparse.coo_matrix(im_sparse)
+
+        # Get coordinates and values from COO format
+        rows, cols = im_coo.row, im_coo.col
+        data = im_coo.data
+
+        # Account for 1d images by convolving image with tiny gaussian kernel to increase image width
+        if safe:
+            if (np.unique(rows).size == 1) or (np.unique(cols).size == 1):
+                return warp_sparse_image(im_sparse=conv2d(im_sparse, batching=False), remap_field=remap_field)
+
+        # Get values at the grid points
+        grid_values = scipy.interpolate.interp.griddata(
+            points=(rows, cols), 
+            values=data, 
+            xi=remap_field[:,:,::-1], 
+            method=method, 
+            fill_value=fill_value,
+        )
+
+        # Create a new sparse image from the nonzero pixels
+        warped_sparse_image = scipy.sparse.csr_matrix(grid_values, dtype=dtype)
+        warped_sparse_image.eliminate_zeros()
+
+        return warped_sparse_image
+    
+    wsi_partial = partial(warp_sparse_image, remap_field=remap_field)
+    ims_out = parallel_helpers.map_parallel(func=wsi_partial, args=(ims_sparse,), method='multithreading', workers=n_workers)
+    return ims_out
 
 
 def make_idx_grid(im):
@@ -659,9 +782,11 @@ def mask_image_border(
     Args:
         im (np.ndarray):
             Input image.
-        border_outer (int):
+        border_outer (int or tuple(int)):
             Outer border width.
             Number of pixels along the border to mask.
+            If None, don't mask the border.
+            If tuple of ints, then (top, bottom, left, right).
         border_inner (int):
             Inner border width.
             Number of pixels in the center to mask. Will be a square.
@@ -686,11 +811,14 @@ def mask_image_border(
     ## Mask the border
     if border_outer is not None:
         ## make edge_lengths
-        outer_edge_length = oel = int(border_outer) if border_outer is not None else 0
-        im[:oel, :] = mask_value
-        im[-oel:, :] = mask_value
-        im[:, :oel] = mask_value
-        im[:, -oel:] = mask_value
+        if isinstance(border_outer, int):
+            border_outer = (border_outer, border_outer, border_outer, border_outer)
+        
+        im[:border_outer[0], :] = mask_value
+        im[-border_outer[1]:, :] = mask_value
+        im[:, :border_outer[2]] = mask_value
+        im[:, -border_outer[3]:] = mask_value
+
     return im
 
 def clahe(im, grid_size=50, clipLimit=0, normalize=True):
