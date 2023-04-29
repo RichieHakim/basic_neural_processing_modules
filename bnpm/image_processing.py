@@ -447,8 +447,8 @@ def remap_sparse_images(
         return warped_sparse_image
     
     wsi_partial = partial(warp_sparse_image, remap_field=remap_field)
-    ims_out = parallel_helpers.map_parallel(func=wsi_partial, args=(ims_sparse,), method='multithreading', workers=n_workers)
-    return ims_out
+    ims_sparse_out = parallel_helpers.map_parallel(func=wsi_partial, args=(ims_sparse,), method='multithreading', workers=n_workers)
+    return ims_sparse_out
 
 
 def make_idx_grid(im):
