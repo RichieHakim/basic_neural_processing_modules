@@ -171,26 +171,26 @@ def apply_warp_transform(
     return im_out
 
 
-def warp_matrix_to_flow_field(
+def warp_matrix_to_remappingIdx(
     warp_matrix, 
     x, 
     y, 
 ):
     """
-    Convert an warp matrix (2x3 or 3x3) into a flow field (2D).
+    Convert an warp matrix (2x3 or 3x3) into remapping indices (2D).
     RH 2023
     
     Args:
         warp_matrix (np.ndarray or torch.Tensor): 
             Warp matrix of shape (2, 3) [affine] or (3, 3) [homography].
         x (int): 
-            Width of the desired flow field.
+            Width of the desired remapping indices.
         y (int): 
-            Height of the desired flow field.
+            Height of the desired remapping indices.
         
     Returns:
-        field (np.ndarray or torch.Tensor): 
-            Flow field of shape (x, y, 2) representing the x and y displacements
+        remapIdx (np.ndarray or torch.Tensor): 
+            Remapping indices of shape (x, y, 2) representing the x and y displacements
              in pixels.
     """
     assert warp_matrix.shape in [(2, 3), (3, 3)], f"warp_matrix.shape {warp_matrix.shape} not recognized. Must be (2, 3) or (3, 3)"
@@ -220,14 +220,12 @@ def warp_matrix_to_flow_field(
     # permute the axes to (x, y, 2)
     remapIdx = remapIdx.permute(1, 2, 0) if isinstance(warp_matrix, torch.Tensor) else remapIdx.transpose(1, 2, 0)
 
-    # return remapIdx
-    # compute the flow field
-    return remappingIdx_to_flowField(remapIdx)
+    return remapIdx
 
 
-def apply_flowField_to_images(
+def apply_remappingIdx_to_images(
     images,
-    flow_field,
+    remappingIdx,
     backend="torch",
     interpolation_method='linear',
     border_mode='constant',
@@ -235,15 +233,19 @@ def apply_flowField_to_images(
     device='cpu',
 ):
     """
-    Apply a flow field to a set of images.
+    Apply remapping indices to a set of images.
+    Remapping indices are like flow fields, but instead of describing
+     the displacement of each pixel, they describe the index of the pixel
+     to sample from.
     RH 2023
 
     Args:
         images (np.ndarray or torch.Tensor):
             Images to be warped.
             Shape (N, C, H, W) or (C, H, W) or (H, W).
-        flow_field (np.ndarray or torch.Tensor):
-            Flow field to be applied.
+        remappingIdx (np.ndarray or torch.Tensor):
+            Remapping indices. Describes the index of the pixel to 
+             sample from.
             Shape (H, W, 2).
         backend (str):
             Backend to use. Either "torch" or "cv2".
@@ -266,16 +268,16 @@ def apply_flowField_to_images(
     """
     # Check inputs
     assert isinstance(images, (np.ndarray, torch.Tensor)), f"images must be a np.ndarray or torch.Tensor"
-    assert isinstance(flow_field, (np.ndarray, torch.Tensor)), f"flow_field must be a np.ndarray or torch.Tensor"
+    assert isinstance(remappingIdx, (np.ndarray, torch.Tensor)), f"remappingIdx must be a np.ndarray or torch.Tensor"
     if images.ndim == 2:
         images = images[None, None, :, :]
     elif images.ndim == 3:
         images = images[None, :, :, :]
     elif images.ndim != 4:
         raise ValueError(f"images must be a 2D, 3D, or 4D array. Got shape {images.shape}")
-    assert flow_field.ndim == 3, f"flow_field must be a 3D array of shape (H, W, 2). Got shape {flow_field.shape}"
-    assert images.shape[-2] == flow_field.shape[0], f"images H ({images.shape[-2]}) must match flow_field H ({flow_field.shape[0]})"
-    assert images.shape[-1] == flow_field.shape[1], f"images W ({images.shape[-1]}) must match flow_field W ({flow_field.shape[1]})"
+    assert remappingIdx.ndim == 3, f"remappingIdx must be a 3D array of shape (H, W, 2). Got shape {remappingIdx.shape}"
+    assert images.shape[-2] == remappingIdx.shape[0], f"images H ({images.shape[-2]}) must match remappingIdx H ({remappingIdx.shape[0]})"
+    assert images.shape[-1] == remappingIdx.shape[1], f"images W ({images.shape[-1]}) must match remappingIdx W ({remappingIdx.shape[1]})"
 
     # Check backend
     if backend not in ["torch", "cv2"]:
@@ -285,10 +287,10 @@ def apply_flowField_to_images(
             images = torch.as_tensor(images, device=device, dtype=torch.float32)
         elif isinstance(images, torch.Tensor):
             images = images.to(device=device).type(torch.float32)
-        if isinstance(flow_field, np.ndarray):
-            flow_field = torch.as_tensor(flow_field, device=device, dtype=torch.float32)
-        elif isinstance(flow_field, torch.Tensor):
-            flow_field = flow_field.to(device=device).type(torch.float32)
+        if isinstance(remappingIdx, np.ndarray):
+            remappingIdx = torch.as_tensor(remappingIdx, device=device, dtype=torch.float32)
+        elif isinstance(remappingIdx, torch.Tensor):
+            remappingIdx = remappingIdx.to(device=device).type(torch.float32)
         interpolation = {
             'linear': 'bilinear',
             'nearest': 'nearest',
@@ -301,10 +303,10 @@ def apply_flowField_to_images(
             'replicate': 'replication',
             'wrap': 'circular',
         }[border_mode]
-        ## Convert flow field to normalized grid
-        normgrid = cv2FlowField_to_pytorchFlowField(flow_field)
+        ## Convert remappingIdx to normalized grid
+        normgrid = cv2RemappingIdx_to_pytorchFlowField(remappingIdx)
 
-        # Apply flow field
+        # Apply remappingIdx
         warped_images = torch.nn.functional.grid_sample(
             images, 
             normgrid[None,...],
@@ -315,7 +317,7 @@ def apply_flowField_to_images(
 
     elif backend == 'cv2':
         assert isinstance(images, np.ndarray), f"images must be a np.ndarray when using backend='cv2'"
-        assert isinstance(flow_field, np.ndarray), f"flow_field must be a np.ndarray when using backend='cv2'"
+        assert isinstance(remappingIdx, np.ndarray), f"remappingIdx must be a np.ndarray when using backend='cv2'"
         interpolation = {
             'linear': cv2.INTER_LINEAR,
             'nearest': cv2.INTER_NEAREST,
@@ -328,15 +330,13 @@ def apply_flowField_to_images(
             'replicate': cv2.BORDER_REPLICATE,
             'wrap': cv2.BORDER_WRAP,
         }[border_mode]
-        ## Convert flow field to remapping indices
-        ri = flowField_to_remappingIdx(flow_field)
 
-        # Apply flow field
+        # Apply remappingIdx
         def remap(ims):
             out = np.stack([cv2.remap(
                 im,
-                ri[..., 0], 
-                ri[..., 1], 
+                remappingIdx[..., 0], 
+                remappingIdx[..., 1], 
                 interpolation=interpolation, 
                 borderMode=borderMode, 
                 borderValue=border_value,
@@ -349,7 +349,7 @@ def apply_flowField_to_images(
 
 def remap_sparse_images(
     ims_sparse: typing.Union[scipy.sparse.spmatrix, typing.List[scipy.sparse.spmatrix]],
-    remap_field: np.ndarray,
+    remappingIdx: np.ndarray,
     method: str = 'linear',
     fill_value: float = 0,
     dtype: typing.Union[str, np.dtype] = None,
@@ -362,7 +362,7 @@ def remap_sparse_images(
     Args:
         ims_sparse (scipy.sparse.spmatrix or List[scipy.sparse.spmatrix]): 
             A single sparse image or a list of sparse images.
-        remap_field (np.ndarray): 
+        remappingIdx (np.ndarray): 
             An array of shape (H, W, 2) representing the remap field. It
              should be the same size as the images in ims_sparse.
         method (str): 
@@ -387,19 +387,19 @@ def remap_sparse_images(
             A list of remapped sparse images.
 
     Raises:
-        AssertionError: If the image and flow field have different spatial dimensions.
+        AssertionError: If the image and remappingIdx have different spatial dimensions.
     """
     
     # Ensure ims_sparse is a list of sparse matrices
     ims_sparse = [ims_sparse] if not isinstance(ims_sparse, list) else ims_sparse
 
     # Assert that all images are sparse matrices
-    assert all([scipy.sparse.issparse(im) for im in ims_sparse]), "All images must be sparse matrices."
+    assert all(scipy.sparse.issparse(im) for im in ims_sparse), "All images must be sparse matrices."
     
     # Assert and retrieve dimensions
     dims_ims = ims_sparse[0].shape
-    dims_remap = remap_field.shape
-    assert dims_ims == dims_remap[:-1], "Image and flow field should have same spatial dimensions."
+    dims_remap = remappingIdx.shape
+    assert dims_ims == dims_remap[:-1], "Image and remappingIdx should have same spatial dimensions."
     
     dtype = ims_sparse[0].dtype if dtype is None else dtype
     
@@ -411,9 +411,10 @@ def remap_sparse_images(
                         [0   , 1e-8, 0   ]], dtype=dtype),
             dtype=dtype,
         )
+
     def warp_sparse_image(
         im_sparse: scipy.sparse.csr_matrix,
-        remap_field: np.ndarray,
+        remappingIdx: np.ndarray,
         method: str = method,
         fill_value: float = fill_value,
         safe: bool = safe
@@ -429,13 +430,13 @@ def remap_sparse_images(
         # Account for 1d images by convolving image with tiny gaussian kernel to increase image width
         if safe:
             if (np.unique(rows).size == 1) or (np.unique(cols).size == 1):
-                return warp_sparse_image(im_sparse=conv2d(im_sparse, batching=False), remap_field=remap_field)
+                return warp_sparse_image(im_sparse=conv2d(im_sparse, batching=False), remappingIdx=remappingIdx)
 
         # Get values at the grid points
-        grid_values = scipy.interpolate.interp.griddata(
+        grid_values = scipy.interpolate.griddata(
             points=(rows, cols), 
             values=data, 
-            xi=remap_field[:,:,::-1], 
+            xi=remappingIdx[:,:,::-1], 
             method=method, 
             fill_value=fill_value,
         )
@@ -446,7 +447,7 @@ def remap_sparse_images(
 
         return warped_sparse_image
     
-    wsi_partial = partial(warp_sparse_image, remap_field=remap_field)
+    wsi_partial = partial(warp_sparse_image, remappingIdx=remappingIdx)
     ims_sparse_out = parallel_helpers.map_parallel(func=wsi_partial, args=(ims_sparse,), method='multithreading', workers=n_workers)
     return ims_sparse_out
 
@@ -464,6 +465,9 @@ def make_idx_grid(im):
 def flowField_to_remappingIdx(ff):
     """
     Convert a flow field to a remapping index.
+    WARNING: Technically, it is not possible to convert a flow field
+     to a remapping index, since the remapping index describes an
+     interpolation mapping, while the flow field describes a displacement.
     RH 2023
 
     Args:
@@ -484,6 +488,9 @@ def flowField_to_remappingIdx(ff):
 def remappingIdx_to_flowField(ri):
     """
     Convert a remapping index to a flow field.
+    WARNING: Technically, it is not possible to convert a flow field
+     to a remapping index, since the remapping index describes an
+     interpolation mapping, while the flow field describes a displacement.
     RH 2023
 
     Args:
@@ -501,9 +508,9 @@ def remappingIdx_to_flowField(ri):
     """
     ff = ri - make_idx_grid(ri)
     return ff
-def cv2FlowField_to_pytorchFlowField(ff):
+def cv2RemappingIdx_to_pytorchFlowField(ri):
     """
-    Convert a flow field from the OpenCV format to the PyTorch format.
+    Convert remapping indices from the OpenCV format to the PyTorch format.
     cv2 format: Displacement is in pixels relative to the top left pixel
      of the image.
     PyTorch format: Displacement is in pixels relative to the center of
@@ -511,19 +518,21 @@ def cv2FlowField_to_pytorchFlowField(ff):
     RH 2023
 
     Args:
-        ff (np.ndarray or torch.Tensor): 
-            Flow field.
-            Describes the displacement of each pixel.
+        ri (np.ndarray or torch.Tensor): 
+            Remapping indices.
+            Each pixel describes the index of the pixel in the original
+             image that should be mapped to the new pixel.
             Shape (H, W, 2). Last dimension is (x, y).
 
     Returns:
-        ff (np.ndarray or torch.Tensor):
-            Flow field.
-            Describes the displacement of each pixel.
+        normgrid (np.ndarray or torch.Tensor):
+            "Flow field", in the PyTorch format.
+            Technically not a flow field, since it doesn't describe
+             displacement. Rather, it is a remapping index relative to
+             the center of the image.
             Shape (H, W, 2). Last dimension is (x, y).
     """
-    assert isinstance(ff, torch.Tensor), f"ff must be a torch.Tensor. Got {type(ff)}"
-    ri = flowField_to_remappingIdx(ff)
+    assert isinstance(ri, torch.Tensor), f"ri must be a torch.Tensor. Got {type(ff)}"
     im_shape = torch.flipud(torch.as_tensor(ri.shape[:2], dtype=torch.float32, device=ri.device))  ## (W, H)
     normgrid = ((ri / (im_shape[None, None, :] - 1)) - 0.5) * 2  ## PyTorch's grid_sample expects grid values in [-1, 1] because it's a relative offset from the center pixel. CV2's remap expects grid values in [0, 1] because it's an absolute offset from the top-left pixel.
     ## note also that pytorch's grid_sample expects align_corners=True to correspond to cv2's default behavior.
