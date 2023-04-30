@@ -17,7 +17,7 @@ from . import indexing, featurization, parallel_helpers
 def find_registration_transformation(
     im_template, 
     im_moving,
-    warp_mode='MOTION_HOMOGRAPHY',
+    warp_mode='euclidean',
     n_iter=5000,
     termination_eps=1e-10,
     mask=None,
@@ -38,10 +38,10 @@ def find_registration_transformation(
         warp_mode (str):
             warp mode.
             See cv2.findTransformECC for more info.
-            MOTION_TRANSLATION sets a translational motion model; warpMatrix is 2x3 with the first 2x2 part being the unity matrix and the rest two parameters being estimated.
-            MOTION_EUCLIDEAN sets a Euclidean (rigid) transformation as motion model; three parameters are estimated; warpMatrix is 2x3.
-            MOTION_AFFINE sets an affine motion model (DEFAULT); six parameters are estimated; warpMatrix is 2x3.
-            MOTION_HOMOGRAPHY sets a homography as a motion model; eight parameters are estimated;`warpMatrix` is 3x3.
+            'translation': sets a translational motion model; warpMatrix is 2x3 with the first 2x2 part being the unity matrix and the rest two parameters being estimated.
+            'euclidean':   sets a Euclidean (rigid) transformation as motion model; three parameters are estimated; warpMatrix is 2x3.
+            'affine':      sets an affine motion model (DEFAULT); six parameters are estimated; warpMatrix is 2x3.
+            'homography':  sets a homography as a motion model; eight parameters are estimated;`warpMatrix` is 3x3.
         n_iter (int):
             Number of iterations
         termination_eps (float):
@@ -62,6 +62,22 @@ def find_registration_transformation(
             Can be applied using cv2.warpAffine or 
              cv2.warpPerspective.
     """
+    LUT_modes = {
+        'translation': cv2.MOTION_TRANSLATION,
+        'euclidean': cv2.MOTION_EUCLIDEAN,
+        'affine': cv2.MOTION_AFFINE,
+        'homography': cv2.MOTION_HOMOGRAPHY,
+    }
+    assert warp_mode in LUT_modes.keys(), f"warp_mode must be one of {LUT_modes.keys()}. Got {warp_mode}"
+    warp_mode = LUT_modes[warp_mode]
+    if warp_mode in [cv2.MOTION_TRANSLATION, cv2.MOTION_EUCLIDEAN, cv2.MOTION_AFFINE]:
+        shape_eye = (2, 3)
+    elif warp_mode == cv2.MOTION_HOMOGRAPHY:
+        shape_eye = (3, 3)
+    else:
+        raise ValueError(f"warp_mode {warp_mode} not recognized (should not happen)")
+    warp_matrix = np.eye(*shape_eye, dtype=np.float32)
+
     ## assert that the inputs are numpy arrays of dtype np.uint8
     assert isinstance(im_template, np.ndarray) and (im_template.dtype == np.uint8 or im_template.dtype == np.float32), f"im_template must be a numpy array of dtype np.uint8 or np.float32. Got {type(im_template)} of dtype {im_template.dtype}"
     assert isinstance(im_moving, np.ndarray) and (im_moving.dtype == np.uint8 or im_moving.dtype == np.float32), f"im_moving must be a numpy array of dtype np.uint8 or np.float32. Got {type(im_moving)} of dtype {im_moving.dtype}"
@@ -72,26 +88,10 @@ def find_registration_transformation(
             pass
         else:
             mask = (mask != 0).astype(np.uint8)
-
-    if warp_mode == 'MOTION_HOMOGRAPHY':
-        warp_mode = cv2.MOTION_HOMOGRAPHY
-        warp_matrix = np.eye(3, 3, dtype=np.float32)
-    elif warp_mode == 'MOTION_AFFINE':
-        warp_mode = cv2.MOTION_AFFINE
-        warp_matrix = np.eye(2, 3, dtype=np.float32)
-    elif warp_mode == 'MOTION_EUCLIDEAN':
-        warp_mode = cv2.MOTION_EUCLIDEAN
-        warp_matrix = np.eye(2, 3, dtype=np.float32)
-    elif warp_mode == 'MOTION_TRANSLATION':
-        warp_mode = cv2.MOTION_TRANSLATION
-        warp_matrix = np.eye(2, 3, dtype=np.float32)
-    else:
-        raise ValueError(f"warp_mode {warp_mode} not recognized")
     
     ## make gaussFiltSize odd
     gaussFiltSize = int(np.ceil(gaussFiltSize))
     gaussFiltSize = gaussFiltSize + (gaussFiltSize % 2 == 0)
-    
 
     criteria = (
         cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
@@ -223,7 +223,7 @@ def warp_matrix_to_remappingIdx(
     return remapIdx
 
 
-def apply_remappingIdx_to_images(
+def remap_images(
     images,
     remappingIdx,
     backend="torch",
