@@ -532,7 +532,7 @@ def cv2RemappingIdx_to_pytorchFlowField(ri):
              the center of the image.
             Shape (H, W, 2). Last dimension is (x, y).
     """
-    assert isinstance(ri, torch.Tensor), f"ri must be a torch.Tensor. Got {type(ff)}"
+    assert isinstance(ri, torch.Tensor), f"ri must be a torch.Tensor. Got {type(ri)}"
     im_shape = torch.flipud(torch.as_tensor(ri.shape[:2], dtype=torch.float32, device=ri.device))  ## (W, H)
     normgrid = ((ri / (im_shape[None, None, :] - 1)) - 0.5) * 2  ## PyTorch's grid_sample expects grid values in [-1, 1] because it's a relative offset from the center pixel. CV2's remap expects grid values in [0, 1] because it's an absolute offset from the top-left pixel.
     ## note also that pytorch's grid_sample expects align_corners=True to correspond to cv2's default behavior.
