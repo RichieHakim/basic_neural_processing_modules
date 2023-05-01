@@ -318,6 +318,10 @@ def remap_images(
     elif backend == 'cv2':
         assert isinstance(images, np.ndarray), f"images must be a np.ndarray when using backend='cv2'"
         assert isinstance(remappingIdx, np.ndarray), f"remappingIdx must be a np.ndarray when using backend='cv2'"
+        ## convert to float32 if not uint8
+        images = images.astype(np.float32) if images.dtype != np.uint8 else images
+        remappingIdx = remappingIdx.astype(np.float32) if remappingIdx.dtype != np.uint8 else remappingIdx
+
         interpolation = {
             'linear': cv2.INTER_LINEAR,
             'nearest': cv2.INTER_NEAREST,
@@ -450,6 +454,144 @@ def remap_sparse_images(
     wsi_partial = partial(warp_sparse_image, remappingIdx=remappingIdx)
     ims_sparse_out = parallel_helpers.map_parallel(func=wsi_partial, args=(ims_sparse,), method='multithreading', workers=n_workers)
     return ims_sparse_out
+
+
+def invert_remappingIdx(
+    remappingIdx: np.ndarray, 
+    method: str = 'linear', 
+    fill_value: typing.Optional[float] = np.nan
+) -> np.ndarray:
+    """
+    Inverts a remapping index field.
+    Example:
+        Define 'remap_AB' as a remapping index field that warps
+         image A onto image B. Then, 'remap_BA' is the remapping
+         index field that warps image B onto image A. This function
+         computes 'remap_BA' given 'remap_AB'.
+        
+    RH 2023
+
+    Args:
+        remappingIdx (np.ndarray): 
+            An array of shape (H, W, 2) representing the remap field.
+        method (str):
+            Interpolation method to use.
+            See scipy.interpolate.griddata.
+            Options are 'linear', 'nearest', 'cubic'.
+        fill_value (float, optional):
+            Value used to fill points outside the convex hull.
+
+    Returns:
+        remappingIdx_inv (np.ndarray): 
+            An array of shape (H, W, 2) representing the inverse remap field.
+    """
+    H, W, _ = remappingIdx.shape
+    
+    # Create the meshgrid of the original image
+    grid = np.mgrid[:H, :W][::-1].transpose(1,2,0).reshape(-1, 2)
+    
+    # Flatten the original meshgrid and remappingIdx
+    remapIdx_flat = remappingIdx.reshape(-1, 2)
+    
+    # Interpolate the inverse mapping using griddata
+    map_BA = scipy.interpolate.griddata(
+        points=remapIdx_flat, 
+        values=grid, 
+        xi=grid, 
+        method=method,
+        fill_value=fill_value,
+    ).reshape(H,W,2)
+    
+    return map_BA
+
+# def invert_warp_matrix(warp_matrix):
+#     """
+#     Inverts a warp matrix.
+#     TODO: UNTESTED
+#     Example:
+#         Define 'warp_AB' as a warp matrix that warps
+#          image A onto image B. Then, 'warp_BA' is the warp
+#          matrix that warps image B onto image A. This function
+#          computes 'warp_BA' given 'warp_AB'.
+#     RH 2023
+
+#     Args:
+#         warp_matrix (np.ndarray): 
+#             An array of shape (2, 3) or (3, 3) representing the warp matrix.
+
+#     Returns:
+#         warp_matrix_inv (np.ndarray): 
+#             An array of shape (2, 3) or (3, 3) representing the inverse warp matrix.
+#     """
+#     warp_matrix = np.array(warp_matrix)
+#     assert warp_matrix.shape in [(2, 3), (3, 3)], "Warp matrix must be of shape (2, 3) or (3, 3)."
+#     warp_matrix = np.concatenate([warp_matrix, np.array([[0, 0, 1]])], axis=0) if warp_matrix.shape == (2, 3) else warp_matrix
+#     warp_matrix_inv = np.linalg.inv(warp_matrix)
+#     warp_matrix_inv = warp_matrix_inv[:2, :] / warp_matrix_inv[2, 2] if warp_matrix_inv.shape == (3, 3) else warp_matrix_inv
+#     return warp_matrix_inv
+
+
+def compose_remappingIdx(
+    remap_BA: np.ndarray,
+    remap_CB: np.ndarray,
+    method: str = 'linear',
+    fill_value: typing.Optional[float] = np.nan,
+) -> np.ndarray:
+    """
+    Composes two remapping index fields.
+    Example:
+        Define 'remap_BA' as a remapping index field that warps
+         image B onto image A. Define 'remap_CB' as a remapping
+         index field that warps image C onto image B. This function
+         computes 'remap_CA' given 'remap_BA' and 'remap_CB'.
+    RH 2023
+
+    Args:
+        remap_BA (np.ndarray): 
+            An array of shape (H, W, 2) representing the remap field.
+        remap_CB (np.ndarray): 
+            An array of shape (H, W, 2) representing the remap field.
+        method (str):
+            Interpolation method to use.
+            See scipy.interpolate.griddata.
+            Options are 'linear', 'nearest', 'cubic'.
+        fill_value (float, optional):
+            Value used to fill points outside the convex hull.
+
+    Returns:
+        remap_CA (np.ndarray):
+            An array of shape (H, W, 2) representing the composed remap field.
+    """
+    H, W, _ = remap_BA.shape
+    
+    # Create the meshgrid of the original image and flatten it
+    grid_flat = np.mgrid[:H, :W][::-1].transpose(1,2,0).reshape(-1, 2)
+
+    # Flatten the remappingIdx
+    BA_flat = remap_BA.reshape(-1, 2)
+    CB_flat = remap_CB.reshape(-1, 2)
+
+    # Make a mask for NaN values
+    CB_flat_nanmask = np.isnan(CB_flat).any(axis=1)
+    
+    # Remove NaN values from CB_flat
+    CB_noNaN = CB_flat[~CB_flat_nanmask]
+        
+    # Interpolate
+    CA_noNaN = scipy.interpolate.griddata(
+        points=grid_flat, 
+        values=BA_flat, 
+        xi=CB_noNaN, 
+        method=method,
+        fill_value=fill_value,
+    )
+
+    # Reinsert NaN values
+    CA = np.full_like(BA_flat, np.nan)
+    CA[~CB_flat_nanmask] = CA_noNaN
+    CA = CA.reshape(H, W, 2)
+    
+    return CA
 
 
 def make_idx_grid(im):
