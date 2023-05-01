@@ -14,7 +14,7 @@ import scipy.sparse
 from . import indexing, featurization, parallel_helpers
 
 
-def find_registration_transformation(
+def find_geometric_transformation(
     im_template, 
     im_moving,
     warp_mode='euclidean',
