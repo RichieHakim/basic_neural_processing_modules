@@ -463,6 +463,9 @@ def invert_remappingIdx(
 ) -> np.ndarray:
     """
     Inverts a remapping index field.
+    Requires assumption that the remapping index field is:
+    - invertible or bijective / one-to-one.
+    - non oc
     Example:
         Define 'remap_AB' as a remapping index field that warps
          image A onto image B. Then, 'remap_BA' is the remapping
@@ -536,14 +539,15 @@ def compose_remappingIdx(
     remap_CB: np.ndarray,
     method: str = 'linear',
     fill_value: typing.Optional[float] = np.nan,
+    bounds_error: bool = False,
 ) -> np.ndarray:
     """
-    Composes two remapping index fields.
+    Composes two remapping index fields using scipy.interpolate.interpn.
     Example:
         Define 'remap_BA' as a remapping index field that warps
-         image B onto image A. Define 'remap_CB' as a remapping
-         index field that warps image C onto image B. This function
-         computes 'remap_CA' given 'remap_BA' and 'remap_CB'.
+        image B onto image A. Define 'remap_CB' as a remapping
+        index field that warps image C onto image B. This function
+        computes 'remap_CA' given 'remap_BA' and 'remap_CB'.
     RH 2023
 
     Args:
@@ -551,47 +555,37 @@ def compose_remappingIdx(
             An array of shape (H, W, 2) representing the remap field.
         remap_CB (np.ndarray): 
             An array of shape (H, W, 2) representing the remap field.
-        method (str):
-            Interpolation method to use.
-            See scipy.interpolate.griddata.
-            Options are 'linear', 'nearest', 'cubic'.
-        fill_value (float, optional):
-            Value used to fill points outside the convex hull.
-
-    Returns:
-        remap_CA (np.ndarray):
-            An array of shape (H, W, 2) representing the composed remap field.
+        method (str, optional): 
+            The interpolation method to use, default is 'linear'.
+        fill_value (float, optional): 
+            The value to use for points outside the interpolation domain,
+             default is np.nan.
+        bounds_error (bool, optional):
+            If True, when interpolated values are requested outside of
+             the domain of the input data, a ValueError is raised.
+             
     """
+    # Get the shape of the remap fields
     H, W, _ = remap_BA.shape
     
-    # Create the meshgrid of the original image and flatten it
-    grid_flat = np.mgrid[:H, :W][::-1].transpose(1,2,0).reshape(-1, 2)
+    # Combine the x and y components of remap_BA into a complex number
+    # This is done to simplify the interpolation process
+    BA_complex = remap_BA[:,:,0] + remap_BA[:,:,1]*1j
 
-    # Flatten the remappingIdx
-    BA_flat = remap_BA.reshape(-1, 2)
-    CB_flat = remap_CB.reshape(-1, 2)
+    # Perform the interpolation using interpn
+    CA = scipy.interpolate.interpn(
+        (np.arange(H), np.arange(W)), 
+        BA_complex, 
+        remap_CB.reshape(-1, 2)[:, ::-1], 
+        method=method, 
+        bounds_error=bounds_error, 
+        fill_value=fill_value
+    ).reshape(H, W)
 
-    # Make a mask for NaN values
-    CB_flat_nanmask = np.isnan(CB_flat).any(axis=1)
-    
-    # Remove NaN values from CB_flat
-    CB_noNaN = CB_flat[~CB_flat_nanmask]
-        
-    # Interpolate
-    CA_noNaN = scipy.interpolate.griddata(
-        points=grid_flat, 
-        values=BA_flat, 
-        xi=CB_noNaN, 
-        method=method,
-        fill_value=fill_value,
-    )
+    # Split the real and imaginary parts of the interpolated result to get the x and y components
+    remap_CA = np.stack((CA.real, CA.imag), axis=-1)
 
-    # Reinsert NaN values
-    CA = np.full_like(BA_flat, np.nan)
-    CA[~CB_flat_nanmask] = CA_noNaN
-    CA = CA.reshape(H, W, 2)
-    
-    return CA
+    return remap_CA
 
 
 def make_idx_grid(im):
