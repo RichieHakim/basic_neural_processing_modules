@@ -507,31 +507,37 @@ def invert_remappingIdx(
     
     return map_BA
 
-# def invert_warp_matrix(warp_matrix):
-#     """
-#     Inverts a warp matrix.
-#     TODO: UNTESTED
-#     Example:
-#         Define 'warp_AB' as a warp matrix that warps
-#          image A onto image B. Then, 'warp_BA' is the warp
-#          matrix that warps image B onto image A. This function
-#          computes 'warp_BA' given 'warp_AB'.
-#     RH 2023
+def invert_warp_matrix(warp_matrix: np.ndarray) -> np.ndarray:
+    """
+    Invert a given warp matrix (2x3 or 3x3) for A->B to compute the warp matrix for B->A.
+    RH 2023
 
-#     Args:
-#         warp_matrix (np.ndarray): 
-#             An array of shape (2, 3) or (3, 3) representing the warp matrix.
+    Args:
+        warp_matrix (numpy.ndarray): 
+            A 2x3 or 3x3 numpy array representing the warp matrix.
 
-#     Returns:
-#         warp_matrix_inv (np.ndarray): 
-#             An array of shape (2, 3) or (3, 3) representing the inverse warp matrix.
-#     """
-#     warp_matrix = np.array(warp_matrix)
-#     assert warp_matrix.shape in [(2, 3), (3, 3)], "Warp matrix must be of shape (2, 3) or (3, 3)."
-#     warp_matrix = np.concatenate([warp_matrix, np.array([[0, 0, 1]])], axis=0) if warp_matrix.shape == (2, 3) else warp_matrix
-#     warp_matrix_inv = np.linalg.inv(warp_matrix)
-#     warp_matrix_inv = warp_matrix_inv[:2, :] / warp_matrix_inv[2, 2] if warp_matrix_inv.shape == (3, 3) else warp_matrix_inv
-#     return warp_matrix_inv
+    Returns:
+        numpy.ndarray: 
+            The inverted warp matrix.
+    """
+    if warp_matrix.shape == (2, 3):
+        # Convert 2x3 affine warp matrix to 3x3 by appending [0, 0, 1] as the last row
+        warp_matrix_3x3 = np.vstack((warp_matrix, np.array([0, 0, 1])))
+    elif warp_matrix.shape == (3, 3):
+        warp_matrix_3x3 = warp_matrix
+    else:
+        raise ValueError("Input warp_matrix must be of shape (2, 3) or (3, 3)")
+
+    # Compute the inverse of the 3x3 warp matrix
+    inverted_warp_matrix_3x3 = np.linalg.inv(warp_matrix_3x3)
+
+    if warp_matrix.shape == (2, 3):
+        # Convert the inverted 3x3 warp matrix back to 2x3 by removing the last row
+        inverted_warp_matrix = inverted_warp_matrix_3x3[:2, :]
+    else:
+        inverted_warp_matrix = inverted_warp_matrix_3x3
+
+    return inverted_warp_matrix
 
 
 def compose_remappingIdx(
