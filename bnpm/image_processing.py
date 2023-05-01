@@ -541,8 +541,8 @@ def invert_warp_matrix(warp_matrix: np.ndarray) -> np.ndarray:
 
 
 def compose_remappingIdx(
-    remap_BA: np.ndarray,
-    remap_CB: np.ndarray,
+    remap_AB: np.ndarray,
+    remap_BC: np.ndarray,
     method: str = 'linear',
     fill_value: typing.Optional[float] = np.nan,
     bounds_error: bool = False,
@@ -550,16 +550,16 @@ def compose_remappingIdx(
     """
     Composes two remapping index fields using scipy.interpolate.interpn.
     Example:
-        Define 'remap_BA' as a remapping index field that warps
-        image B onto image A. Define 'remap_CB' as a remapping
-        index field that warps image C onto image B. This function
-        computes 'remap_CA' given 'remap_BA' and 'remap_CB'.
+        Define 'remap_AB' as a remapping index field that warps
+        image A onto image B. Define 'remap_BC' as a remapping
+        index field that warps image B onto image C. This function
+        computes 'remap_AC' given 'remap_AB' and 'remap_BC'.
     RH 2023
 
     Args:
-        remap_BA (np.ndarray): 
+        remap_AB (np.ndarray): 
             An array of shape (H, W, 2) representing the remap field.
-        remap_CB (np.ndarray): 
+        remap_BC (np.ndarray): 
             An array of shape (H, W, 2) representing the remap field.
         method (str, optional): 
             The interpolation method to use, default is 'linear'.
@@ -572,26 +572,71 @@ def compose_remappingIdx(
              
     """
     # Get the shape of the remap fields
-    H, W, _ = remap_BA.shape
+    H, W, _ = remap_AB.shape
     
-    # Combine the x and y components of remap_BA into a complex number
+    # Combine the x and y components of remap_AB into a complex number
     # This is done to simplify the interpolation process
-    BA_complex = remap_BA[:,:,0] + remap_BA[:,:,1]*1j
+    AB_complex = remap_AB[:,:,0] + remap_AB[:,:,1]*1j
 
     # Perform the interpolation using interpn
-    CA = scipy.interpolate.interpn(
+    AC = scipy.interpolate.interpn(
         (np.arange(H), np.arange(W)), 
-        BA_complex, 
-        remap_CB.reshape(-1, 2)[:, ::-1], 
+        AB_complex, 
+        remap_BC.reshape(-1, 2)[:, ::-1], 
         method=method, 
         bounds_error=bounds_error, 
         fill_value=fill_value
     ).reshape(H, W)
 
     # Split the real and imaginary parts of the interpolated result to get the x and y components
-    remap_CA = np.stack((CA.real, CA.imag), axis=-1)
+    remap_AC = np.stack((AC.real, AC.imag), axis=-1)
 
-    return remap_CA
+    return remap_AC
+
+
+def compose_transform_matrices(
+    matrix_AB: np.ndarray, 
+    matrix_BC: np.ndarray
+) -> np.ndarray:
+    """
+    Composes two transformation matrices.
+    Example:
+        Define 'matrix_AB' as a transformation matrix that warps
+        image A onto image B. Define 'matrix_BC' as a transformation
+        matrix that warps image B onto image C. This function
+        computes 'matrix_AC' given 'matrix_AB' and 'matrix_BC'.
+    RH 2023
+
+    Args:
+        matrix_AB (np.ndarray): 
+            An array of shape (2, 3) or (3, 3) representing the transformation matrix.
+        matrix_BC (np.ndarray): 
+            An array of shape (2, 3) or (3, 3) representing the transformation matrix.
+
+    Returns:
+        matrix_AC (np.ndarray): 
+            An array of shape (2, 3) or (3, 3) representing the composed transformation matrix.
+
+    Raises:
+        AssertionError: If the input matrices are not of shape (2, 3) or (3, 3).
+    """
+    assert matrix_AB.shape in [(2, 3), (3, 3)], "Matrix AB must be of shape (2, 3) or (3, 3)."
+    assert matrix_BC.shape in [(2, 3), (3, 3)], "Matrix BC must be of shape (2, 3) or (3, 3)."
+
+    # If the input matrices are (2, 3), extend them to (3, 3) by adding a row [0, 0, 1]
+    if matrix_AB.shape == (2, 3):
+        matrix_AB = np.vstack((matrix_AB, [0, 0, 1]))
+    if matrix_BC.shape == (2, 3):
+        matrix_BC = np.vstack((matrix_BC, [0, 0, 1]))
+
+    # Compute the product of the extended matrices
+    matrix_AC = matrix_AB @ matrix_BC
+
+    # If the resulting matrix is (3, 3) and has the last row [0, 0, 1], convert it back to a (2, 3) matrix
+    if (matrix_AC.shape == (3, 3)) and np.allclose(matrix_AC[2], [0, 0, 1]):
+        matrix_AC = matrix_AC[:2, :]
+
+    return matrix_AC
 
 
 def make_idx_grid(im):
