@@ -98,7 +98,6 @@ def find_geometric_transformation(
         n_iter,
         termination_eps,
     )
-    print("running findTransformECC")
     # Run the ECC algorithm. The results are stored in warp_matrix.
     (cc, warp_matrix) = cv2.findTransformECC(
         templateImage=im_template, 
