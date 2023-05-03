@@ -177,7 +177,50 @@ def write_dict_to_h5(
             show_item_tree(hf)
 
 
-def simple_load(path=None, return_lazy=True, verbose=False):
+def simple_load(filepath, return_dict=False, verbose=False):
+    """
+    Returns a dictionary object containing the groups
+    as keys and the datasets as values from
+    given hdf file.
+    RH 2023
+
+    Args:
+        filepath (string or Path): 
+            Full path name of file to read.
+        return_dict (bool):
+            Whether or not to return a dict object (True)
+            or an h5py object (False)
+    """
+    with h5py.File(filepath, 'r') as h5_file:
+        if verbose:
+            print(f'==== Loading h5 file with hierarchy: ====')
+            show_item_tree(h5_file)
+        if return_dict:
+            data = {}
+            def h5_to_dict(name, obj):
+                if isinstance(obj, h5py.Dataset):
+                    data[name] = obj[()]
+
+            h5_file.visititems(h5_to_dict)  ## Converts h5 file to dict in-place
+            return data
+        else:
+            return h5_file
+
+def h5Obj_to_dict(hObj):
+    '''
+    Converts an h5py object to a python dict object
+    RH 2023
+    '''
+    h5_dict = {}
+    for ii,val in enumerate(list(iter(hObj))):
+        if isinstance(hObj[val], h5py.Group):
+            h5_dict[val] = h5Obj_to_dict(hObj[val])
+        else:
+            h5_dict[val] = hObj[val][()]
+    return h5_dict
+
+
+def simple_lazy_load(path, return_lazy=True, verbose=False):
     """
     Returns a lazy dictionary object (specific
     to hdfdict package) containing the groups
