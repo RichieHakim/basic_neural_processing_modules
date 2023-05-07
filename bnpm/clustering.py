@@ -71,8 +71,8 @@ def cluster_similarity_matrices(
         if not (s - s.T).sum() == 0:
             print("Warning: Similarity matrix is not symmetric.") if verbose else None
         ## Warn if s is not sparse
-        if not isinstance(s, (sparse.COO, scipy.sparse.csr_matrix)):
-            print("Warning: Similarity matrix is not a recognized sparse type. Will attempt to convert to sparse.COO") if verbose else None
+        if not isinstance(s, (np.ndarray, sparse.COO, scipy.sparse.csr_matrix)):
+            print("Warning: Similarity matrix is not a recognized sparse type or np.ndarray. Will attempt to convert to sparse.COO") if verbose else None
         ## Warn if diagonal is not all ones. It will be converted
         if not np.allclose(np.array(s[range(s.shape[0]), range(s.shape[0])]), 1):
             print("Warning: Similarity matrix diagonal is not all ones. Will set diagonal to all ones.") if verbose else None
@@ -124,7 +124,6 @@ def cluster_similarity_matrices(
     cs_max = (s_big_conj - s_big_diag).max(axis=(2,3))
 
     return cs_mean, cs_max.todense(), cs_min
-
 
 class cDBSCAN():
     """

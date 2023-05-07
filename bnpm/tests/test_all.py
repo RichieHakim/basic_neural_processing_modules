@@ -11,6 +11,8 @@ from ..optimization import Convergence_checker
 
 from ..similarity import pairwise_orthogonalization_torch
 
+from ..clustering import cluster_similarity_matrices
+
 def test_toeplitz_convolution2d():
     """
     Test toeplitz_convolution2d
@@ -212,3 +214,75 @@ def test_pairwise_orthogonalization_torch():
     ## test that columns of v1_orth are orthogonal to v2. Check the pairwise correlation along the columns.
     corr = (v1_orth.T @ v2).diag()
     assert torch.allclose(corr, torch.zeros_like(corr), atol=1e-5), f"columns of v1_orth are not orthogonal to v2. corr={corr}"
+
+
+def test_cluster_similarity_matrices():
+    import numpy as np
+
+    ## test 1: 2 clusters, 2 samples, no sparse values.
+    s = np.array([
+        [1, 0.5, 0.3, 0.1],
+        [0.5, 1, 0.1, 0.3],
+        [0.3, 0.1, 1, 0.5],
+        [0.1, 0.3, 0.5, 1]
+    ])
+    l = np.array([0, 0, 1, 1])
+
+    cs_mean_expected = np.array([
+        [0.5, 0.2],
+        [0.2, 0.5]
+    ])
+
+    cs_max_expected = np.array([
+        [0.5, 0.3],
+        [0.3, 0.5]
+    ])
+
+    cs_min_expected = np.array([
+        [0.5, 0.1],
+        [0.1, 0.5]
+    ])
+
+    cs_mean, cs_max, cs_min = cluster_similarity_matrices(s, l)
+
+    assert np.allclose(cs_mean, cs_mean_expected, atol=1e-6)
+    assert np.allclose(cs_max, cs_max_expected, atol=1e-6)
+    assert np.allclose(cs_min, cs_min_expected, atol=1e-6)
+
+    # Test with sparse input
+    s_sparse = scipy.sparse.csr_matrix(s)
+    cs_mean, cs_max, cs_min = cluster_similarity_matrices(s_sparse, l)
+
+    assert np.allclose(cs_mean, cs_mean_expected, atol=1e-6)
+    assert np.allclose(cs_max, cs_max_expected, atol=1e-6)
+    assert np.allclose(cs_min, cs_min_expected, atol=1e-6)
+
+    ## test 2: 2 clusters, 2 samples, with sparse values.
+    s_sparse = scipy.sparse.csr_matrix([
+    [1,   0,   0.3, 0  ],
+    [0,   1,   0,   0  ],
+    [0.3, 0,   1,   0.5],
+    [0,   0,   0.5, 1  ]
+    ])
+    l = np.array([0, 0, 1, 1])
+
+    cs_mean_expected = np.array([
+        [0, 0.075],
+        [0.075, 0.5]
+    ])
+
+    cs_max_expected = np.array([
+        [0, 0.3],
+        [0.3, 0.5]
+    ])
+
+    cs_min_expected = np.array([
+        [0, 0],
+        [0, 0.5]
+    ])
+
+    cs_mean, cs_max, cs_min = cluster_similarity_matrices(s_sparse, l)
+
+    assert np.allclose(cs_mean, cs_mean_expected, atol=1e-6)
+    assert np.allclose(cs_max, cs_max_expected, atol=1e-6)
+    assert np.allclose(cs_min, cs_min_expected, atol=1e-6)
