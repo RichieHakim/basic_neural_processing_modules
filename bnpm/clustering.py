@@ -52,40 +52,45 @@ def cluster_similarity_matrices(
     import scipy.sparse
 
     l_arr = np.array(l)
+    ss = scipy.sparse.csr_matrix(s.astype(np.float32))
 
     ## assert that all labels have at least two samples
     l_u ,l_c = np.unique(l_arr, return_counts=True)
-    assert np.all(l_c >= 2), "All labels must have at least two samples."
+    # assert np.all(l_c >= 2), "All labels must have at least two samples."
     ## assert that s is a square matrix
-    assert s.shape[0] == s.shape[1], "Similarity matrix must be square."
+    assert ss.shape[0] == ss.shape[1], "Similarity matrix must be square."
     ## assert that s is non-negative
-    assert (s < 0).sum() == 0, "Similarity matrix must be non-negative."
+    assert (ss < 0).sum() == 0, "Similarity matrix must be non-negative."
     ## assert that l is a 1-D array
     assert len(l.shape) == 1, "Labels must be a 1-D array."
     ## assert that l is the same length as s
-    assert len(l) == s.shape[0], "Labels must be the same length as the similarity matrix."
+    assert len(l) == ss.shape[0], "Labels must be the same length as the similarity matrix."
     if verbose:
         ## Warn if s is not symmetric
-        if not (s - s.T).sum() == 0:
+        if not (ss - ss.T).sum() == 0:
             print("Warning: Similarity matrix is not symmetric.") if verbose else None
         ## Warn if s is not sparse
-        if not isinstance(s, (np.ndarray, sparse.COO, scipy.sparse.csr_matrix)):
+        if not isinstance(ss, (np.ndarray, sparse.COO, scipy.sparse.csr_matrix)):
             print("Warning: Similarity matrix is not a recognized sparse type or np.ndarray. Will attempt to convert to sparse.COO") if verbose else None
         ## Warn if diagonal is not all ones. It will be converted
-        if not np.allclose(np.array(s[range(s.shape[0]), range(s.shape[0])]), 1):
+        if not np.allclose(np.array(ss[range(ss.shape[0]), range(ss.shape[0])]), 1):
             print("Warning: Similarity matrix diagonal is not all ones. Will set diagonal to all ones.") if verbose else None
         ## Warn if there are any values greater than 1
-        if (s > 1).sum() > 0:
+        if (ss > 1).sum() > 0:
             print("Warning: Similarity matrix has values greater than 1.") if verbose else None
+        ## Warn if there are NaNs. Set to 0.
+        if (np.isnan(ss.data)).sum() > 0:
+            print("Warning: Similarity matrix has NaNs. Will set to 0.") if verbose else None
+            ss.data[np.isnan(ss.data)] = 0
 
     ## Make a boolean matrix for labels
     l_bool = sparse.COO(np.stack([l_arr == u for u in l_u], axis=0))
     samp_per_clust = l_bool.sum(1).todense()
     n_clusters = len(samp_per_clust)
-    n_samples = s.shape[0]
+    n_samples = ss.shape[0]
     
     ## Force diagonal to be 1s
-    ss = scipy.sparse.lil_matrix(s.astype(np.float32))
+    ss = ss.tolil()
     ss[range(n_samples), range(n_samples)] = 1
     ss = sparse.COO(ss)
 
@@ -122,6 +127,7 @@ def cluster_similarity_matrices(
     cs_max = (s_big_conj - s_big_diag).max(axis=(2,3))
 
     return cs_mean, cs_max.todense(), cs_min
+
 
 class cDBSCAN():
     """
