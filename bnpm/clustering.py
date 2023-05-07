@@ -6,8 +6,6 @@ import torch
 
 import copy
 
-from tqdm import tqdm
-
 from . import torch_helpers, indexing
 
 
