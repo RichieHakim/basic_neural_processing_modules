@@ -11,6 +11,121 @@ from tqdm import tqdm
 from . import torch_helpers, indexing
 
 
+def cluster_similarity_matrices(
+    s, 
+    l, 
+    verbose=True
+):
+    """
+    Compute the similarity matrices for each cluster in l.
+    This algorithm works best on large and sparse matrices. 
+    RH 2023
+
+    Args:
+        s (scipy.sparse.csr_matrix or np.ndarray or sparse.COO):
+            Similarity matrix.
+            Entries should be non-negative floats.
+        l (np.ndarray):
+            Labels for each row of s.
+            Labels should be integers ideally.
+        verbose (bool):
+            Whether to print warnings.
+
+    Returns:
+        cs_mean (np.ndarray):
+            Similarity matrix for each cluster.
+            Each element is the mean similarity between all the pairs
+             of samples in each cluster.
+            Note that the diagonal here only considers non-self similarity,
+             which excludes the diagonals of s.
+        cs_max (np.ndarray):
+            Similarity matrix for each cluster.
+            Each element is the maximum similarity between all the pairs
+             of samples in each cluster.
+            Note that the diagonal here only considers non-self similarity,
+             which excludes the diagonals of s.
+        cs_min (np.ndarray):
+            Similarity matrix for each cluster.
+            Each element is the minimum similarity between all the pairs
+             of samples in each cluster. Will be 0 if there are any sparse
+             elements between the two clusters.
+    """
+    import sparse
+    import scipy.sparse
+
+    l_arr = np.array(l)
+
+    ## assert that all labels have at least two samples
+    l_u ,l_c = np.unique(l_arr, return_counts=True)
+    assert np.all(l_c >= 2), "All labels must have at least two samples."
+    ## assert that s is a square matrix
+    assert s.shape[0] == s.shape[1], "Similarity matrix must be square."
+    ## assert that s is non-negative
+    assert (s < 0).sum() == 0, "Similarity matrix must be non-negative."
+    ## assert that l is a 1-D array
+    assert len(l.shape) == 1, "Labels must be a 1-D array."
+    ## assert that l is the same length as s
+    assert len(l) == s.shape[0], "Labels must be the same length as the similarity matrix."
+    if verbose:
+        ## Warn if s is not symmetric
+        if not (s - s.T).sum() == 0:
+            print("Warning: Similarity matrix is not symmetric.") if verbose else None
+        ## Warn if s is not sparse
+        if not isinstance(s, (sparse.COO, scipy.sparse.csr_matrix)):
+            print("Warning: Similarity matrix is not a recognized sparse type. Will attempt to convert to sparse.COO") if verbose else None
+        ## Warn if diagonal is not all ones. It will be converted
+        if not np.allclose(np.array(s[range(s.shape[0]), range(s.shape[0])]), 1):
+            print("Warning: Similarity matrix diagonal is not all ones. Will set diagonal to all ones.") if verbose else None
+        ## Warn if there are any values greater than 1
+        if (s > 1).sum() > 0:
+            print("Warning: Similarity matrix has values greater than 1.") if verbose else None
+
+    ## Make a boolean matrix for labels
+    l_bool = sparse.COO(np.stack([l_arr == u for u in l_u], axis=0))
+    samp_per_clust = l_bool.sum(1).todense()
+    n_clusters = len(samp_per_clust)
+    n_samples = s.shape[0]
+    
+    ## Force diagonal to be 1s
+    ss = scipy.sparse.lil_matrix(s.astype(np.float32))
+    ss[range(n_samples), range(n_samples)] = 1
+    ss = sparse.COO(ss)
+
+    ## Compute the similarity matrix for each pair of clusters
+    s_big_conj = ss[None,None,:,:] * l_bool[None,:,:,None] * l_bool[:,None,None,:]  ## shape: (n_clusters, n_clusters, n_samples, n_samples)
+    s_big_diag = sparse.eye(n_samples) * l_bool[None,:,:,None] * l_bool[:,None,None,:]
+
+    ## Compute the mean similarity matrix for each cluster
+    samp_per_clust_crossGrid = samp_per_clust[:,None] * samp_per_clust[None,:]  ## shape: (n_clusters, n_clusters). This is the product of the number of samples in each cluster. Will be used to divide by the sum of similarities.
+    norm_mat = samp_per_clust_crossGrid.copy()  ## above variable will be used again and this one will be mutated.
+    fixed_diag = samp_per_clust * (samp_per_clust - 1)  ## shape: (n_clusters,). For the diagonal, we need to subtract 1 from the number of samples in each cluster because samples have only 1 similarity with themselves along the diagonal.
+    norm_mat[range(n_clusters), range(n_clusters)] = fixed_diag  ## Correcting the diagonal
+    s_big_sum_raw = s_big_conj.sum(axis=(2,3)).todense()
+    s_big_sum_raw[range(n_clusters), range(n_clusters)] = s_big_sum_raw[range(n_clusters), range(n_clusters)] - samp_per_clust  ## subtract off the number of samples in each cluster from the diagonal
+    cs_mean = s_big_sum_raw / norm_mat  ## shape: (n_clusters, n_clusters). Compute mean by finding the sum of the similarities and dividing by the norm_mat.
+
+    ## Compute the min similarity matrix for each cluster
+    ### This is done in two steps:
+    #### 1. Compute the minimum similarity between each pair of clusters by inverting the similarity matrix and finding the maximum similarity between each pair of clusters.
+    #### 2. Since the first step doesn't invert any values that happen to be 0 (since they are sparse), we need to find out if there are any 0 values there are in each cluster pair, and if there then the minimum similarity between the two clusters is 0.
+    val_max = s_big_conj.max() + 1
+    cs_min = s_big_conj.copy()
+    cs_min.data = val_max - cs_min.data  ## Invert the values
+    cs_min = cs_min.max(axis=(2,3))  ## Find the max similarity
+    cs_min.data = val_max - cs_min.data  ## Invert the values back
+    cs_min.fill_value = 0.0  ## Set the fill value to 0.0 since it gets messed up by these subtraction operations
+    
+    n_missing_values = (samp_per_clust_crossGrid - (s_big_conj > 0).sum(axis=(2,3)).todense())  ## shape: (n_clusters, n_clusters). Compute the number of missing values by subtracting the number of non-zero values from the number of samples in each cluster.
+    # n_missing_values[range(len(samp_per_clust)), range(len(samp_per_clust))] = (samp_per_clust**2 - samp_per_clust) - ((s_big_conj[range(len(samp_per_clust)), range(len(samp_per_clust))] > 0).sum(axis=(1,2))).todense()  ## Correct the diagonal by subtracting the number of non-zero values from the number of samples in each cluster. This is because the diagonal is the number of samples in each cluster squared minus the number of samples in each cluster.
+    bool_nonMissing_values = (n_missing_values == 0)  ## shape: (n_clusters, n_clusters). Make a boolean matrix for where there are no missing values.
+    cs_min = cs_min.todense() * bool_nonMissing_values  ## Set the minimum similarity to 0 where there are missing values.
+
+    ## Compute the max similarity matrix for each cluster
+    cs_max = (s_big_conj - s_big_diag).max(axis=(2,3))
+
+    return cs_mean, cs_max.todense(), cs_min
+
+
 class cDBSCAN():
     """
     Consensus DBSCAN algorithm.
@@ -105,174 +220,174 @@ class cDBSCAN():
         return self.clusters_idx_unique, self.clusters_idx_unique_freq
 
 
-def cluster_silhouette_score(
-    s,
-    h,
-    locality=1,
-    return_inAndOut=False,
-    method_in='mean',
-    method_out='max',
-):
-    """
-    Function to compute the aggregated silhouette score of clusters.
-    Here, the score measures the similarity between samples within
-     a cluster and between samples within a cluster and all other samples.
-    To compute a true silhouette score, use:
-     method_in='mean' and method_out='max'.
+# def cluster_silhouette_score(
+#     s,
+#     h,
+#     locality=1,
+#     return_inAndOut=False,
+#     method_in='mean',
+#     method_out='max',
+# ):
+#     """
+#     Function to compute the aggregated silhouette score of clusters.
+#     Here, the score measures the similarity between samples within
+#      a cluster and between samples within a cluster and all other samples.
+#     To compute a true silhouette score, use:
+#      method_in='mean' and method_out='max'.
 
-    RH 2022
+#     RH 2022
 
-    Args:
-        s (torch.Tensor, dtype float):
-            The similarity matrix.
-            shape: (n_samples, n_samples)
-        h (torch.Tensor, dtype bool):
-            The cluster membership matrix.
-            shape: (n_samples, n_clusters)
-        locality (float):
-            The exponent applied to the similarity matrix.
-            Higher values make the score more dependent on local 
-             similarity. 
-            Setting method_out to 'mean' and using a high locality 
-             value can result in something similar to a silhouette
-             score.
-        return_inAndOut (bool):
-            If True then the in and out scores are returned.
+#     Args:
+#         s (torch.Tensor, dtype float):
+#             The similarity matrix.
+#             shape: (n_samples, n_samples)
+#         h (torch.Tensor, dtype bool):
+#             The cluster membership matrix.
+#             shape: (n_samples, n_clusters)
+#         locality (float):
+#             The exponent applied to the similarity matrix.
+#             Higher values make the score more dependent on local 
+#              similarity. 
+#             Setting method_out to 'mean' and using a high locality 
+#              value can result in something similar to a silhouette
+#              score.
+#         return_inAndOut (bool):
+#             If True then the in and out scores are returned.
 
-    """
+#     """
 
-    if h.dtype != torch.bool:
-        raise ValueError('h must be a boolean tensor.')
+#     if h.dtype != torch.bool:
+#         raise ValueError('h must be a boolean tensor.')
 
-    n_clusters = h.shape[1]
-    n_samples = h.shape[0]
+#     n_clusters = h.shape[1]
+#     n_samples = h.shape[0]
     
-    DEVICE = s.device
-    s_tu = (s**locality).type(torch.float32)
-    s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
-    h_tu = h.to(DEVICE)
+#     DEVICE = s.device
+#     s_tu = (s**locality).type(torch.float32)
+#     s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
+#     h_tu = h.to(DEVICE)
     
-    if method_in == 'mean':
-        fn_mi = torch.nanmean
-    elif method_in == 'max':
-        fn_mi = torch_helpers.nanmax
-    elif method_in == 'min':
-        fn_mi = torch_helpers.nanmin
-    else:
-        raise ValueError('method_in must be one of "mean", "max", "min".')
+#     if method_in == 'mean':
+#         fn_mi = torch.nanmean
+#     elif method_in == 'max':
+#         fn_mi = torch_helpers.nanmax
+#     elif method_in == 'min':
+#         fn_mi = torch_helpers.nanmin
+#     else:
+#         raise ValueError('method_in must be one of "mean", "max", "min".')
 
-    if method_out == 'mean':
-        fn_mo = torch.nanmean
-    elif method_out == 'max':
-        fn_mo = torch_helpers.nanmax
-    elif method_out == 'min':
-        fn_mo = torch_helpers.nanmin
-    else:
-        raise ValueError('method_out must be one of "mean", "max", "min".')
+#     if method_out == 'mean':
+#         fn_mo = torch.nanmean
+#     elif method_out == 'max':
+#         fn_mo = torch_helpers.nanmax
+#     elif method_out == 'min':
+#         fn_mo = torch_helpers.nanmin
+#     else:
+#         raise ValueError('method_out must be one of "mean", "max", "min".')
         
-    cs_in  = torch.as_tensor([fn_mi(s_tu[h_tu[:,ii]][:, h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
-    cs_out = torch.as_tensor([fn_mo(s_tu[h_tu[:,ii]][:,~h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
+#     cs_in  = torch.as_tensor([fn_mi(s_tu[h_tu[:,ii]][:, h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
+#     cs_out = torch.as_tensor([fn_mo(s_tu[h_tu[:,ii]][:,~h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
     
-    cs = cs_in / cs_out
+#     cs = cs_in / cs_out
 
-    if return_inAndOut:
-        return cs, cs_in, cs_out
-    else:
-        return cs
-
-
-def cluster_similarity_score(
-    s,
-    h,
-    locality=1,
-    method_in='mean',
-    method_out='max',
-):
-    """
-    Function to compute the aggregated similarity / dispersion score 
-     of clusters.
-    Here, the score measures the similarity between samples within
-     a cluster and between samples within a cluster and all other samples.
-    To compute a true silhouette score, use:
-     method_in='mean' and method_out='max'.
-    For a score similar to complete linkage, use:
-     method_in='min' and method_out='max'.
-
-    RH 2022
-
-    Args:
-        s (torch.Tensor, dtype float):
-            The similarity matrix.
-            shape: (n_samples, n_samples)
-        h (torch.Tensor, dtype bool):
-            The cluster membership matrix.
-            shape: (n_samples, n_clusters)
-        locality (float):
-            The exponent applied to the similarity matrix.
-            Higher values make the score more dependent on local 
-             similarity. 
-            Setting method_out to 'mean' and using a high locality 
-             value can result in something similar to a silhouette
-             score.
-        method_in (str):
-            The method used to compute the within-cluster similarity.
-            Must be one of "mean", "max", "min".
-        method_out (str):
-            The method used to compute the between-cluster similarity.
-            Must be one of "mean", "max", "min".
-    """
+#     if return_inAndOut:
+#         return cs, cs_in, cs_out
+#     else:
+#         return cs
 
 
-    n_clusters = h.shape[1]
-    n_samples = h.shape[0]
+# def cluster_similarity_score(
+#     s,
+#     h,
+#     locality=1,
+#     method_in='mean',
+#     method_out='max',
+# ):
+#     """
+#     Function to compute the aggregated similarity / dispersion score 
+#      of clusters.
+#     Here, the score measures the similarity between samples within
+#      a cluster and between samples within a cluster and all other samples.
+#     To compute a true silhouette score, use:
+#      method_in='mean' and method_out='max'.
+#     For a score similar to complete linkage, use:
+#      method_in='min' and method_out='max'.
+
+#     RH 2022
+
+#     Args:
+#         s (torch.Tensor, dtype float):
+#             The similarity matrix.
+#             shape: (n_samples, n_samples)
+#         h (torch.Tensor, dtype bool):
+#             The cluster membership matrix.
+#             shape: (n_samples, n_clusters)
+#         locality (float):
+#             The exponent applied to the similarity matrix.
+#             Higher values make the score more dependent on local 
+#              similarity. 
+#             Setting method_out to 'mean' and using a high locality 
+#              value can result in something similar to a silhouette
+#              score.
+#         method_in (str):
+#             The method used to compute the within-cluster similarity.
+#             Must be one of "mean", "max", "min".
+#         method_out (str):
+#             The method used to compute the between-cluster similarity.
+#             Must be one of "mean", "max", "min".
+#     """
+
+
+#     n_clusters = h.shape[1]
+#     n_samples = h.shape[0]
     
-    DEVICE = s.device
-    s_tu = (s**locality).type(torch.float32)
-    h_tu = h.to(DEVICE)
+#     DEVICE = s.device
+#     s_tu = (s**locality).type(torch.float32)
+#     h_tu = h.to(DEVICE)
 
  
-    ii_normFactor = lambda i   : i * (i-1)
-    ij_normFactor = lambda i,j : i * j
+#     ii_normFactor = lambda i   : i * (i-1)
+#     ij_normFactor = lambda i,j : i * j
 
-    yy, xx = torch.meshgrid(torch.arange(n_clusters), torch.arange(n_clusters), indexing='ij')
-    yyf, xxf = yy.reshape(-1), xx.reshape(-1)
+#     yy, xx = torch.meshgrid(torch.arange(n_clusters), torch.arange(n_clusters), indexing='ij')
+#     yyf, xxf = yy.reshape(-1), xx.reshape(-1)
 
-    sizes_clusters = h_tu.sum(0)
+#     sizes_clusters = h_tu.sum(0)
 
-    if method_in=='mean' and method_out=='mean':
-        s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = 0
-        c = torch.einsum('ab, ac, bd -> cd', s_tu, h_tu, h_tu)  /  \
-            ( (torch.eye(n_clusters).to(DEVICE) * ii_normFactor(sizes_clusters)) + ((1-torch.eye(n_clusters).to(DEVICE)) * (sizes_clusters[None,:] * sizes_clusters[:,None])) )
-        return c
+#     if method_in=='mean' and method_out=='mean':
+#         s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = 0
+#         c = torch.einsum('ab, ac, bd -> cd', s_tu, h_tu, h_tu)  /  \
+#             ( (torch.eye(n_clusters).to(DEVICE) * ii_normFactor(sizes_clusters)) + ((1-torch.eye(n_clusters).to(DEVICE)) * (sizes_clusters[None,:] * sizes_clusters[:,None])) )
+#         return c
 
 
-    if h.dtype != torch.bool:
-        raise ValueError('h must be a boolean tensor.')
+#     if h.dtype != torch.bool:
+#         raise ValueError('h must be a boolean tensor.')
 
-    s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
+#     s_tu[torch.arange(n_samples).to(DEVICE), torch.arange(n_samples).to(DEVICE)] = torch.nan
     
-    if method_in == 'mean':
-        fn_mi = torch.nanmean
-    elif method_in == 'max':
-        fn_mi = torch_helpers.nanmax
-    elif method_in == 'min':
-        fn_mi = torch_helpers.nanmin
-    else:
-        raise ValueError('method_in must be one of "mean", "max", "min".')
+#     if method_in == 'mean':
+#         fn_mi = torch.nanmean
+#     elif method_in == 'max':
+#         fn_mi = torch_helpers.nanmax
+#     elif method_in == 'min':
+#         fn_mi = torch_helpers.nanmin
+#     else:
+#         raise ValueError('method_in must be one of "mean", "max", "min".')
 
-    if method_out == 'mean':
-        fn_mo = torch.nanmean
-    elif method_out == 'max':
-        fn_mo = torch_helpers.nanmax
-    elif method_out == 'min':
-        fn_mo = torch_helpers.nanmin
-    else:
-        raise ValueError('method_out must be one of "mean", "max", "min".')
+#     if method_out == 'mean':
+#         fn_mo = torch.nanmean
+#     elif method_out == 'max':
+#         fn_mo = torch_helpers.nanmax
+#     elif method_out == 'min':
+#         fn_mo = torch_helpers.nanmin
+#     else:
+#         raise ValueError('method_out must be one of "mean", "max", "min".')
 
-    c = torch.as_tensor([fn_mo(s_tu[h_tu[:,ii]][:, h_tu[:,jj]]) for ii,jj in tqdm(zip(yyf, xxf), total=len(yyf))], device=DEVICE).reshape(n_clusters, n_clusters)
-    c[torch.eye(n_clusters, dtype=torch.bool)] = torch.as_tensor([fn_mi(s_tu[h_tu[:,ii]][:, h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
+#     c = torch.as_tensor([fn_mo(s_tu[h_tu[:,ii]][:, h_tu[:,jj]]) for ii,jj in tqdm(zip(yyf, xxf), total=len(yyf))], device=DEVICE).reshape(n_clusters, n_clusters)
+#     c[torch.eye(n_clusters, dtype=torch.bool)] = torch.as_tensor([fn_mi(s_tu[h_tu[:,ii]][:, h_tu[:,ii]]) for ii in range(n_clusters)], device=DEVICE)
 
-    return c
+#     return c
 
 
 class Constrained_rich_clustering:
