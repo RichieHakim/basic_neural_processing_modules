@@ -56,9 +56,10 @@ def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cm
     return fig, axs
 
 
-def display_toggle_image_stack(images, labels=None, clim=None, figsize=None):
+def widget_toggle_image_stack(images, labels=None, clim=None, figsize=None):
     """
     Scrub through iamges in a stack using a slider.
+    Requires %matplotlib notebook or %matplotlib widget
     RH 2022
 
     Args:
@@ -85,6 +86,134 @@ def display_toggle_image_stack(images, labels=None, clim=None, figsize=None):
 
 
     interact(update, i_frame=widgets.IntSlider(min=0, max=len(images)-1, step=1, value=0));
+
+
+def display_toggle_image_stack(images, image_size=None, clim=None, interpolation='nearest'):
+    """
+    Display images in a slider using Jupyter Notebook.
+    RH 2023
+
+    Args:
+        images (list of numpy arrays or PyTorch tensors):
+            List of images as numpy arrays or PyTorch tensors
+        image_size (tuple of ints, optional):
+            Tuple of (width, height) for resizing images.
+            If None (default), images are not resized.
+        clim (tuple of floats, optional):
+            Tuple of (min, max) values for scaling pixel intensities.
+            If None (default), min and max values are computed from the images
+             and used as bounds for scaling.
+        interpolation (string, optional):
+            String specifying the interpolation method for resizing.
+            Options: 'nearest', 'box', 'bilinear', 'hamming', 'bicubic', 'lanczos'.
+            Uses the Image.Resampling.* methods from PIL.
+    """
+    from IPython.display import display, HTML
+    import numpy as np
+    import base64
+    from PIL import Image
+    from io import BytesIO
+    import torch
+    import datetime
+    import hashlib
+    import sys
+    
+    def normalize_image(image, clim=None):
+        """Normalize the input image using the min-max scaling method. Optionally, use the given clim values for scaling."""
+        if isinstance(image, torch.Tensor):
+            image = image.detach().cpu().numpy()
+
+        if clim is None:
+            clim = (np.min(image), np.max(image))
+
+        norm_image = (image - clim[0]) / (clim[1] - clim[0])
+        norm_image = np.clip(norm_image, 0, 1)
+        return (norm_image * 255).astype(np.uint8)
+    def resize_image(image, new_size, interpolation):
+        """Resize the given image to the specified new size using the specified interpolation method."""
+        if isinstance(image, torch.Tensor):
+            image = image.detach().cpu().numpy()
+
+        pil_image = Image.fromarray(image.astype(np.uint8))
+        resized_image = pil_image.resize(new_size, resample=interpolation)
+        return np.array(resized_image)
+    def numpy_to_base64(numpy_array):
+        """Convert a numpy array to a base64 encoded string."""
+        img = Image.fromarray(numpy_array.astype('uint8'))
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode("ascii")
+    def process_image(image):
+        """Normalize, resize, and convert image to base64."""
+        # Normalize image
+        norm_image = normalize_image(image, clim)
+
+        # Resize image if requested
+        if image_size is not None:
+            norm_image = resize_image(norm_image, image_size, interpolation_method)
+
+        # Convert image to base64
+        return numpy_to_base64(norm_image)
+
+
+    # Check if being called from a Jupyter notebook
+    if 'ipykernel' not in sys.modules:
+        raise RuntimeError("This function must be called from a Jupyter notebook.")
+
+    # Create a dictionary to map interpolation string inputs to Image objects
+    interpolation_methods = {
+        'nearest': Image.Resampling.NEAREST,
+        'box': Image.Resampling.BOX,
+        'bilinear': Image.Resampling.BILINEAR,
+        'hamming': Image.Resampling.HAMMING,
+        'bicubic': Image.Resampling.BICUBIC,
+        'lanczos': Image.Resampling.LANCZOS,
+    }
+
+    # Check if provided interpolation method is valid
+    if interpolation not in interpolation_methods:
+        raise ValueError("Invalid interpolation method. Choose from 'nearest', 'box', 'bilinear', 'hamming', 'bicubic', or 'lanczos'.")
+
+    # Get the actual Image object for the specified interpolation method
+    interpolation_method = interpolation_methods[interpolation]
+
+    # Generate a unique identifier for the slider
+    slider_id = hashlib.sha256(str(datetime.datetime.now()).encode()).hexdigest()
+
+    # Process all images in the input list
+    base64_images = [process_image(img) for img in images]
+
+    # Get the image size for display
+    image_size = images[0].shape[:2] if image_size is None else image_size
+
+    # Generate the HTML code for the slider
+    html_code = f"""
+    <div>
+        <input type="range" id="imageSlider_{slider_id}" min="0" max="{len(base64_images) - 1}" value="0">
+        <img id="displayedImage_{slider_id}" src="data:image/png;base64,{base64_images[0]}" style="width: {image_size[1]}px; height: {image_size[0]}px;">
+        <span id="imageNumber_{slider_id}">Image 0/{len(base64_images) - 1}</span>
+    </div>
+
+    <script>
+        (function() {{
+            let base64_images = {base64_images};
+            let current_image = 0;
+    
+            function updateImage() {{
+                let slider = document.getElementById("imageSlider_{slider_id}");
+                current_image = parseInt(slider.value);
+                let displayedImage = document.getElementById("displayedImage_{slider_id}");
+                displayedImage.src = "data:image/png;base64," + base64_images[current_image];
+                let imageNumber = document.getElementById("imageNumber_{slider_id}");
+                imageNumber.innerHTML = "Image " + current_image + "/{len(base64_images) - 1}";
+            }}
+            
+            document.getElementById("imageSlider_{slider_id}").addEventListener("input", updateImage);
+        }})();
+    </script>
+    """
+
+    display(HTML(html_code))
 
 
 def plot_to_image(fig, keep_alpha=True):
