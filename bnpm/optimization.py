@@ -10,6 +10,7 @@ class Convergence_checker:
     def __init__(
         self,
         tol_convergence=-1e-2,
+        fractional=False,
         window_convergence=100,
         mode='greater',
     ):
@@ -20,6 +21,11 @@ class Convergence_checker:
             tol_convergence (float): 
                 Tolerance for convergence.
                 Corresponds to the slope of the line that is fit.
+                If fractional==True, then tol_convergence is the fractional
+                 change in loss over the window_convergence
+            fractional (bool):
+                If True, then tol_convergence is the fractional change in loss
+                 over the window_convergence. ie: delta(lossWin) / mean(lossWin)
             window_convergence (int):
                 Number of iterations to use for fitting the line.
             mode (str):
@@ -37,6 +43,7 @@ class Convergence_checker:
         """
         self.window_convergence = window_convergence
         self.tol_convergence = tol_convergence
+        self.fractional = fractional
 
         self.line_regressor = torch.cat((torch.linspace(0,1,window_convergence)[:,None], torch.ones((window_convergence,1))), dim=1)
 
@@ -76,7 +83,7 @@ class Convergence_checker:
                  number of iterations.
 
         Returns:
-            diff_window_convergence (float):
+            delta_window_convergence (float):
                 Difference between first and last element of the fit line
                  over the range of 'window_convergence'.
                  diff_window_convergence = (y_rec[-1] - y_rec[0])
@@ -89,9 +96,10 @@ class Convergence_checker:
         if len(loss_history) < self.window_convergence:
             return torch.nan, torch.nan, False
         loss_window = torch.as_tensor(loss_history[-self.window_convergence:], device='cpu', dtype=torch.float32)
+        loss_smooth = loss_window.mean()
+
         theta, y_rec, bias = self.OLS(y=loss_window)
 
-        diff_window_convergence = (y_rec[-1] - y_rec[0])
-        loss_smooth = loss_window.mean()
-        converged = self.fn_criterion(diff_window_convergence)
-        return diff_window_convergence.item(), loss_smooth.item(), converged
+        delta_window_convergence = (y_rec[-1] - y_rec[0]) if not self.fractional else (y_rec[-1] - y_rec[0]) / ((y_rec[-1] + y_rec[0])/2)
+        converged = self.fn_criterion(delta_window_convergence)
+        return delta_window_convergence.item(), loss_smooth.item(), converged
