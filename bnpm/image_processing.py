@@ -147,7 +147,7 @@ def apply_warp_transform(
             src=im_in,
             M=warp_matrix,
             dsize=(im_in.shape[1], im_in.shape[0]),
-            dst=copy.copy(im_in),
+            dst=copy.deepcopy(im_in),
             flags=interpolation_method + cv2.WARP_INVERSE_MAP,
             borderMode=borderMode,
             borderValue=borderValue
@@ -158,7 +158,7 @@ def apply_warp_transform(
             src=im_in,
             M=warp_matrix,
             dsize=(im_in.shape[1], im_in.shape[0]), 
-            dst=copy.copy(im_in), 
+            dst=copy.deepcopy(im_in), 
             flags=interpolation_method + cv2.WARP_INVERSE_MAP, 
             borderMode=borderMode, 
             borderValue=borderValue
@@ -1102,7 +1102,7 @@ def change_hsv(image, hsv_gain=[1,1,1], hsv_offset=[0,0,0], in_place=False, retu
             Output image
     """
     
-    out = image if in_place else copy.copy(image)
+    out = image if in_place else copy.deepcopy(image)
     out = out*255 if out.dtype.kind == 'f' else out
     
     out = (out[...,(2,1,0)]).astype(np.uint8)
@@ -1171,11 +1171,11 @@ def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, f
 
     s = list(array.shape)
 
-    arr_out = copy.copy(array)
+    arr_out = copy.deepcopy(array)
     for n, w in enumerate(bin_widths):
         if arr_out.shape[n] % w != 0:
             if method=='append':
-                s_pad = copy.copy(s)
+                s_pad = copy.deepcopy(s)
                 s_pad[n] = w - (arr_out.shape[n] % w)
                 arr_out = np.concatenate(
                     [arr_out, np.zeros(s_pad)*np.nan],
@@ -1183,7 +1183,7 @@ def bin_array(array, bin_widths=[2,3,4], method='append', function=np.nanmean, f
                 )
             
             if method=='prepend':
-                s_pad = copy.copy(s)
+                s_pad = copy.deepcopy(s)
                 s_pad[n] = w - (arr_out.shape[n] % w)
                 arr_out = np.concatenate(
                     [np.zeros(s_pad)*np.nan, arr_out],
@@ -1352,7 +1352,7 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
     if font is None:
         font = cv2.FONT_HERSHEY_SIMPLEX
     
-    images_cp = copy.copy(images)
+    images_cp = copy.deepcopy(images)
     for i_f, frame in enumerate(images_cp):
         for i_t, t in enumerate(text[i_f]):
             cv2.putText(frame, t, [position[0] , position[1] + i_t*font_size*30], font, font_size, color, line_width)
@@ -1414,7 +1414,7 @@ def add_image_overlay(
 
     images_rs = resize_torch(images_overlay.transpose(0,3,1,2), new_shape=rs_size, interpolation=interpolation).transpose(0,2,3,1)
 
-    images_out = copy.copy(images_underlay)
+    images_out = copy.deepcopy(images_underlay)
     images_out[:, pos_all[0]:pos_all[1], pos_all[2]:pos_all[3],:] = images_rs
     
     return images_out
