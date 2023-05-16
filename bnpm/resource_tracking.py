@@ -2,7 +2,6 @@ import datetime
 from threading import Timer
 from pathlib import Path
 
-import nvidia_smi
 import psutil
 
 class _Device_Checker_Base():
@@ -121,6 +120,8 @@ class NVIDIA_Device_Checker(_Device_Checker_Base):
                 0: no print statements. 
                 1: basic statements and warnings.
         """
+        import nvidia_smi
+        self.nvidia_smi = nvidia_smi
         super().__init__(verbose=verbose)
         
         ## Initialize
@@ -145,6 +146,7 @@ class NVIDIA_Device_Checker(_Device_Checker_Base):
         self.info_static['power_limit']  = nvidia_smi.nvmlDeviceGetPowerManagementLimit(self.handle)
     
     def get_device_handles(self):
+        nvidia_smi = self.nvidia_smi
         return [nvidia_smi.nvmlDeviceGetHandleByIndex(i_device) for i_device in range(nvidia_smi.nvmlDeviceGetCount())]
 
     def check_utilization(self):
@@ -152,6 +154,7 @@ class NVIDIA_Device_Checker(_Device_Checker_Base):
         Retrieves current utilization info from device.
         Includes: current time, memory, power, and processor utilization, fan speed, and temperature.
         """
+        nvidia_smi = self.nvidia_smi
         h = self.handle
         info_mem = nvidia_smi.nvmlDeviceGetMemoryInfo(h)
 
@@ -175,6 +178,7 @@ class NVIDIA_Device_Checker(_Device_Checker_Base):
         return info_changing
     
     def __del__(self):
+        nvidia_smi = self.nvidia_smi
         nvidia_smi.nvmlShutdown()  ## This stops the ability to get device info
         super().__del__()
 
