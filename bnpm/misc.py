@@ -104,25 +104,6 @@ def get_vars(globals, size_thresh=0, var_type=None, return_vars_pref=False):
         return var_names[idx_toInclude], var_sizes[idx_toInclude], var_types[idx_toInclude]
 
 
-def recursive_for_loop(final_ndim, func, data, loop_depth=0):
-# def recursive_for_loop(n_loops, func, data, loop_depth=0, **kwargs):
-    '''
-    A cute recursive function for running an operation (func) on
-     the last n dimensions (final_ndim) of a high dimensional
-     array.
-    RH 2021
-    '''
-    if data.ndim > final_ndim:
-        output = [ [] for _ in range(len(data))]
-        for ii, i_data in enumerate(data):
-#             output[ii] = recursive_for_loop(n_loops, func, i_data, loop_depth=loop_depth+1, **kwargs)
-            output[ii] = recursive_for_loop(final_ndim, func, i_data, loop_depth=loop_depth+1)
-#     return func(data, **kwargs)
-    else:
-        return func(data)
-    return output
-
-
 def get_nums_from_str(str_in, dtype_out=np.float64):
     """
     Returns a list of numbers from a string.
