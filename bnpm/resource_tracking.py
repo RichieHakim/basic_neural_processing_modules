@@ -120,7 +120,10 @@ class NVIDIA_Device_Checker(_Device_Checker_Base):
                 0: no print statements. 
                 1: basic statements and warnings.
         """
-        import nvidia_smi
+        try:
+            import nvidia_smi
+        except ImportError:
+            raise ImportError('nvidia_smi package not found. Install with "pip install nvidia-ml-py3"')
         self.nvidia_smi = nvidia_smi
         super().__init__(verbose=verbose)
         
