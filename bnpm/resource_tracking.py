@@ -196,6 +196,15 @@ class CPU_Device_Checker(_Device_Checker_Base):
         """
         super().__init__(verbose=verbose)
 
+        self.info_static = {}
+        
+        self.info_static['cpu_count'] = psutil.cpu_count()
+        self.info_static['cpu_freq'] = psutil.cpu_freq()
+        
+        self.info_static['memory_total'] = psutil.virtual_memory().total
+        
+        self.info_static['disk_total'] = psutil.disk_usage('/').total
+
     def check_utilization(self):
         """
         Retrieves current utilization info from device.
