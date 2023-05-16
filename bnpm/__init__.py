@@ -20,6 +20,7 @@ __all__ = [
             'parallel_helpers',
             'path_helpers',
             'plotting_helpers',
+            'resource_tracking',
             'server',
             'similarity',
             'spectral',
