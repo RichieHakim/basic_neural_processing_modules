@@ -24,6 +24,7 @@ __all__ = [
             'server',
             'similarity',
             'spectral',
+            'stats',
             'timeSeries',
             'torch_helpers',
             'video',
