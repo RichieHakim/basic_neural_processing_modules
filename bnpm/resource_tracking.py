@@ -218,6 +218,12 @@ class CPU_Device_Checker(_Device_Checker_Base):
         info_changing['memory_used_percentage'] = psutil.virtual_memory().percent
         info_changing['memory_used'] = psutil.virtual_memory().used
         info_changing['memory_free'] = psutil.virtual_memory().free
+        info_changing['memory_available'] = psutil.virtual_memory().available
+        info_changing['memory_active'] = psutil.virtual_memory().active
+        info_changing['memory_inactive'] = psutil.virtual_memory().inactive
+        info_changing['memory_buffers'] = psutil.virtual_memory().buffers
+        info_changing['memory_cached'] = psutil.virtual_memory().cached
+        info_changing['memory_shared'] = psutil.virtual_memory().shared
         ## Get network info: current bytes sent and received
         info_changing['network_sent'] = psutil.net_io_counters().bytes_sent
         info_changing['network_received'] = psutil.net_io_counters().bytes_recv
