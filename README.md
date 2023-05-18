@@ -65,8 +65,6 @@ Other useful functions:
         - Easy parallelization of a function along an axis
     - `plotting_helpers.get_subplot_indices`
         - Returns the subscript indices of the subplots in a figure
-    - `classification.squeeze_integers`
-        - Removes the gaps between integers in an integer array (e.g. [-1, 2, 4, 5] -> [-1, 0, 1, 2])
 
 Dependencies: \
 ```pip install matplotlib numpy scipy scikit-learn scikit-image tqdm scanimage-tiff-reader numba pandas scikit-learn scikit-image h5py hdfdict opencv-contrib-python ipywidgets opt_einsum rolling_quantiles pywavesurfer```

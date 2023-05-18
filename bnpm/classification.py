@@ -4,7 +4,7 @@ import torch
 def squeeze_integers(intVec):
     """
     Make integers in an array consecutive numbers
-     starting from 0. ie. [7,2,7,4,1] -> [3,2,3,1,0].
+     starting from 0. ie. [7,2,7,-1,4,1] -> [3,2,3,-1,1,0].
     Useful for removing unused class IDs from y_true
      and outputting something appropriate for softmax.
     This is v2. The old version is busted.
