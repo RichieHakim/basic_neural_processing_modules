@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 import time
 from matplotlib import pyplot as plt
@@ -544,7 +545,7 @@ def make_sorted_event_triggered_average(
 def simple_smooth(arr, x=None, mu=0, sig=1, axis=0, mode='same', correct_edge_effects=True):
     '''
     Simple smoothing function.
-    Uses convolve_torch and math_functions.gaussian to 
+    Uses convolve_along_axis math_functions.gaussian to 
      convolve over the any dimension.
     RH 2022
 
