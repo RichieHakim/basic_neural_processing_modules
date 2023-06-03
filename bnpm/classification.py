@@ -18,11 +18,17 @@ def squeeze_integers(intVec):
         intVec_squeezed (np.ndarray):
             1-D array of integers with consecutive numbers
     """
-    u, inv = np.unique(intVec, return_inverse=True)  ## get unique values and their indices
+    if isinstance(intVec, list):
+        intVec = np.array(intVec, dtype=np.int64)
+    if isinstance(intVec, np.ndarray):
+        unique, arange = np.unique, np.arange
+    elif isinstance(intVec, torch.Tensor):
+        unique, arange = torch.unique, torch.arange
+        
+    u, inv = unique(intVec, return_inverse=True)  ## get unique values and their indices
     u_min = u.min()  ## get the smallest value
-    u_s = np.arange(u_min, u_min + u.shape[0], dtype=u.dtype)  ## make consecutive numbers starting from the smallest value
+    u_s = arange(u_min, u_min + u.shape[0], dtype=u.dtype)  ## make consecutive numbers starting from the smallest value
     return u_s[inv]  ## return the indexed consecutive unique values
-
 
 def confusion_matrix(y_hat, y_true):
     """
@@ -57,7 +63,7 @@ def confusion_matrix(y_hat, y_true):
     cmat = np.dot(y_hat.T, y_true)
     return cmat / np.sum(cmat, axis=0)[None,:]
     
-    
+
 def idx_to_oneHot(arr, n_classes: int=None):
     """
     Convert an array of class indices to matrix of
