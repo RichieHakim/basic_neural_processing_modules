@@ -4,11 +4,11 @@ import torch
 def squeeze_integers(intVec):
     """
     Make integers in an array consecutive numbers
-     starting from 0. ie. [7,2,7,-1,4,1] -> [3,2,3,-1,1,0].
-    Useful for removing unused class IDs from y_true
-     and outputting something appropriate for softmax.
-    This is v2. The old version is busted.
-    RH 2021
+     starting from the smallest value. 
+    ie. [7,2,7,4,-1,0] -> [3,2,3,1,-1,0].
+    Useful for removing unused class IDs.
+    This is v3.
+    RH 2023
     
     Args:
         intVec (np.ndarray):
@@ -18,10 +18,11 @@ def squeeze_integers(intVec):
         intVec_squeezed (np.ndarray):
             1-D array of integers with consecutive numbers
     """
-    uniques = np.unique(intVec)
-    # unique_positions = np.arange(len(uniques))
-    unique_positions = np.arange(uniques.min(), uniques.max()+1)
-    return unique_positions[np.array([np.where(intVec[ii]==uniques)[0] for ii in range(len(intVec))]).squeeze()]
+    u, inv = np.unique(intVec, return_inverse=True)  ## get unique values and their indices
+    u_min = u.min()  ## get the smallest value
+    u_s = np.arange(u_min, u_min + u.shape[0], dtype=u.dtype)  ## make consecutive numbers starting from the smallest value
+    return u_s[inv]  ## return the indexed consecutive unique values
+
 
 def confusion_matrix(y_hat, y_true):
     """
@@ -55,6 +56,7 @@ def confusion_matrix(y_hat, y_true):
         y_true = idx_to_oneHot(y_true, n_classes)
     cmat = np.dot(y_hat.T, y_true)
     return cmat / np.sum(cmat, axis=0)[None,:]
+    
     
 def idx_to_oneHot(arr, n_classes: int=None):
     """
