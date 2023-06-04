@@ -702,6 +702,17 @@ def merge_sparse_arrays(s_list, idx_list, shape_full, remove_redundant=True, eli
     return s_full
 
 
+def sparse_to_dense_fill(arr_s, fill_val=0.):
+    """
+    Converts a sparse array to a dense array and fills
+     in sparse entries with a fill value.
+    """
+    import sparse
+    s = sparse.COO(arr_s)
+    s.fill_value = fill_val
+    return s.todense()
+
+
 ####################################################################################################
 ##################################### TENSOR OPERATIONS ############################################
 ####################################################################################################
