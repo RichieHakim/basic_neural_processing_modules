@@ -30,5 +30,7 @@ __all__ = [
             'video',
         ]
 
-# for pkg in __all__:
-#     exec('from . import ' + pkg)
+for pkg in __all__:
+    exec('from . import ' + pkg)
+
+__version__ = '0.2.0'

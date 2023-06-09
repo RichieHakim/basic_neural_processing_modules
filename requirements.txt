@@ -1,5 +1,4 @@
-## requirements.txt
-
+## Required
 numpy
 scipy
 matplotlib
@@ -13,5 +12,38 @@ natsort
 paramiko
 pandas
 pytest
-torch
 PyYAML
+torch
+torchvision
+torchaudio
+
+## Optional / Advanced
+tables
+
+opt-einsum
+rolling-quantiles
+
+pulp
+
+spconv
+torch-sparse
+
+av
+decord
+
+pynwb
+
+sendgrid
+
+pycuda
+cuml
+cupy
+cudf
+
+scanimage-tiff-reader
+
+jupyter
+
+PyWavelets
+
+mat73

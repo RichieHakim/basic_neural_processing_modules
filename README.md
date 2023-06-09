@@ -5,23 +5,12 @@ Personal library of functions used in analyzing neural data.
 If you find a bug or just want to reach out: RichHakim@gmail.com
 
 ## Installation 
-A note on requirements: There are a lot of different libraries that are used in this package. As such there is a basic requirements.txt file that will install all the absolutely required libraries. However, there are other libraries that
-are imported in specific functions. These are listed in requirements_advanced.txt. I recommend installing only the libraries that you need for your specific project, as some require specific versions of other libraries or operating systems or GPUs.
+Normal installation of `bnpm` does not install all possible dependencies; there are some specific functions that wrap libraries that may need to be installed separately on a case-by-case basis.
 
-1. Clone the repository
-    - `cd path/to/your/preferred/directory`
-    - `git clone https://github.com/RichieHakim/basic_neural_processing_modules`
+`pip install git+https://github.com/RichieHakim/basic_neural_processing_modules.git`
 
-2. Install requirements:
-    - `cd basic_neural_processing_modules`
-    - `pip install -e .`
-    - Install any other libraries in `requirements_advanced.txt` that you need for your project.
+import with: `import bnpm`
 
-3. Install the package:
-    - `cd path/to/basic_neural_processing_modules`
-    - `pip install -e .`
-
-you can now import with: `import bnpm`
 
 ## Usage 
 My favorites:
