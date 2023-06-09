@@ -887,7 +887,7 @@ def percentile_numba(X, ptile):
     return X_ptile
 
 
-@jit(parallel=True)
+@jit(parallel=True, nopython=True)
 def zscore_numba(array):
     '''
     Parallel (multicore) Z-Score. Uses numba.
