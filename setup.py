@@ -47,6 +47,8 @@ deps_core = [deps_all_dict[dep] for dep in [
     'torch',
     'torchvision',
     'torchaudio',
+    'ipywidgets',
+    'decord',
 ]]
 
 deps_advanced = [deps_all_dict[dep] for dep in [
@@ -57,7 +59,6 @@ deps_advanced = [deps_all_dict[dep] for dep in [
     'spconv',
     'torch-sparse',
     'av',
-    'decord',
     'pynwb',
     'sendgrid',
     'pycuda',
