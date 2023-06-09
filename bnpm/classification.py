@@ -88,7 +88,7 @@ def idx_to_oneHot(arr, n_classes: int=None):
         max = np.max
         zeros = np.zeros
         arange = np.arange
-        dtype = np.bool8 if dtype is None else dtype
+        dtype = np.bool_ if dtype is None else dtype
     if type(arr) is torch.Tensor:
         max = torch.max
         zeros = torch.zeros

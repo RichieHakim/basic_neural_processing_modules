@@ -39,9 +39,9 @@ def widen_boolean(arr, n_before, n_after, axis=None):
     kernel = kernel / np.mean(kernel)
     
     if axis is None:
-        return np.bool8(scipy.signal.convolve(arr, kernel, mode='same'))
+        return np.bool_(scipy.signal.convolve(arr, kernel, mode='same'))
     else:
-        return np.bool8(np.apply_along_axis(lambda m: scipy.signal.convolve(m, kernel, mode='same'),
+        return np.bool_(np.apply_along_axis(lambda m: scipy.signal.convolve(m, kernel, mode='same'),
                                                               axis=axis, arr=arr))
 
 
