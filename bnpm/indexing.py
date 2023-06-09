@@ -260,7 +260,7 @@ def make_batches(
         min_batch_size (int):
             minimum size of each batch
         return_idx (bool):
-            whether to return the indices of the batches.
+            whether to return the slice indices of the batches.
             output will be [start, end] idx
         length (int):
             length of the iterable.
