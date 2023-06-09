@@ -7,10 +7,10 @@ numba
 scikit-learn
 tqdm
 h5py
-hdfdict
 opencv-contrib-python
 sparse
 natsort
 paramiko
 pandas
 pytest
+torch

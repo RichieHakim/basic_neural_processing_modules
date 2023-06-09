@@ -11,6 +11,6 @@ setup(
     license='LICENSE',
     description='A library of useful modules for data analysis.',
     long_description=open('README.md').read(),
-    # install_requires=open('requirements.txt').read().splitlines(),
+    install_requires=open('requirements.txt').read().splitlines(),
     url='https://github.com/RichieHakim/basic_neural_processing_modules',
 )

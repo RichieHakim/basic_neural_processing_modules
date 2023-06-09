@@ -14,8 +14,7 @@ are imported in specific functions. These are listed in requirements_advanced.tx
 
 2. Install requirements:
     - `cd basic_neural_processing_modules`
-    - `pip install -r requirements.txt`
-    - Install PyTorch. Visit this site to choose proper method for you: https://pytorch.org/get-started/locally/
+    - `pip install -e .`
     - Install any other libraries in `requirements_advanced.txt` that you need for your project.
 
 3. Install the package:
@@ -65,8 +64,3 @@ Other useful functions:
         - Easy parallelization of a function along an axis
     - `plotting_helpers.get_subplot_indices`
         - Returns the subscript indices of the subplots in a figure
-
-Dependencies: \
-```pip install matplotlib numpy scipy scikit-learn scikit-image tqdm scanimage-tiff-reader numba pandas scikit-learn scikit-image h5py hdfdict opencv-contrib-python ipywidgets opt_einsum rolling_quantiles pywavesurfer```
-
-```conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch```
