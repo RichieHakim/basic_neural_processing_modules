@@ -93,7 +93,7 @@ with open(str(dir_parent / "bnpm" / "__init__.py"), "r") as f:
 
 setup(
     name='bnpm',
-    version='0.1.0',
+    version=version,
     author='Richard Hakim',
     keywords=['data analysis', 'machine learning', 'neuroscience'],
     packages=['bnpm'],
