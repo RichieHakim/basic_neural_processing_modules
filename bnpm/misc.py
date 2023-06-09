@@ -242,8 +242,8 @@ def compare_file_hashes(
     return all(results_matching.values()), results_matching, paths_matching
 
 def write_to_log(
-    path_log, 
     text, 
+    path_log, 
     mode='a', 
     start_on_new_line=True, 
     pref_print=True, 
@@ -277,7 +277,7 @@ def write_to_log(
         with open(path_log, mode=mode) as log:
             if start_on_new_line==True:
                 log.write('\n')
-            log.write(text)
+            log.write(str(text))
 
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
