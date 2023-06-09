@@ -44,7 +44,7 @@ def show_group_items(hObj):
     '''
 
     for ii,val in enumerate(list(iter(hObj))):
-        if isinstance(hObj[val] , h5py.Group) or isinstance(hObj[val]):
+        if isinstance(hObj[val] , h5py.Group) or isinstance(hObj[val], h5py.File):
             print(f'{ii+1}. {val}:----------------')
         if isinstance(hObj[val] , dict):
             print(f'{ii+1}. {val}:----------------')
@@ -191,7 +191,7 @@ def simple_load(filepath, return_dict=True, verbose=False):
     if return_dict:
         with h5py.File(filepath, 'r') as h5_file:
             if verbose:
-                print(f'==== Loading h5 file with hierarchy: ====')
+                print(f'==== Loading h5 file "{filepath}" ====')
                 show_item_tree(h5_file)
             result = {}
             def visitor_func(name, node):
