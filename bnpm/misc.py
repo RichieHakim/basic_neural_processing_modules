@@ -37,9 +37,19 @@ def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64, un
 
     '''
     if array is not None:
+        assert hasattr(array, 'shape'), f'array must have a shape attribute'
         input_shape = array.shape
         numel = np.product(input_shape)
-        bitsize = array.dtype.itemsize*8
+
+        if isinstance(array, np.ndarray):
+            bitsize = array.dtype.itemsize*8
+        else:
+            import torch
+            if isinstance(array, torch.Tensor):
+                bitsize = array.element_size()*8
+            else:
+                raise TypeError(f'array must be a numpy or torch array. Got {type(array)}')
+
     elif numel is None:
         numel = np.product(input_shape)
     
