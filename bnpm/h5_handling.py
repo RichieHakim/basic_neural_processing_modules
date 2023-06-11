@@ -209,7 +209,9 @@ def simple_load(filepath, return_dict=True, verbose=False):
             h5_file.visititems(visitor_func)            
             return result
     else:
-        return h5py.File(filepath, 'r')
+        result = h5py.File(filepath, 'r')
+        show_item_tree(result) if verbose else None
+        return result
 
 def h5Obj_to_dict(hObj):
     '''
