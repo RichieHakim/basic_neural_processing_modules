@@ -308,6 +308,9 @@ class BufferedVideoReader:
         ## Get number of videos
         self.num_videos = len(self.video_readers)
 
+        ## Set shape
+        self.shape = (self.num_frames_total, *self.frame_height_width, self.num_channels)
+
         ## Set iterator starting frame
         print(f"FR: Setting iterator starting frame to {starting_seek_position}") if self._verbose > 1 else None
         self.set_iterator_frame_idx(starting_seek_position)
@@ -676,8 +679,22 @@ class BufferedVideoReader:
         
     def __getitem__(self, idx):
         if self.method_getitem == 'by_video':
+            ## handle None values in the slice idx
+            if isinstance(idx, slice):
+                idx = slice(
+                    idx.start if idx.start is not None else 0,
+                    idx.stop if idx.stop is not None else self.num_videos,
+                    idx.step if idx.step is not None else 1,
+                )
             return self.get_frames_from_single_video_index(idx)
         elif self.method_getitem == 'continuous':
+            ## handle None values in the slice idx
+            if isinstance(idx, slice):
+                idx = slice(
+                    idx.start if idx.start is not None else 0,
+                    idx.stop if idx.stop is not None else self.num_frames_total,
+                    idx.step if idx.step is not None else 1,
+                )
             return self.get_frames_from_continuous_index(idx)
         else:
             raise ValueError(f"Invalid method_getitem: {self.method_getitem}")
