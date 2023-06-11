@@ -593,15 +593,6 @@ class BufferedVideoReader:
             idx_slots_prefetch = []
         ## Load the slots
         self._load_slots(idx_slots + idx_slots_prefetch, wait_for_load=[True]*len(idx_slots) + [False]*len(idx_slots_prefetch))
-        ## Delete the slots that are no longer needed. 
-        ### Find slots before the posthold to delete
-        idx_slots_delete = [(self.lookup['video'][ii], self.lookup['slot'][ii]) for ii in range(idx_slot_lookuptable-self.posthold) if ii >= 0]
-        ### Delete all previous slots
-        self._delete_slots(idx_slots_delete)
-        # ### All slots from old videos should be deleted.
-        # self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] < idx_video])
-        # ### All slots from previous buffers should be deleted.
-        # self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] == idx_video and idx_slot[1] < idx_frame_start // self.buffer_size])
 
         ## Get the frames from the slots
         idx_frames_slots = [slice(max(idx_frame_start - self.boundaries[idx_slot[0]][idx_slot[1]][0], 0), min(idx_frame_end - self.boundaries[idx_slot[0]][idx_slot[1]][0], self.buffer_size), idx_frame_step) for idx_slot in idx_slots]
@@ -615,6 +606,16 @@ class BufferedVideoReader:
             print(f"FR: Warning. Slicing across multiple slots is SLOW. Consider increasing buffer size or adjusting batching method.") if self._verbose > 1 else None
             frames = torch.cat([self.slots[idx_slot[0]][idx_slot[1]][idx_frames_slot] for idx_slot, idx_frames_slot in zip(idx_slots, idx_frames_slots)], dim=0)
         
+        ## Delete the slots that are no longer needed. 
+        ### Find slots before the posthold to delete
+        idx_slots_delete = [(self.lookup['video'][ii], self.lookup['slot'][ii]) for ii in range(idx_slot_lookuptable-self.posthold) if ii >= 0]
+        ### Delete all previous slots
+        self._delete_slots(idx_slots_delete)
+        # ### All slots from old videos should be deleted.
+        # self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] < idx_video])
+        # ### All slots from previous buffers should be deleted.
+        # self._delete_slots([idx_slot for idx_slot in self.loaded if idx_slot[0] == idx_video and idx_slot[1] < idx_frame_start // self.buffer_size])
+
         # ## Squeeze if there is only one frame
         # frames = frames.squeeze(0) if frames.shape[0] == 1 else frames
 
