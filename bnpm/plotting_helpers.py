@@ -618,7 +618,7 @@ class Figure_Saver:
     def __init__(
         self,
         dir_save: str=None,
-        format_save: list=['png'],
+        format_save: list=['png', 'svg'],
         kwargs_savefig: dict={
             'bbox_inches': 'tight',
             'pad_inches': 0.1,
