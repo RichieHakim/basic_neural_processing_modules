@@ -878,3 +878,23 @@ class Select_ROI:
         self._selected_points_last_ROI = []
         
         
+########################################################################################################################
+########################################## OTHER PLOTTING LIBRARIES ####################################################
+########################################################################################################################
+
+def export_svg_hv_bokeh(obj, path_save):
+    """
+    Save a scatterplot from holoviews as an svg file.
+    RH 2023
+
+    Args:
+        obj (holoviews.plotting.bokeh.ElementPlot):
+            Holoviews plot object.
+        path_save (str):
+            Path to save the svg file.
+    """
+    import holoviews as hv
+    import bokeh
+    plot_state = hv.renderer('bokeh').get_plot(obj).state
+    plot_state.output_backend = 'svg'
+    bokeh.io.export_svgs(plot_state, filename=path_save)
