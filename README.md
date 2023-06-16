@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/bnpm.svg)](https://badge.fury.io/py/bnpm)
+[![Downloads](https://pepy.tech/badge/bnpm)](https://pepy.tech/project/bnpm)
 [![repo size](https://img.shields.io/github/repo-size/RichieHakim/basic_neural_processing_modules)](https://github.com/RichieHakim/basic_neural_processing_modules/)
 
 #  basic_neural_processing_modules 
@@ -7,7 +9,15 @@ If you find a bug or just want to reach out: RichHakim@gmail.com
 ## Installation 
 Normal installation of `bnpm` does not install all possible dependencies; there are some specific functions that wrap libraries that may need to be installed separately on a case-by-case basis.
 
-`pip install git+https://github.com/RichieHakim/basic_neural_processing_modules.git`
+Install stable version:
+```
+pip install bnpm
+```
+
+Install development version:
+```
+pip install git+https://github.com/RichieHakim/basic_neural_processing_modules.git
+```
 
 import with: `import bnpm`
 
