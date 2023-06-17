@@ -856,13 +856,20 @@ class Select_ROI:
 class Image_labeler:
     """
     A simple graphical interface for labeling image classes.
+    Use this class with a context manager to ensure that the
+     window is closed properly. See demo below.
     This class provides a tkinter window which displays images
      from a provided numpy array one by one and lets you classify
      each image by pressing a key. 
     The title of the window is the image index.
     The classification label and image index are stored as
-     self.labels_ and saved to a CSV file.
+     self.labels_ and saved to a CSV file in self.path_csv.
     RH 2023
+
+    Demo:
+    with Image_labeler(images, start_index=0, resize_factor=4.0, key_end='Escape') as labeler:
+        labeler.run()
+    path_csv, labels = labeler.path_csv, labeler.labels_
 
     Args:
         images (np.ndarray): 
@@ -871,70 +878,122 @@ class Image_labeler:
              4D: (n_images, height, width, n_channels).
             Images should be scaled between 0 and 255 and will be
              converted to uint8.
+        start_index (int): 
+            The index of the first image to display. Default is 0.
         path_csv (str): 
             A string of the path to the CSV file for saving results.
             If None, results will not be saved.
+        save_csv (bool):
+            A boolean indicating whether to save the results to a CSV.
         resize_factor (float): 
             A scaling factor indicating the fractional change in 
              image size. Default is 1.0 (no change).
-        end_key (str): 
+        key_end (str): 
             A string of the key to press to end the session.
-        start_index (int): 
-            The index of the first image to display. Default is 0.
+        key_prev (str):
+            A string of the key to press to go back to the previous
+             image.
+        key_next (str):
+            A string of the key to press to go to the next image.
+        normalize_images (bool):
+            A boolean indicating whether to normalize the images
+             between min and max values. Default is True.
+        verbose (bool):
+            A boolean indicating whether to print status updates.
     """
 
     def __init__(
         self, 
         image_array: np.ndarray, 
-        path_csv: str=None, 
-        resize_factor: float=1.0, 
-        end_key: str='k', 
         start_index: int=0,
+        path_csv: str=None, 
+        save_csv: bool=True,
+        resize_factor: float=10.0, 
+        normalize_images: bool=True,
+        verbose: bool=True,
+        key_end: str='Escape', 
+        key_prev: str='Left',
+        key_next: str='Right',
     ):
         """
         Initializes class with images, path to save csv and UI
          elements.
         Binds keys for classifying images and ending the session.
         """
+        import tempfile
+        import datetime
         ## Set attributes
         self.images = image_array
         self._resize_factor = resize_factor
-        self._index = start_index
-        self._end_key = '<' + end_key + '>'
-        self._path_csv = path_csv
-        self.labels_ = []
+        self._index = start_index - 1  ## -1 because we increment before displaying
+        self.path_csv = path_csv if path_csv is not None else str(Path(tempfile.gettempdir()) / ('roicat_labels_' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + '.csv'))
+        self._save_csv = save_csv
+        self.labels_ = {}
+        self._img_tk = None
+        self._key_end = key_end if key_end is not None else None
+        self._key_prev = key_prev if key_prev is not None else None
+        self._key_next = key_next if key_next is not None else None
+        self._normalize_images = normalize_images
+        self._verbose = verbose
 
-        self._root = tk.Tk()
-        self._img_label = tk.Label(self._root)
-        self._img_label.pack()
+        self.__call__ = self.run
+        
+    def run(self):
+        """
+        Runs the image labeler. Opens a tkinter window and displays
+         the first image.
+        """
+        try:
+            self._root = tk.Tk()
+            self._img_label = tk.Label(self._root)
+            self._img_label.pack()
 
-        ## Bind keys
-        self._root.bind("<Key>", self.classify)
-        self._root.bind(self._end_key, self.end_session)
+            ## Bind keys
+            self._root.bind("<Key>", self.classify)
+            self._root.bind('<Key-' + self._key_end + '>', self.end_session) if self._key_end is not None else None
+            self._root.bind('<Key-' + self._key_prev + '>', self.prev_img) if self._key_prev is not None else None
+            self._root.bind('<Key-' + self._key_next + '>', self.next_img) if self._key_next is not None else None
 
-        ## Start the session
-        self.next_img()
-        self._root.mainloop()
+            ## Start the session
+            self.next_img()
+            self._root.mainloop()
+        except Exception as e:
+            warnings.warn('Error initializing image labeler: ' + str(e))
 
-    def next_img(self):
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end_session(None)
+
+    def next_img(self, event=None):
         """Displays the next image in the array, and resizes the image."""
         ## Display the image
         ### End the session if there are no more images
+        self._index += 1
         if self._index < len(self.images):
-            pil_img = PIL.Image.fromarray(np.uint8(self.images[self._index]))  ## Convert to uint8 and PIL image
+            im = self.images[self._index]
+            im = (im / np.max(im)) * 255 if self._normalize_images else im
+            pil_img = PIL.Image.fromarray(np.uint8(im))  ## Convert to uint8 and PIL image
             ## Resize image
             width, height = pil_img.size
             new_width = int(width * self._resize_factor)
             new_height = int(height * self._resize_factor)
             pil_img = pil_img.resize((new_width, new_height), resample=PIL.Image.LANCZOS)
             ## Display image
-            self.img_tk = ImageTk.PhotoImage(pil_img)
-            self._img_label.config(image=self.img_tk)
+            self._img_tk = ImageTk.PhotoImage(pil_img)
+            self._img_label.image = self._img_tk  # keep a reference to the PhotoImage object
+            self._img_label.config(image=self._img_label.image)
         else:
             self.end_session(None)
         
         self._root.title(str(self._index))  # update the window title to the current image index
-        self._index += 1
+
+    def prev_img(self, event=None):
+        """
+        Displays the previous image in the array.
+        """
+        self._index -= 2
+        self.next_img()
 
     def classify(self, event):
         """
@@ -945,13 +1004,22 @@ class Image_labeler:
             event (tkinter.Event):
                 A tkinter event object.
         """
-        self.labels_.append((self._index, event.char))  ## Store the label
-        self.save_classification() if self._path_csv is not None else None  ## Save the results.
-        self.next_img()  ## Move to the next image
+        label = event.char
+        if label != '':
+            print(f'Image {self._index}: {label}') if self._verbose else None
+            self.labels_.update({self._index: str(label)})  ## Store the label
+            self.save_classification() if self._save_csv else None ## Save the results
+            self.next_img()  ## Move to the next image
 
     def end_session(self, event):
         """Ends the classification session by destroying the tkinter window."""
-        self._root.destroy()  ## Close the window
+        self._img_tk = None
+        self._root.destroy() if self._root is not None else None
+        self._root = None
+        
+        import gc
+        gc.collect()
+        gc.collect()
 
     def save_classification(self):
         """
@@ -960,12 +1028,44 @@ class Image_labeler:
         The file contains two columns: 'image_index' and 'label'.
         """
         ## make directory if it doesn't exist
-        Path(self._path_csv).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.path_csv).parent.mkdir(parents=True, exist_ok=True)
         ## Save the results
-        with open(self._path_csv, 'w', newline='') as f:
+        with open(self.path_csv, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(('image_index', 'label'))
-            writer.writerows(self.labels_)
+            writer.writerows(self.labels_.items())
+
+    def get_labels(self, kind='dict',):
+        """
+        Returns a dictionary of the labels.
+        The keys are the image indices and the values are the labels.
+
+        Args:
+            kind (str):
+                A string indicating the type of object to return.
+                'dict': {idx: label, idx: label, ...}
+                'list': [(idx, label), (idx, label), ...]
+                'dataframe': {'index': [idx, idx, ...], 'label': [label, label, ...]}
+                    This can be converted to a pandas dataframe with:
+                     pd.DataFrame(self.get_labels('dataframe'))
+        """
+        ## if the dict is empty, return None
+        if len(self.labels_) == 0:
+            return None
+        
+        if kind == 'dict':
+            # out = dict(self.labels_)
+            # ## Check for duplicate indices
+            # if len(out) != len(self.labels_):
+            #     warnings.warn('Duplicate indices found in labels. Only the last label for each index is returned.')
+            # return out
+            return self.labels_
+        elif kind == 'list':
+            # return self.labels_
+            return self.labels_.items()
+        elif kind == 'dataframe':
+            # return {'index': np.array([x[0] for x in self.labels_], dtype=np.int64), 'label': np.array([x[1] for x in self.labels_])}
+            return {'index': np.array(list(self.labels_.keys()), dtype=np.int64), 'label': np.array(list(self.labels_.values()), dtype=str)}
 
 
 ########################################################################################################################
