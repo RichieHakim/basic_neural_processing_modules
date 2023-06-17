@@ -816,36 +816,3 @@ def maximum_directed_matching(weights, partition):
     problem.solve()
     matching = [p for p,v in path_vars.items() if v.value()==1]
     return matching
-
-
-##############################################################
-######### NUMBA implementations of simple algorithms #########
-##############################################################
-
-@njit(parallel=True)
-def vectorProjection_numba(v1, v2):
-    proj_score = np.dot(v1, v2) / (np.linalg.norm(v2)**2)
-    proj_vec = v2 * proj_score
-    return proj_vec, proj_score
-
-@njit(parallel=True)
-def mean_numba(X):
-    Y = np.zeros(X.shape[0], dtype=X.dtype)
-    for ii in prange(X.shape[0]):
-        Y[ii] = np.mean(X[ii,:])
-    return Y
-
-@njit(parallel=True)
-def sum_numba(X):
-    Y = np.zeros(X.shape[0], dtype=X.dtype)
-    for ii in prange(X.shape[0]):
-        Y[ii] = np.sum(X[ii,:])
-    return Y
-
-@njit(parallel=True)
-def var_numba(X):
-    Y = np.zeros(X.shape[0], dtype=X.dtype)
-    for ii in prange(X.shape[0]):
-        Y[ii] = np.var(X[ii,:])
-    return Y
-

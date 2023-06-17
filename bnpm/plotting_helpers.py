@@ -584,29 +584,6 @@ class Cmap_conjunctive:
 
         return colors
 
-def savefig(path, dpi=300, mkdir=True, **kwargs_savefig):
-    """
-    Save figure.
-    RH 2022
-
-    Args:
-        path (str):
-            Path to save figure to.
-            Format is inferred from path suffix.
-        dpi (int):
-            DPI of figure.
-        **kwargs_savefig:
-            Keyword arguments to pass to `matplotlib.pyplot.savefig`.
-    """
-
-    assert len(Path(path).suffix) > 0, 'RH Error: Path must have a suffix'
-    kind = Path(path).suffix[1:]
-
-    if mkdir:
-        Path(path).parent.mkdir(exist_ok=True, parents=True)
-
-    plt.savefig(path, format=kind, dpi=dpi, **kwargs_savefig)
-
 
 class Figure_Saver:
     """

@@ -1,4 +1,3 @@
-from typing import Any
 import numpy as np
 import time
 from matplotlib import pyplot as plt
@@ -12,7 +11,6 @@ from .parallel_helpers import multiprocessing_pool_along_axis
 from . import cross_validation
 from .math_functions import polar2cartesian, cartesian2polar, gaussian
 from . import indexing
-
 
 
 def convolve_along_axis(
@@ -966,51 +964,3 @@ def conv1d_numba(X, k):
     for ii in prange( k_hs , len(X)-(k_hs) ):
         y[ii] = np.dot(X[0+ii-k_hs : 1+ii+k_hs], k)
     return y
-    
-
-@njit(parallel=True)
-def mean_numba(X):
-    Y = np.zeros(X.shape[0], dtype=X.dtype)
-    for ii in prange(X.shape[0]):
-        Y[ii] = np.mean(X[ii,:])
-    return Y
-
-
-@njit(parallel=True)
-def var_numba(X):
-    Y = np.zeros(X.shape[0], dtype=X.dtype)
-    for ii in prange(X.shape[0]):
-        Y[ii] = np.var(X[ii,:])
-    return Y
-
-
-@njit(parallel=True)
-def std_numba(X):
-    Y = np.zeros(X.shape[0], dtype=X.dtype)
-    for ii in prange(X.shape[0]):
-        Y[ii] = np.std(X[ii,:])
-    return Y
-
-
-@njit(parallel=True)
-def min_numba(X):
-    output = np.zeros(X.shape[0])
-    for ii in prange(X.shape[0]):
-        output[ii] = np.min(X[ii])
-    return output
-
-
-@njit(parallel=True)
-def max_numba(X):
-    output = np.zeros(X.shape[0])
-    for ii in prange(X.shape[0]):
-        output[ii] = np.max(X[ii])
-    return output
-
-@njit(parallel=True)
-def round_numba(x):
-    output = np.zeros_like(x)
-    for ii in prange(x.shape[0]):
-        for jj in prange(x.shape[1]):
-            output[ii,jj] = np.round(x[ii,jj])
-    return output

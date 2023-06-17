@@ -141,11 +141,6 @@ def set_device(use_GPU=True, device_num=0, verbose=True):
     Assumes that only one GPU is available or
      that you wish to use cuda:0 only.
     RH 2021
-
-    Args:
-        use_GPU (int):
-            If 1, use GPU.
-            If 0, use CPU.
     """
     if use_GPU:
         print(f'devices available: {[torch.cuda.get_device_properties(ii) for ii in range(torch.cuda.device_count())]}') if verbose else None
