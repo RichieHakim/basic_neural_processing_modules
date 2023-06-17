@@ -45,12 +45,12 @@ def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cm
         cmap = 'viridis'
 
     fig, axs = plt.subplots(nrows=grid_shape[0], ncols=grid_shape[1], **kwargs_subplots)
-    idx_axs = get_subplot_indices(axs)
-    for ii,idx_ax in enumerate(idx_axs):
-        axs[idx_ax].imshow(images[ii], cmap=cmap, **kwargs_imshow);
+    axs_flat = axs.flatten(order='F') if isinstance(axs, np.ndarray) else [axs]
+    for ii, ax in enumerate(axs_flat[:len(images)]):
+        ax.imshow(images[ii], cmap=cmap, **kwargs_imshow);
         if labels is not None:
-            axs[idx_ax].set_title(labels[ii]);
-        axs[idx_ax].axis(show_axis);
+            ax.set_title(labels[ii]);
+        ax.axis(show_axis);
     return fig, axs
 
 
