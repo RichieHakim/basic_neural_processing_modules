@@ -885,6 +885,7 @@ class Image_labeler:
     The title of the window is the image index.
     The classification label and image index are stored as
      self.labels_ and saved to a CSV file.
+    RH 2023
 
     Args:
         images (np.ndarray): 
