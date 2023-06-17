@@ -870,7 +870,7 @@ class Image_labeler:
             Either 3D: (n_images, height, width) or
              4D: (n_images, height, width, n_channels).
             Images should be scaled between 0 and 255 and will be
-             casted to uint8.
+             converted to uint8.
         path_csv (str): 
             A string of the path to the CSV file for saving results.
             If None, results will not be saved.
