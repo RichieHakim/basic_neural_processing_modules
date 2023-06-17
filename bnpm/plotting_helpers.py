@@ -1,14 +1,12 @@
+from pathlib import Path
+import tkinter as tk
+import PIL
+from PIL import ImageTk
+import csv
+
 from matplotlib import pyplot as plt
 import numpy as np
-
 import cv2
-
-from tqdm.notebook import tqdm
-
-from ipywidgets import widgets
-import IPython.display as Disp
-
-from pathlib import Path
 
 
 ###############
@@ -877,7 +875,121 @@ class Select_ROI:
         self.selected_points.append(self._selected_points_last_ROI)
         self._selected_points_last_ROI = []
         
+    
+class Image_labeler:
+    """
+    A simple graphical interface for labeling image classes.
+    This class provides a tkinter window which displays images
+     from a provided numpy array one by one and lets you classify
+     each image by pressing a key. 
+    The title of the window is the image index.
+    The classification label and image index are stored as
+     self.labels_ and saved to a CSV file.
+
+    Args:
+        images (np.ndarray): 
+            A numpy array of images.
+            Either 3D: (n_images, height, width) or
+             4D: (n_images, height, width, n_channels).
+            Images should be scaled between 0 and 255 and will be
+             casted to uint8.
+        path_csv (str): 
+            A string of the path to the CSV file for saving results.
+            If None, results will not be saved.
+        resize_factor (float): 
+            A scaling factor indicating the fractional change in 
+             image size. Default is 1.0 (no change).
+        end_key (str): 
+            A string of the key to press to end the session.
+        start_index (int): 
+            The index of the first image to display. Default is 0.
+    """
+
+    def __init__(
+        self, 
+        image_array: np.ndarray, 
+        path_csv: str=None, 
+        resize_factor: float=1.0, 
+        end_key: str='k', 
+        start_index: int=0,
+    ):
+        """
+        Initializes class with images, path to save csv and UI
+         elements.
+        Binds keys for classifying images and ending the session.
+        """
+        ## Set attributes
+        self.images = image_array
+        self._resize_factor = resize_factor
+        self._index = start_index
+        self._end_key = '<' + end_key + '>'
+        self._path_csv = path_csv
+        self.labels_ = []
+
+        self._root = tk.Tk()
+        self._img_label = tk.Label(self._root)
+        self._img_label.pack()
+
+        ## Bind keys
+        self._root.bind("<Key>", self.classify)
+        self._root.bind(self._end_key, self.end_session)
+
+        ## Start the session
+        self.next_img()
+        self._root.mainloop()
+
+    def next_img(self):
+        """Displays the next image in the array, and resizes the image."""
+        ## Display the image
+        ### End the session if there are no more images
+        if self._index < len(self.images):
+            pil_img = PIL.Image.fromarray(np.uint8(self.images[self._index]))  ## Convert to uint8 and PIL image
+            ## Resize image
+            width, height = pil_img.size
+            new_width = int(width * self._resize_factor)
+            new_height = int(height * self._resize_factor)
+            pil_img = pil_img.resize((new_width, new_height), resample=PIL.Image.LANCZOS)
+            ## Display image
+            self.img_tk = ImageTk.PhotoImage(pil_img)
+            self._img_label.config(image=self.img_tk)
+        else:
+            self.end_session(None)
         
+        self._root.title(str(self._index))  # update the window title to the current image index
+        self._index += 1
+
+    def classify(self, event):
+        """
+        Adds the current image index and pressed key as a label.
+        Then saves the results and moves to the next image.
+
+        Args:
+            event (tkinter.Event):
+                A tkinter event object.
+        """
+        self.labels_.append((self._index, event.char))  ## Store the label
+        self.save_classification() if self._path_csv is not None else None  ## Save the results.
+        self.next_img()  ## Move to the next image
+
+    def end_session(self, event):
+        """Ends the classification session by destroying the tkinter window."""
+        self._root.destroy()  ## Close the window
+
+    def save_classification(self):
+        """
+        Saves the classification results to a CSV file.
+        This function does not append, it overwrites the entire file.
+        The file contains two columns: 'image_index' and 'label'.
+        """
+        ## make directory if it doesn't exist
+        Path(self._path_csv).parent.mkdir(parents=True, exist_ok=True)
+        ## Save the results
+        with open(self._path_csv, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(('image_index', 'label'))
+            writer.writerows(self.labels_)
+
+
 ########################################################################################################################
 ########################################## OTHER PLOTTING LIBRARIES ####################################################
 ########################################################################################################################
