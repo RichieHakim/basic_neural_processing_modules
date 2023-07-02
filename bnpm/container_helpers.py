@@ -1,6 +1,7 @@
 import re
 import copy
 from collections.abc import MutableMapping
+from typing import Any, Optional, Union, List, Dict, Tuple, Callable, Iterable, Sequence
 
 import numpy as np
 
@@ -12,23 +13,26 @@ It is called by server.py which is intended to run
 RH 2022
 """
 
-class Lazy_repeat_item():
+class lazy_repeat_obj():
     """
-    Makes a lazy iterator that repeats an item.
-    Very similar to itertools.repeat, but allows
-     for a pseudo length to be specified.
-     RH 2021
+    Makes a lazy iterator that repeats an object.
+    RH 2021
+
+    Args:
+        obj (Any):
+            Object to repeat.
+        pseudo_length (int):
+            length of the iterator.
     """
-    def __init__(self, item, pseudo_length=None):
+    def __init__(
+        self, 
+        obj: Any, 
+        pseudo_length: Optional[int] = None,
+    ):
         """
-        Args:
-            item (any object):
-                item to repeat
-            pseudo_length (int):
-                length of the iterator.
+        Initializes the lazy iterator.
         """
-        super().__init__()
-        self.item = item
+        self.obj = obj
         self.pseudo_length = pseudo_length
 
     def __getitem__(self, i):
@@ -39,19 +43,18 @@ class Lazy_repeat_item():
                 Ignored if pseudo_length is None.
         """
         if self.pseudo_length is None:
-            return self.item
+            return self.obj
         elif i < self.pseudo_length:
-            return self.item
+            return self.obj
         else:
             raise IndexError('Index out of bounds')
-
 
     def __len__(self):
         return self.pseudo_length
 
     def __repr__(self):
         return repr(self.item)
-
+    
 
 def flatten_list(irregular_list):
     """

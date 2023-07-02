@@ -127,7 +127,7 @@ def batch_run(paths_scripts,
 
     def rep_inputs(item, n_jobs):
         if len(item)==1 and (n_jobs>1):
-            return container_helpers.Lazy_repeat_item(item[0], pseudo_length=n_jobs)
+            return container_helpers.Lazy_repeat_obj(item[0], pseudo_length=n_jobs)
         else:
             return item
 
