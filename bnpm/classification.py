@@ -105,7 +105,7 @@ def idx_to_oneHot(arr, n_classes: int=None):
     return oneHot
 
 
-def convert_stringArray_to_oneHot(seq, strs=['A','C','G','T'], safe=False):
+def convert_stringArray_to_oneHot(seq, strs=None, safe=False):
     """
     Convert a sequence of string elements to a one-hot matrix.
     RH 2022
@@ -118,6 +118,7 @@ def convert_stringArray_to_oneHot(seq, strs=['A','C','G','T'], safe=False):
             List of string elements to use.
             Number of output columns will be len(strs).
             example: ['A','C','G','T','N','R','Y','S','W','K','M','B','D','H','V']
+            If None, will use np.unique(seq) to get all unique elements.
         safe (bool):
             If True, will check that all string elements in seq
              are in strs.
@@ -129,11 +130,15 @@ def convert_stringArray_to_oneHot(seq, strs=['A','C','G','T'], safe=False):
              positions in seq.
     """
     seq_arr = np.char.upper(np.array(seq, dtype='U1'))
+
+    if strs is None:
+        strs = np.unique(seq_arr)
+    strs = np.char.upper(np.array(strs, dtype='U1'))
     
-    assert np.all(np.isin(seq_arr, strs)), "Some characters in sequence are not in allowable_chars" if safe else None
+    if not safe:
+        assert np.all(np.isin(seq_arr, strs)), "Some characters in sequence are not in strs"
     
     nuc_ints = np.array(strs).view(np.uint32)
     seq_ints = seq_arr.view(np.uint32)
     oneHot = np.vstack([seq_ints==n for n in nuc_ints]).T
     return oneHot
-
