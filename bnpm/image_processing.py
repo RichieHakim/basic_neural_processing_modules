@@ -459,6 +459,70 @@ def remap_sparse_images(
     return ims_sparse_out
 
 
+def remap_points(
+    points: np.ndarray, 
+    remappingIdx: np.ndarray,
+    interpolation: str = 'linear',
+    fill_value: float = None,
+) -> np.ndarray:
+    """
+    Remaps a set of points using an index map.
+
+    Args:
+        points (np.ndarray): 
+            Array of points to be remapped. It should be a 2D array with the
+            shape *(n_points, 2)*, where each point is represented by a pair of
+            floating point coordinates within the image.
+        remappingIdx (np.ndarray): 
+            Index map for the remapping. It should be a 3D array with the shape
+            *(height, width, 2)*. The data type should be a floating point
+            subtype.
+        interpolation (str):
+            Interpolation method to use.
+            See scipy.interpolate.RegularGridInterpolator. Can be:
+                * ``'linear'``
+                * ``'nearest'``
+                * ``'slinear'``
+                * ``'cubic'``
+                * ``'quintic'``
+                * ``'pchip'``
+        fill_value (float, optional):
+            Value used to fill points outside the convex hull. If ``None``, values
+            outside the convex hull are extrapolated.
+
+    Returns:
+        (np.ndarray): 
+            points_remap (np.ndarray): 
+                Remapped points array. It has the same shape as the input.
+    """
+    ### Assert points is a 2D numpy.ndarray of shape (n_points, 2) and that all points are within the image and that points are float
+    assert isinstance(points, np.ndarray), 'points must be a numpy.ndarray'
+    assert points.ndim == 2, 'points must be a 2D numpy.ndarray'
+    assert points.shape[1] == 2, 'points must be of shape (n_points, 2)'
+    assert np.issubdtype(points.dtype, np.floating), 'points must be a float subtype'
+
+    assert isinstance(remappingIdx, np.ndarray), 'remappingIdx must be a numpy.ndarray'
+    assert remappingIdx.ndim == 3, 'remappingIdx must be a 3D numpy.ndarray'
+    assert remappingIdx.shape[2] == 2, 'remappingIdx must be of shape (height, width, 2)'
+    assert np.issubdtype(remappingIdx.dtype, np.floating), 'remappingIdx must be a float subtype'
+
+    ## Make grid of indices for image remapping
+    dims = remappingIdx.shape
+    x_arange, y_arange = np.arange(0., dims[1]).astype(np.float32), np.arange(0., dims[0]).astype(np.float32)
+
+    ## Use RegularGridInterpolator to remap points
+    warper = scipy.interpolate.RegularGridInterpolator(
+        points=(y_arange, x_arange),
+        values=remappingIdx,
+        method=interpolation,
+        bounds_error=False,
+        fill_value=fill_value,
+    )
+    points_remap = warper(xi=(points[:, 1], points[:, 0]))
+
+    return points_remap
+
+
 def invert_remappingIdx(
     remappingIdx: np.ndarray, 
     method: str = 'linear', 
@@ -727,7 +791,6 @@ def cv2RemappingIdx_to_pytorchFlowField(ri):
     normgrid = ((ri / (im_shape[None, None, :] - 1)) - 0.5) * 2  ## PyTorch's grid_sample expects grid values in [-1, 1] because it's a relative offset from the center pixel. CV2's remap expects grid values in [0, 1] because it's an absolute offset from the top-left pixel.
     ## note also that pytorch's grid_sample expects align_corners=True to correspond to cv2's default behavior.
     return normgrid
-
 
 
 @torch.jit.script
