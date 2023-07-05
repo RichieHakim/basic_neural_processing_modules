@@ -457,7 +457,10 @@ def simple_cmap(
     under=[0,0,0],
     over=[0.5,0.5,0.5],
     bad=[0.9,0.9,0.9],
-    name='none'):
+    input_values=[0,1],
+    N=256,
+    name='none'
+):
     """Create a colormap from a sequence of rgb values.
     Stolen with love from Alex (https://gist.github.com/ahwillia/3e022cdd1fe82627cbf1f2e9e2ad80a7ex)
     
@@ -486,22 +489,53 @@ def simple_cmap(
     # convert colors to rgb
     colors = [colorConverter.to_rgb(c) for c in colors]
 
+    ## prep input_values
+    input_values = np.array(input_values)
+    ### assert monotonic
+    if not np.all(np.diff(input_values) > 0):
+        raise ValueError('input_values must be monotonically increasing')
+    fn_norm = lambda x: (x - input_values.min()) / np.ptp(input_values)
+    input_values_norm = fn_norm(input_values)
+    ### assert either n_inputs is 2 or n_colors
+    if len(input_values) == 2:
+        input_values_norm = np.linspace(0., 1., n_colors, endpoint=True)
+    elif len(input_values) != n_colors:
+        raise ValueError('length of input_values must be either 2 or equal to the length of colors')
+
     # set up colormap
-    r, g, b = colors[0]
-    cdict = {'red': [(0.0, r, r)], 'green': [(0.0, g, g)], 'blue': [(0.0, b, b)]}
-    for i, (r, g, b) in enumerate(colors[1:]):
-        idx = (i+1) / (n_colors-1)
+    cdict = {'red': [], 'green': [], 'blue': []}
+    for i, (r, g, b) in enumerate(colors):
+        idx = input_values_norm[i]
+        # print(idx)
         cdict['red'].append((idx, r, r))
         cdict['green'].append((idx, g, g))
         cdict['blue'].append((idx, b, b))
 
-    cmap = LinearSegmentedColormap(name, {k: tuple(v) for k, v in cdict.items()})
+    cmap = LinearSegmentedColormap(
+        name=name, 
+        segmentdata={k: tuple(v) for k, v in cdict.items()},
+        N=N,
+    )
                                    
     cmap.set_bad(bad)
     cmap.set_over(over)
     cmap.set_under(under)
 
-    return cmap
+    import matplotlib
+    class LSC_norm(matplotlib.colors.LinearSegmentedColormap):
+        def __init__(self, name=name, N=N):
+            super().__init__(name=name, segmentdata={k: tuple(v) for k, v in cdict.items()}, N=N)
+            self.set_bad(bad)
+            self.set_over(over)
+            self.set_under(under)
+
+        def __call__(self, X, alpha=None, bytes=False):
+            X_norm = fn_norm(X)
+            return super().__call__(X_norm, alpha=alpha, bytes=bytes)
+        
+    cmap_out = LSC_norm(name=name, N=N)
+
+    return cmap_out
 
 class Cmap_conjunctive:
     """
