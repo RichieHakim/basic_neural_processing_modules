@@ -96,14 +96,16 @@ setup(
     version=version,
     author='Richard Hakim',
     keywords=['data analysis', 'machine learning', 'neuroscience'],
-    packages=['bnpm'],
     license='LICENSE',
     description='A library of useful modules for data analysis.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
+    url='https://github.com/RichieHakim/basic_neural_processing_modules',
+
+    packages=['bnpm'],
+
     install_requires=deps_core,
     extras_require={
         'advanced': deps_advanced,
     },
-    url='https://github.com/RichieHakim/basic_neural_processing_modules',
 )
