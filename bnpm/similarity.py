@@ -635,6 +635,42 @@ def similarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
     return d + eps
     
 
+def cp_reconstruction_EV(tensor_dense, tensor_CP):
+    """
+    Explained variance of a reconstructed tensor using
+    by a CP tensor (similar to kruskal tensor).
+    RH 2023
+
+    Args:
+        tensor_dense (np.ndarray or torch.Tensor):
+            Dense tensor to be reconstructed. shape (n_samples, n_features)
+        tensor_CP (tensorly CPTensor or list of np.ndarray/torch.Tensor):
+            CP tensor.
+            If a list of factors, then each factor should be a 2D array of shape
+            (n_samples, rank).
+            Can also be a tensorly CPTensor object.
+    """
+    tensor_rec = None
+    try:
+        import tensorly as tl
+        if isinstance(tensor_CP, tl.cp_tensor.CPTensor):
+            tensor_rec = tl.cp_to_tensor(tensor_CP)
+    except ImportError as e:
+        raise ImportError('tensorly not installed. Please install tensorly or provide a list of factors as the tensor_CP argument.')
+    
+    if tensor_rec is None:
+        assert isinstance(tensor_CP, list), 'tensor_CP must be a list of factors'
+        assert all([isinstance(f, (np.ndarray, torch.Tensor)) for f in tensor_CP]), 'tensor_CP must be a list of factors'
+        tensor_rec = indexing.cp_to_dense(tensor_CP)
+
+    if isinstance(tensor_dense, torch.Tensor):
+        var = torch.var
+    elif isinstance(tensor_dense, np.ndarray):
+        var = np.var
+    ev = 1 - (var(tensor_dense - tensor_rec) / var(tensor_dense))
+    return ev
+    
+
 ##########################################    
 ########### Linear Assignment ############
 ##########################################
