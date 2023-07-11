@@ -8,14 +8,15 @@ import sys
 
 from . import container_helpers
 
-def batch_run(paths_scripts, 
-                params_list, 
-                sbatch_config_list, 
-                max_n_jobs=2,
-                dir_save='/n/data1/hms/neurobio/sabatini/rich/analysis/', 
-                name_save='jobNum_', 
-                verbose=True,
-                ):
+def batch_run(
+    paths_scripts, 
+    params_list, 
+    sbatch_config_list, 
+    max_n_jobs=2,
+    dir_save='/n/data1/hms/neurobio/sabatini/rich/analysis/', 
+    name_save='jobNum_', 
+    verbose=True,
+):
     r"""
     Run a batch of jobs.
     Workflow 1: run a single script over a sweep of parameters
@@ -118,6 +119,9 @@ def batch_run(paths_scripts,
         verbose (bool):
             - Whether or not to print progress
     """
+    import json
+    import os
+    import shutil
 
     # make sure the arguments are matched in length
     n_jobs = max(len(paths_scripts), len(params_list), len(sbatch_config_list))
@@ -148,18 +152,19 @@ def batch_run(paths_scripts,
         save_path_sbatchConfig = dir_save_job / 'sbatch_config.sh'
         with open(save_path_sbatchConfig, 'w') as f:
             f.write(sbatch_config_list[ii])
+        # save the script
+        path_script_job = dir_save_job / Path(paths_scripts[ii]).name
+        shutil.copyfile(paths_scripts[ii], path_script_job);
         # save the parameters        
-        save_path_params = dir_save_job / 'params.json'
-        with open(save_path_params, 'w') as f:
+        path_params_job = dir_save_job / 'params.json'
+        with open(path_params_job, 'w') as f:
             json.dump(params_list[ii], f)
     
         # run the job
         if verbose:
             print(f'Submitting job: {name_save[ii]} {ii}')
         # ! sbatch --job-name=${name_save}_${ii} --output=${dir_save_job}/log.txt --error=${dir_save_job}/err.txt --time=${sbatch_config_list[ii]["time"]} --mem=${sbatch_config_list[ii]["mem"]} --cpus-per-task=${sbatch_config_list[ii]["cpus"]} --wrap="${paths_scripts[ii]} ${params_list[ii]} ${sbatch_config_list[ii]} ${dir_save_job}"
-        # with open()
-        os.system(f'sbatch {save_path_sbatchConfig} {paths_scripts[ii]} {save_path_params} {dir_save_job}')
-
+        os.system(f'sbatch {save_path_sbatchConfig} {paths_scripts[ii]} {path_params_job} {dir_save_job}')
 
 
 ###############################
@@ -236,6 +241,7 @@ class ssh_interface():
             port=port, 
             key_filename=key_filename,
             look_for_keys=look_for_keys, 
+            allow_agent=look_for_keys,
         )
         self.ssh = self.client.invoke_shell()
 
