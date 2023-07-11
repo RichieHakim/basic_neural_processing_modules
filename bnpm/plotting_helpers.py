@@ -1102,6 +1102,12 @@ class Image_labeler:
             return {'index': np.array(list(self.labels_.keys()), dtype=np.int64), 'label': np.array(list(self.labels_.values()), dtype=str)}
 
 
+def rgb_to_hex(r, g, b):
+    if isinstance(r, float):
+        r, g, b = (int(v*255) for v in (r,g,b))
+    return '#{:02x}{:02x}{:02x}'.format(r, g, b)
+
+
 ########################################################################################################################
 ########################################## OTHER PLOTTING LIBRARIES ####################################################
 ########################################################################################################################
@@ -1122,3 +1128,29 @@ def export_svg_hv_bokeh(obj, path_save):
     plot_state = hv.renderer('bokeh').get_plot(obj).state
     plot_state.output_backend = 'svg'
     bokeh.io.export_svgs(plot_state, filename=path_save)
+
+def plot_lines_bokeh(x=None, y=None, figsize=(500,500)):
+    import bokeh.plotting as bp
+    # y = y.cpu().numpy() if isinstance(y, torch.Tensor) else y
+    # x = x.cpu().numpy() if isinstance(x, torch.Tensor) else x
+    if y is None:
+        y = x
+        y = y[:,None] if y.ndim == 1 else y
+        x = np.arange(y.shape[0])
+        
+    cmap = simple_cmap(
+#         colors=[[0,0,1],[0,1,0],[1,0,0]],
+    )
+    p = bp.figure()
+    for i_line in range(y.shape[1]):
+        p.line(
+            x=x, 
+            y=y[:,i_line], 
+            color=rgb_to_hex(*cmap(i_line / (y.shape[1]-1))[:3]),
+            line_width=2,
+        )
+        
+    p.frame_height=figsize[0]
+    p.frame_width=figsize[1]
+    bp.show(p)
+    return p
