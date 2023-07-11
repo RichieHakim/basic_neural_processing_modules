@@ -772,6 +772,40 @@ def kruskal_to_dense(k, weights=None):
     dense = zeros([k[0][m].shape[0] for m in range(n_modes)]).type(k[0][0].dtype).to(k[0][0].device)
     for r in range(rank):
         ## take the outer product of the n vectors in each mode and add to the dense tensor
-        dense += einsum(','.join([chr(97+m) for m in range(n_modes)]) + '->' + ''.join([chr(97+m) for m in range(n_modes)]), *k[r]) * weights[r]
+        str_einsum = ','.join([chr(97+m) for m in range(n_modes)]) + '->' + ''.join([chr(97+m) for m in range(n_modes)])
+        dense += einsum(str_einsum, *k[r]) * weights[r]
 
+    return dense
+
+def cp_to_dense(cp, weights=None):
+    """
+    Converts a list (of length n_modes) of 2D arrays (of shape (len_dim, rank))
+     [CP format] to a dense tensor (of shape (len_dim, len_dim, ...))
+    RH 2022
+
+    Args:
+        cp (list of np.ndarray):
+            List of 2D arrays in CP format.
+            Tensorly uses this format for their 'cp' format.
+
+    Returns:
+        dense (np.ndarray):
+            Dense tensor
+    """
+    rank = cp[0].shape[1]
+    n_modes = len(cp)
+    str_einsum = ','.join([chr(97+m)+'r' for m in range(n_modes)]) + '->' + ''.join([chr(97+m) for m in range(n_modes)])
+    if weights is None:
+        weights = np.ones(rank)
+
+    ## check if numpy or torch
+    if isinstance(cp[0], np.ndarray):
+        einsum = np.einsum
+        weights = np.array(weights).astype(cp[0].dtype)
+    elif isinstance(cp[0], torch.Tensor):
+        einsum = torch.einsum
+        weights = torch.as_tensor(weights).type(cp[0].dtype).to(cp[0].device)
+
+    dense = einsum(str_einsum, *[cp[m] * weights for m in range(n_modes)])
+    
     return dense
