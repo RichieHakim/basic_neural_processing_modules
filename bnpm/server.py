@@ -580,7 +580,6 @@ class sftp_interface():
         source = Path(source).resolve()
         target = Path(target).resolve()
         
-        
         for item in os.listdir(source):
             if os.path.isfile(source / item):
                 if verbose:
@@ -590,22 +589,29 @@ class sftp_interface():
                 self.mkdir_safe(str(target / item) , ignore_existing=True)
                 self.put_dir(source / item , target / item)
 
-    def get_dir(self, source, target, verbose=True):
+    def get_dir(self, source, target, mkdir=True, verbose=True):
         '''
-        Downloads the contents of the source directory to the target path.
-        All subdirectories in source are created under target recusively.
+        Downloads the contents of the source directory to the target path. All
+        subdirectories in source are created under target recusively.
+        
         Args:
             source (str):
                 Path to the source directory (remote).
             target (str):
                 Path to the target directory (local).
+            mkdir (bool):
+                Whether or not to create the target directory.
+            verbose (bool):
+                Whether or not to print progress of files being downloaded.
         '''
+        if mkdir:
+            Path(target).mkdir(parents=True, exist_ok=True)
         source = Path(source).resolve()
         target = Path(target).resolve()
         
         for item in self.sftp.listdir(str(source)):
             if self.isdir_remote(str(source / item)):
-                (target / item).mkdir(parents=True, exist_ok=True)
+                (target / item).mkdir(parents=True, exist_ok=True)  ## probably not necessary anymore since done above
                 self.get_dir(source / item , target / item)
             else:
                 if verbose:
