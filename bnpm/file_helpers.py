@@ -677,7 +677,7 @@ def extract_zip(
     import zipfile
     if path_extract is None:
         path_extract = str(Path(path_zipFile).parent)
-    path_extract = prepare_directory_for_saving(path_extract, mkdir=mkdir, allow_overwrite=True)
+    path_extract = prepare_directory_for_saving(path_extract, mkdir=mkdir, exist_ok=True)
 
     print(f'Extracting {path_zipFile} to {path_extract}.') if verbose else None
 
