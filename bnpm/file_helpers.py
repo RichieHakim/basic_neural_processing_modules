@@ -543,7 +543,7 @@ def download_file(
                 f.write(data)
                 pbar.update(len(data))
     if total_size != 0 and wrote != total_size:
-        print("ERROR, something went wrong")
+        print("Error downloading file. Downloaded file is not the same size as the file on the server.")
         return False
     # Check hash
     if check_hash:
