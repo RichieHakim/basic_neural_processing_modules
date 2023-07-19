@@ -10,6 +10,7 @@ __all__ = [
             'featurization',
             'file_helpers',
             'h5_handling',
+            'image_augmentation',
             'image_processing',
             'indexing',
             'linear_regression',
