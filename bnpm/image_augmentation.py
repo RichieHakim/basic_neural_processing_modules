@@ -420,7 +420,8 @@ class Scale_image_sum(Module):
     def forward(self, tensor):
         out = self.sum_val * (tensor / (torch.sum(tensor, dim=(-2,-1), keepdim=True) + self.epsilon))
         if self.min_sub:
-            out = out - torch.min(out.reshape(out.shape[0], out.shape[1], -1), dim=-1, keepdim=True)[0][...,None]
+            # out = out - torch.min(out.reshape(out.shape[0], out.shape[1], -1), dim=-1, keepdim=True)[0][...,None]
+            out = out - torch.min(out.reshape(list(out.shape[:-2]) + [-1]), dim=-1, keepdim=True)[0][...,None]
         return out
     
 
@@ -580,9 +581,9 @@ class Random_multiply(torch.nn.Module):
             val = (torch.rand(self.n) * self.range + self.min_magnitude)
             if self.positive and self.negative:
                 val = val * torch.sign(torch.rand(self.n) - 0.5)
-            elif self.positive:
+            elif self.positive and not self.negative:
                 val = torch.abs(val)
-            elif self.negative:
+            elif self.negative and not self.positive:
                 val = -torch.abs(val)
             return tensor * val[None, :, None, None]
         else:
