@@ -106,6 +106,7 @@ def find_paths(
     depth=0, 
     natsorted=True, 
     alg_ns=None, 
+    verbose=False,
 ):
     """
     Search for files and/or folders recursively in a directory.
@@ -138,6 +139,8 @@ def find_paths(
              for options.
             Default is PATH.
             Other commons are INT, FLOAT, VERSION.
+        verbose (bool):
+            Whether to print the paths as they are found.
 
     Returns:
         paths (List of str):
@@ -155,12 +158,14 @@ def find_paths(
                 if find_folders:
                     if re.search(reMatch, path) is not None:
                         paths.append(path)
+                        print(path) if verbose else None
                 if depth < depth_end:
                     paths += get_paths_recursive_inner(path, depth_end, depth=depth+1)
             else:
                 if find_files:
                     if re.search(reMatch, path) is not None:
                         paths.append(path)
+                        print(path) if verbose else None
         return paths
 
     paths = get_paths_recursive_inner(dir_outer, depth, depth=0)
