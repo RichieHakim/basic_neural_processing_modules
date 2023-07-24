@@ -175,7 +175,7 @@ def set_device(
     """
     if use_GPU:
         print(f'devices available: {[torch.cuda.get_device_properties(ii) for ii in range(torch.cuda.device_count())]}') if verbose else None
-        device = f"cuda:{device_num}" if torch.cuda.is_available() else "cpu"
+        device = torch.device(device_num) if torch.cuda.is_available() else "cpu"
         if device == "cpu":
             print("no GPU available. Using CPU.") if verbose else None
         else:
