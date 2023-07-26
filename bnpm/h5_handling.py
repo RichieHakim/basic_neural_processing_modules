@@ -1,8 +1,6 @@
-###########################
-####### H5_HANDLING #######
-###########################
-
 import gc
+from pathlib import Path
+
 import h5py
 
 def close_all_h5():
@@ -233,7 +231,8 @@ def simple_save(
     use_compression=False, 
     track_order=True, 
     write_mode='w-', 
-    verbose=False
+    mkdir=True,
+    verbose=False,
 ):
     """
     Saves a python dict to an hdf file.
@@ -258,6 +257,9 @@ def simple_save(
         verbose (bool):
             Whether or not to print out the h5 file hierarchy.
     """
+
+    if mkdir:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
 
     write_dict_to_h5(
         path, 
