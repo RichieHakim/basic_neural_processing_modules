@@ -86,7 +86,7 @@ def bool2idx(bool_vec):
     return np.where(bool_vec)[0]
 
 
-def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=None, plot_pref=False):
+def moduloCounter_to_linearCounter(trace, modulus, modulus_value=None, diff_thresh=None, plot_pref=False):
     '''
     Converts a (sawtooth) trace of modulo counter
      values to a linear counter.
@@ -106,7 +106,8 @@ def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=No
              should range from 0 to modulus-1.
         modulus_value (scalar):
             Multiplier for the modulus counter. The
-             value of a modulus event.
+             value of a modulus event. If None, then
+             modulus_value is set to modulus.
         diff_thresh (scalar):
             Threshold for defining a modulus event.
             Should typically be a negative value
@@ -123,6 +124,9 @@ def moduloCounter_to_linearCounter(trace, modulus, modulus_value, diff_thresh=No
 
     if diff_thresh is None:
         diff_thresh = -modulus/2
+
+    if modulus_value is None:
+        modulus_value = modulus
 
     diff_trace = np.diff(np.double(trace))
     mod_times = np.where(diff_trace<diff_thresh)[0]
@@ -243,7 +247,8 @@ def make_batches(
     num_batches=None, 
     min_batch_size=0, 
     return_idx=False, 
-    length=None
+    length=None,
+    idx_start=0,
 ):
     """
     Make batches of data or any other iterable.
@@ -267,6 +272,8 @@ def make_batches(
             if None, then length is len(iterable)
             This is useful if you want to make batches of 
              something that doesn't have a __len__ method.
+        idx_start (int):
+            starting index of the iterable.
     
     Returns:
         output (iterable):
@@ -281,7 +288,7 @@ def make_batches(
     if batch_size is None:
         batch_size = np.int64(np.ceil(l / num_batches))
     
-    for start in range(0, l, batch_size):
+    for start in range(idx_start, l, batch_size):
         end = min(start + batch_size, l)
         if (end-start) < min_batch_size:
             break
