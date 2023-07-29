@@ -174,6 +174,78 @@ def write_to_log(
                 log.write('\n')
             log.write(str(text))
 
+
+def format_text(
+    text, 
+    color=None, 
+    bold=False, 
+    italic=False, 
+    background=None, 
+    underline=False, 
+    blink=False, 
+    dim=False,
+):
+    """
+    Formats text with ANSI escape sequences.
+    RH 2023
+
+    Args:
+        text (str):
+            Text to format.
+        color (tuple of ints):
+            RGB color of text.
+            Range: 0-255
+        bold (bool):
+            Whether or not to bold text.
+        italic (bool):
+            Whether or not to italicize text.
+            Doesn't work in ipynb
+        background (tuple of ints):
+            RGB color of text background.
+            Range: 0-255
+        underline (bool):
+            Whether or not to underline text.
+        blink (bool):
+            Whether or not to blink text.
+            Doesn't work in ipynb
+        dim (bool):
+            Whether or not to dim text.
+            Doesn't work in ipynb
+
+    Returns:
+        formatted_text (str):
+            Formatted text.
+    """
+    # ANSI escape sequences for text formatting
+    modifiers = []
+    
+    # Color
+    if color:
+        r, g, b = color
+        modifiers.append(f'\x1b[38;2;{r};{g};{b}m')
+
+    # Background color
+    if background:
+        r, g, b = background
+        modifiers.append(f'\x1b[48;2;{r};{g};{b}m')
+    
+    # Other modifiers
+    if bold:
+        modifiers.append('\x1b[1m')
+    if italic:
+        modifiers.append('\x1b[3m')
+    if underline:
+        modifiers.append('\x1b[4m')
+    if blink:
+        modifiers.append('\x1b[5m')
+    if dim:
+        modifiers.append('\x1b[2m')
+
+    # Reset all formatting
+    reset = '\x1b[0m'
+    
+    return ''.join(modifiers) + text + reset
+
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################
