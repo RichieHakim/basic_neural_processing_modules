@@ -3,6 +3,7 @@ import tkinter as tk
 import PIL
 from PIL import ImageTk
 import csv
+import warnings
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -801,8 +802,8 @@ class Select_ROI:
         import matplotlib as mpl
 
         ## set jupyter notebook to use interactive matplotlib.
-        ## equivalent to %matplotlib notebook
-        mpl.use("nbagg")        
+        ## Set backend. Equivalent to %matplotlib widget
+        mpl.use('module://ipympl.backend_nbagg')
         plt.ion()
 
         ## Set variables                
@@ -1114,7 +1115,8 @@ def rgb_to_hex(r, g, b):
 
 def export_svg_hv_bokeh(obj, path_save):
     """
-    Save a scatterplot from holoviews as an svg file.
+    Save a scatterplot from holoviews as an svg file. Call
+    bokeh.io.output_notebook() if calling from a jupyter notebook.
     RH 2023
 
     Args:
@@ -1133,20 +1135,26 @@ def plot_lines_bokeh(x=None, y=None, figsize=(500,500)):
     import bokeh.plotting as bp
     # y = y.cpu().numpy() if isinstance(y, torch.Tensor) else y
     # x = x.cpu().numpy() if isinstance(x, torch.Tensor) else x
-    if y is None:
+    if (x is not None) and (y is None):
         y = x
         y = y[:,None] if y.ndim == 1 else y
         x = np.arange(y.shape[0])
+    elif (x is None) and (y is not None):
+        x = np.arange(y.shape[0])
+        y = y[:,None] if y.ndim == 1 else y
+    elif (x is None) and (y is None):
+        raise ValueError('x and y cannot both be None')
         
     cmap = simple_cmap(
-#         colors=[[0,0,1],[0,1,0],[1,0,0]],
+        colors=[[0,0,1],[0,1,0],[1,0,0]],
     )
     p = bp.figure()
     for i_line in range(y.shape[1]):
+        c = rgb_to_hex(*cmap(i_line / (y.shape[1]-1))[:3]) if y.shape[1] > 1 else 'black'
         p.line(
             x=x, 
             y=y[:,i_line], 
-            color=rgb_to_hex(*cmap(i_line / (y.shape[1]-1))[:3]),
+            color=c,
             line_width=2,
         )
         
