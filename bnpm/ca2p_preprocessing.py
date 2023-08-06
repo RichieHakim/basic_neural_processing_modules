@@ -114,6 +114,30 @@ def make_dFoF(
 def import_s2p(dir_s2p):
     """
     Imports suite2p data
+
+    Args:
+        dir_s2p (str):
+            Path to suite2p directory
+
+    Returns:
+        F (np.ndarray):
+            Fluorescence traces.
+            From S2p. shape=[Neurons, Time]
+        Fneu (np.ndarray):
+            Fluorescence Neuropil traces.
+            From S2p. shape=[Neurons, Time]
+        iscell (np.ndarray):
+            Boolean array indicating whether each ROI is a cell.
+            From S2p. shape=[Neurons,]
+        ops (dict):
+            Dictionary of suite2p options.
+            From S2p.
+        spks (np.ndarray):
+            Spike inference traces.
+            From S2p. shape=[Neurons, Time]
+        stat (np.ndarray):
+            ROI statistics.
+            From S2p. shape=[Neurons,]
     """
     dir_s2p = Path(dir_s2p).resolve()
 
