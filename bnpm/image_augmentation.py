@@ -12,6 +12,7 @@ Resize               = torchvision.transforms.Resize
 GaussianBlur         = torchvision.transforms.GaussianBlur
 ColorJitter          = torchvision.transforms.ColorJitter
 RandomInvert         = torchvision.transforms.RandomInvert
+Pad                  = torchvision.transforms.Pad
 
 def RandomAffine(**kwargs):
     if 'interpolation' in kwargs:
@@ -134,6 +135,30 @@ class ScaleDynamicRange(Module):
         return tensor_minSub * (self.range / (tensor_minSub.max(dim=-1,keepdim=True)[0].max(dim=-2,keepdim=True)[0]+self.epsilon))
     def __repr__(self):
         return f"ScaleDynamicRange(scaler_bounds={self.bounds})"
+
+class Clip(Module):
+    """
+    Clips the input tensor to be between the lower and upper bounds.
+    RH 2021
+    """
+    def __init__(self, lower_bound=0., upper_bound=1.):
+        """
+        Initializes the class.
+        Args:
+            lower_bound (float):
+                The lower bound.
+            upper_bound (float):
+                The upper bound.
+        """
+        super().__init__()
+
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+
+    def forward(self, tensor):
+        return torch.clamp(tensor, min=self.lower_bound, max=self.upper_bound)
+    def __repr__(self):
+        return f"Clip(lower_bound={self.lower_bound}, upper_bound={self.upper_bound})"
 
 class TileChannels(Module):
     """
@@ -456,8 +481,6 @@ class Random_occlusion(Module):
                 Size of occlusion.
                 In percent of image size.
                 Will be pulled from uniform distribution.
-            seed (int):
-                Seed for random number generator.
         """
         super().__init__()
         
@@ -475,9 +498,9 @@ class Random_occlusion(Module):
     def forward(self, tensor):
         if torch.rand(1) < self.prob:
             size_rand = torch.rand(1) * (self.size[1] - self.size[0]) + self.size[0]
-            idx_rand = ((torch.ceil(tensor.shape[1] * (1-size_rand)).int().item()) , 0)
+            idx_rand = ((torch.ceil(tensor.shape[2] * (1-size_rand)).int().item()) , 0)
             mask = torch.ones_like(tensor)
-            mask[:, idx_rand[0]:, :] = torch.zeros(1)
+            mask[:, :, idx_rand[0]:, :] = torch.zeros(1)
 
             out = tensor * self.rotator(mask).type(torch.bool)
             return out
@@ -616,3 +639,62 @@ class To_tensor(torch.nn.Module):
         if output_ndim == 4:
             out = out[None, ...]
         return out
+
+
+##############################################################################################################
+################################################ KORNIA STUFF ################################################
+##############################################################################################################
+
+import kornia
+
+class Kornia_filter_to_augmentation(torch.nn.Module):
+    """
+    Converts a Kornia filter to an augmentation. Provides probability and
+    magnitude control.
+
+    Args:
+        filter (torch.nn.Module): 
+            The Kornia filter.
+        prob (float): 
+            The probability of applying the filter.
+        kwargs: 
+            Keyword arguments for the filter. The keys are the names of the
+            filter parameters. If the value is a list type, then it should be of the
+            form (min, max), and the value used for the kwarg will be randomly
+            sampled from the range (min, max).
+    """
+    def __init__(self, filter, prob=0.5, **kwargs):
+        super().__init__()
+
+        self.filter = filter
+        self.prob = prob
+        self.kwargs = kwargs
+
+    def forward(self, tensor):
+        if torch.rand(1) < self.prob:
+            kwargs = {}
+            for k, v in self.kwargs.items():
+                if isinstance(v, (list)):
+                    kwargs[k] = torch.rand(1) * (v[1] - v[0]) + v[0]
+                else:
+                    kwargs[k] = v
+            return self.filter(tensor, **kwargs)
+        else:
+            return tensor
+
+class RandomPlasmaMultiplication(torch.nn.Module):
+    def __init__(
+        self,
+        roughness=(0.1, 0.7),
+        intensity=(0.0, 1.0),
+        p=0.5,
+        same_on_batch=False,
+        keepdim=False,
+    ):
+        super().__init__()
+        self.rpb = kornia.augmentation.RandomPlasmaBrightness(roughness=roughness, intensity=intensity, p=p, same_on_batch=same_on_batch, keepdim=keepdim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        ones = torch.ones_like(x)
+        plasma = self.rpb(ones)
+        return x * plasma
