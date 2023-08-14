@@ -282,3 +282,25 @@ def szudzik_decode(z):
     a[~m] = z[~m] - w[~m] * w[~m]
     b[~m] = w[~m]
     return a, b
+
+
+def rand_log(low=1, high=100, size=(1,)):
+    """
+    Generate random numbers from a log-uniform distribution.
+    RH 2023
+
+    Args:
+        low (float):
+            Lower bound of the distribution
+        high (float):
+            Upper bound of the distribution
+        size (tuple):
+            Shape of the output array
+
+    Returns:
+        output (np.ndarray):
+            Random numbers from the log-uniform distribution
+    """
+    if isinstance(size, int):
+        size = (size,)
+    return low*10**(np.random.rand(*size)*(np.log(high/low) / np.log(10)))
