@@ -641,6 +641,59 @@ class To_tensor(torch.nn.Module):
         return out
 
 
+class InverseShadow(torch.nn.Module):
+    """
+    Makes a drop shadow that is grayscale and the inverse sign of the input
+    image.
+    RH 2023
+    """
+    def __init__(
+        self,
+        blur_kernel_size=(20, 20),
+        blur_sigma=(5.0, 5.0),
+        p=0.5,
+        normalize=True,
+        norm_scale=(1.0, 10.0),
+    ):
+        """
+        Initializes the class.
+        """
+        super().__init__()
+        
+        self.fn_blur = torchvision.transforms.GaussianBlur(kernel_size=blur_kernel_size, sigma=blur_sigma)
+
+        self.p = p
+        self.normalize = normalize
+        self.norm_scale = norm_scale
+
+    def forward(
+        self,
+        tensor,
+    ):
+        """
+        Makes a drop shadow that is grayscale and the inverse sign of the input.
+
+        Args:
+            tensor (torch.Tensor): 
+                The input tensor.
+                Shape: (N, C, H, W)
+        """
+        if torch.rand(1) < self.p:
+            ## Make grayscale
+            im = tensor.mean(1, keepdim=True)
+            ## Blur and invert
+            im = self.fn_blur(im) * -1
+            ## Normalize
+            if self.normalize:
+                scale = torch.rand(1) * (self.norm_scale[1] - self.norm_scale[0]) + self.norm_scale[0]
+                im = im / (torch.abs(tensor.mean() / scale))
+            ## Apply
+            return tensor + im
+        else:
+            return tensor
+
+
+
 ##############################################################################################################
 ################################################ KORNIA STUFF ################################################
 ##############################################################################################################
