@@ -14,12 +14,21 @@ Install stable version:
 pip install bnpm
 ```
 
+If installing on a server or any computer without graphics/display, after installing `bnpm`, please uninstall `opencv-contrib-python` and install `opencv-contrib-python-headless` instead. 
+```
+pip uninstall opencv-contrib-python
+pip install opencv-contrib-python-headless
+```
+
 Install development version:
 ```
 pip install git+https://github.com/RichieHakim/basic_neural_processing_modules.git
 ```
 
-import with: `import bnpm`
+import with:
+```
+import bnpm
+```
 
 
 ## Usage 
