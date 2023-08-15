@@ -710,7 +710,7 @@ class sftp_interface():
                 If >1, prints the current search directory.
 
         Returns:
-            list:
+            list:cod
                 List of paths to the files found.
         """
         search_results = []
@@ -859,6 +859,101 @@ class sftp_interface():
     def close(self):
         self.sftp.close()
         self.transport.close()
+
+
+def make_rsync_command(
+    source, 
+    destination, 
+    recursive=True, 
+    preserve_attributes=True, 
+    verbose=True, 
+    dry_run=False,
+    delete=False, 
+    compress=False,
+    archive=False,
+    exclude=None, 
+    include=None, 
+    extra_options=None,
+):
+    """
+    Constructs an rsync command based on the provided options.
+    RH 2023
+
+    Args:
+        source (str): 
+            The source path for the rsync command.
+        destination (str): 
+            The destination path for the rsync command.
+        recursive (bool, optional): 
+            If True, transfer directories recursively. This means that
+            directories will be copied along with their contents.
+        preserve_attributes (bool, optional): 
+            If True, preserve file attributes. Like: permissions, symbolic
+            links, etc.
+        verbose (bool, optional): 
+            If True, enable verbose output. 
+        dry_run (bool, optional): 
+            If True, perform a trial run without changes. 
+        delete (bool, optional): 
+            If True, delete files in the destination that are not in source.
+            Ensures that the destination is an exact copy of the source.
+        compress (bool, optional): 
+            If True, compress file data during transfer. 
+        archive (bool, optional): 
+            If True, use archive mode (preserves permissions, symbolic links,
+            etc.). 
+        exclude (list[str], optional): 
+            List of patterns to exclude. 
+        include (list[str], optional): 
+            List of patterns to include. .
+        extra_options (list[str], optional): 
+            Additional rsync options to include. 
+
+    Returns:
+        str: 
+            The constructed rsync command.
+
+    Example:
+        ``` make_rsync_command("/path/to/source", "/path/to/dest", delete=True)
+        "rsync -r -p -v --delete /path/to/source /path/to/dest" ```
+    """
+
+    # Initialize exclude and include if they're None
+    if exclude is None:
+        exclude = []
+    if include is None:
+        include = []
+
+    # Start with the rsync command
+    cmd = ["rsync"]
+    
+    # Include options based on function arguments
+    if archive:
+        cmd.append("-a")
+    else:
+        if recursive:
+            cmd.append("-r")
+        if preserve_attributes:
+            cmd.append("-p")
+    if verbose:
+        cmd.append("-v")
+    if dry_run:
+        cmd.append("--dry-run")
+    if delete:
+        cmd.append("--delete")
+    if compress:
+        cmd.append("-z")
+    for pattern in exclude:
+        cmd.extend(["--exclude", pattern])
+    for pattern in include:
+        cmd.extend(["--include", pattern])
+    if extra_options:
+        cmd.extend(extra_options)
+    
+    # Add source and destination
+    cmd.extend([source, destination])
+
+    return ' '.join(cmd)
 
 
 """
