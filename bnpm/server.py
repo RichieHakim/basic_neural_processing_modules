@@ -589,7 +589,7 @@ class sftp_interface():
                 self.mkdir_safe(str(target / item) , ignore_existing=True)
                 self.put_dir(source / item , target / item)
 
-    def get_dir(self, source, target, mkdir=True, verbose=True):
+    def get_dir(self, source, target, mkdir=True, verbose=True, prog_bars=False):
         '''
         Downloads the contents of the source directory to the target path. All
         subdirectories in source are created under target recusively.
@@ -616,8 +616,13 @@ class sftp_interface():
             else:
                 if verbose:
                     print(f'downloading {source / item}   to   {target / item}')
-                self.sftp.get(str(source / item) , str(target / item))
-
+                self.get(
+                    remotepath=str(source / item), 
+                    localpath=str(target / item),
+                    mkdirs=mkdir,
+                    prefetch=False,
+                    prog_bar=prog_bars,
+                )
         
     def mkdir_safe(self, path_remote, mode=511, ignore_existing=False):
         '''
