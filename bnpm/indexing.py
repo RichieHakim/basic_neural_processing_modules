@@ -359,23 +359,24 @@ def pad_with_singleton_dims(array, n_dims_pre=0, n_dims_post=0):
 
 def index_with_nans(values, indices):
     """
-    Creates an array of values with the same shape
-     as indices, but with nans where indices are NaN.
+    Indexes an array with a list of indices, allowing for NaNs in the indices.
     RH 2022
-
+    
     Args:
         values (np.ndarray):
-            Values to index from
-        indices (np.ndarray, dtype=float):
-            Indices to index into values.
-            Will be cast to int64.
+            Array to be indexed.
+        indices (Union[List[int], np.ndarray]):
+            1D list or array of indices to use for indexing. Can contain NaNs.
+            Datatype should be floating point. NaNs will be removed and values
+            will be cast to int.
 
     Returns:
-        output (np.ndarray):
-            array of values indexed by indices
+        np.ndarray:
+            Indexed array. Positions where `indices` was NaN will be filled with
+            NaNs.
     """
     indices = np.array(indices, dtype=float) if not isinstance(indices, np.ndarray) else indices
-    values = np.concatenate((np.array([np.nan]), values))
+    values = np.concatenate((np.full(shape=values.shape[1:], fill_value=np.nan, dtype=values.dtype)[None,...], values), axis=0)
     idx = indices.copy() + 1
     idx[np.isnan(idx)] = 0
     
