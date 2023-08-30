@@ -1,4 +1,7 @@
+from typing import Dict, Type, Any, Union, Optional, Callable, Tuple, List
 import gc
+import functools
+
 import numpy as np
 import sklearn
 import sklearn.linear_model
@@ -51,7 +54,7 @@ def OLS(X,y, add_bias_terms=False):
         bias = theta[-1]
         theta = theta[:-1]
     else:
-        bias = None
+        bias = ones*0
 
     return theta, y_rec, bias
 
@@ -105,10 +108,105 @@ def Ridge(X, y, lam=1, add_bias_terms=False):
         bias = theta[-1]
         theta = theta[:-1]
     else:
-        bias = None
+        bias = ones*0
 
     return theta, y_rec, bias
 
+class LinearRegression_sk(sklearn.base.BaseEstimator, sklearn.base.RegressorMixin):
+    """
+    My own version of a base linear regression estimator using sklearn's format.
+    RH 2023
+    """
+
+    def predict(self, X):
+        if isinstance(X, torch.Tensor):
+            cat = functools.partial(torch.cat, dim=1)
+            ones = functools.partial(torch.ones, device=X.device, dtype=X.dtype)
+            atleast_2d = torch.atleast_2d
+        elif isinstance(X, np.ndarray):
+            cat = functools.partial(np.concatenate, axis=1)
+            ones = functools.partial(np.ones, dtype=X.dtype)
+            atleast_2d = np.atleast_2d
+
+        X = atleast_2d(X)
+        # if self.fit_intercept:
+        #     X = cat((X, ones((X.shape[0], 1))))
+
+        return X @ self.coef_ + self.intercept_
+
+    def score(self, X, y, sample_weight=None):
+        y_pred = self.predict(X)
+        if isinstance(X, torch.Tensor):
+            if sample_weight is not None:
+                assert sample_weight.ndim == 1
+                assert isinstance(sample_weight, torch.Tensor)
+                weight = sample_weight[:, None]
+            else:
+                weight, sample_weight = 1.0, 1.0
+
+            numerator = torch.sum(weight * (y - y_pred) ** 2, dim=0)
+            denominator = (weight * (y - torch.mean(y * sample_weight, dim=0)) ** 2).sum(dim=0)
+
+            output_scores = 1 - (numerator / denominator)
+            output_scores[denominator == 0.0] = 0.0
+            return torch.mean(output_scores) ## 'uniform_average' in sklearn
+        
+        elif isinstance(X, np.ndarray):
+            return sklearn.metrics.r2_score(y, y_pred, sample_weight=sample_weight, multioutput='uniform_average')
+        
+        else:
+            raise NotImplementedError       
+
+
+class Ridge_sk(LinearRegression_sk):
+    """
+    Estimator class for Ridge regression.
+    Based on the Ridge function above.
+
+    Args:
+        alpha (float):
+            Regularization parameter. Usually ~1e5
+        fit_intercept (bool):
+            If True, add a column of ones to X.
+            Theta will not contain the bias term.
+    """
+    def __init__(
+        self, 
+        alpha=1, 
+        fit_intercept=False,
+        **kwargs,
+    ):
+        self.alpha = alpha
+        self.fit_intercept = fit_intercept
+
+    def fit(self, X, y):
+        self.n_features_in_ = X.shape[1]
+        self.coef_, self.y_rec, self.intercept_ = Ridge(X, y, lam=self.alpha, add_bias_terms=self.fit_intercept)
+        return self
+
+class OLS_sk(LinearRegression_sk):
+    """
+    Estimator class for OLS regression.
+    Based on the OLS function above.
+
+    Args:
+        fit_intercept (bool):
+            If True, add a column of ones to X.
+            Theta will not contain the bias term.
+    """
+
+    def __init__(
+        self,
+        fit_intercept=False,
+        **kwargs,
+    ):
+        self.fit_intercept = fit_intercept
+
+    def fit(self, X, y):
+        self.n_features_in_ = X.shape[1]
+        self.coef_, self.y_rec, self.intercept_ = OLS(X, y, add_bias_terms=self.fit_intercept)
+        return self
+    
         
 def LinearRegression_sweep(X_in,
                             y_in,

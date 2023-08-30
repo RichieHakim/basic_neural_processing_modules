@@ -7,6 +7,7 @@ natsort
 numba
 numpy
 opencv-contrib-python
+optuna
 pandas
 paramiko
 PyYAML
