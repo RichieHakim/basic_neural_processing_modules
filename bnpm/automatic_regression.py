@@ -149,7 +149,7 @@ class Autotuner_regression:
         Returns:
             (float): 
                 loss (float):
-                    The score of the classifier.
+                    The score of the model.
         """
         # Make a lookup table for the suggest methods
         LUT_suggest = {
@@ -166,10 +166,10 @@ class Autotuner_regression:
         for name, config in self.params.items():
             kwargs_model[name] = LUT_suggest[config['type']](name, **config['kwargs'])
 
-        # Initialize the classifier with the suggested hyperparameters
+        # Initialize the model with the suggested hyperparameters
         model = self.model_class(**kwargs_model)
 
-        # Train the classifier
+        # Train the model
         loss_train_all, loss_test_all, loss_all = [], [], []
         for ii in range(self.n_repeats):
             # Split the data
@@ -180,7 +180,7 @@ class Autotuner_regression:
             else:
                 sample_weight_train, sample_weight_test = None, None
 
-            # Train the classifier
+            # Train the model
             ## Turn off ConvergenceWarning
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=sklearn.exceptions.ConvergenceWarning) if self.catch_convergence_warnings else None
@@ -196,7 +196,7 @@ class Autotuner_regression:
             else:
                 raise ValueError('Model must have either a predict_proba or predict method.')
 
-            # Evaluate the classifier using the scoring method
+            # Evaluate the model using the scoring method
             loss, loss_train, loss_test = self.fn_loss(
                 y_pred_train=y_pred_train, 
                 y_pred_test=y_pred_test,
@@ -237,7 +237,7 @@ class Autotuner_regression:
 
     def fit(self) -> Union[sklearn.base.BaseEstimator, Optional[Dict[str, Any]]]:
         """
-        Fit and tune the hyperparameters and train the classifier.
+        Fit and tune the hyperparameters and train the model.
 
         Returns:
             (Union[sklearn.base.BaseEstimator, Optional[Dict[str, Any]]): 
@@ -263,11 +263,11 @@ class Autotuner_regression:
             show_progress_bar=self.verbose,
         )        
 
-        # Retrieve the best parameters and the best classifier
+        # Retrieve the best parameters and the best model
         self.best_params = self.study.best_params
         self.model_best = self.model_class(**self.best_params)
         
-        # Train the classifier on the full data set
+        # Train the model on the full data set
         self.model_best.fit(self.X, self.y)
 
         return self.model_best, self.best_params
@@ -322,7 +322,45 @@ class Autotuner_regression:
                 f=filepath,
             )
         return model_onnx
+    
+    def plot_param_curve(
+        self,
+        param='alpha',
+    ):
+        """
+        Makes a scatter plot of a selected values vs loss values.
+        """
+        def prep(x):
+            """to numpy"""
+            if isinstance(x[0], torch.Tensor):
+                return torch.stack(x).detach().cpu().numpy()
+            else:
+                return np.stack(x)
 
+        import matplotlib.pyplot as plt
+        results = {
+            param: prep([t[param] for t in self.params_running]), 
+            'value': prep(self.loss_running), 
+            'loss_train': prep(self.loss_running_train), 
+            'loss_test': prep(self.loss_running_test),
+        }
+
+        plt.figure()
+        scatter = functools.partial(plt.scatter, x=results[param], alpha=0.3, s=10)
+        scatter(y=results['loss_train'])
+        scatter(y=results['loss_test'])
+        scatter(y=results['value'])
+        plt.scatter(x=float(self.params_best[param]), y=float(self.loss_best), color='r', s=50, alpha=1)
+
+        plt.xlabel(param)
+        plt.ylabel('loss')
+        plt.xscale('log')
+        plt.legend([
+            'loss_train',
+            'loss_test',
+            'loss_withPenalty',
+            'best model',
+        ])
 
 class Auto_LogisticRegression(Autotuner_regression):
     """
@@ -581,37 +619,6 @@ class Auto_LogisticRegression(Autotuner_regression):
 
         return accuracy, confusion_matrix
 
-    def plot_C_curve(
-        self,
-    ):
-        """
-        Makes a scatter plot of C values vs loss values.
-        """
-        import matplotlib.pyplot as plt
-        results = {
-            'C': [t['C'] for t in self.params_running], 
-            'value': self.loss_running, 
-            'loss_train': self.loss_running_train, 
-            'loss_test': self.loss_running_test
-        }
-
-        plt.figure()
-        scatter = functools.partial(plt.scatter, x=results['C'], alpha=0.3, s=10)
-        scatter(y=results['loss_train'])
-        scatter(y=results['loss_test'])
-        scatter(y=results['value'])
-        plt.scatter(x=self.params_best['C'], y=self.loss_best, color='r', s=50, alpha=1)
-
-        plt.xlabel('C')
-        plt.ylabel('loss')
-        plt.xscale('log')
-        plt.legend([
-            'loss_train',
-            'loss_test',
-            'loss_withPenalty',
-            'best model',
-        ])
-
 
 class LossFunction_CrossEntropy_CV():
     """
@@ -756,7 +763,7 @@ class Auto_RidgeRegression(Autotuner_regression):
         .. code-block:: python
 
             ## Initialize with NO TUNING. All parameters are fixed.
-            autoclassifier = Auto_RidgeRegression(
+            automatic_regressor = Auto_RidgeRegression(
                 X, 
                 y, 
                 params={
@@ -766,7 +773,7 @@ class Auto_RidgeRegression(Autotuner_regression):
             )
 
             ## Initialize with TUNING 'alpha', 'solver', and 'positive'. 'tol' is fixed.
-            autoclassifier = Auto_RidgeRegression(
+            automatic_regressor = Auto_RidgeRegression(
                 X,
                 y,
                 params_RidgeRegression={
@@ -876,48 +883,10 @@ class Auto_RidgeRegression(Autotuner_regression):
             verbose=verbose,
         )
 
-    def plot_alpha_curve(
-        self,
-    ):
-        """
-        Makes a scatter plot of alpha values vs loss values.
-        """
-        def prep(x):
-            """to numpy"""
-            if isinstance(x[0], torch.Tensor):
-                return torch.stack(x).detach().cpu().numpy()
-            else:
-                return np.stack(x)
-
-        import matplotlib.pyplot as plt
-        results = {
-            'alpha': prep([t['alpha'] for t in self.params_running]), 
-            'value': prep(self.loss_running), 
-            'loss_train': prep(self.loss_running_train), 
-            'loss_test': prep(self.loss_running_test),
-        }
-
-        plt.figure()
-        scatter = functools.partial(plt.scatter, x=results['alpha'], alpha=0.3, s=10)
-        scatter(y=results['loss_train'])
-        scatter(y=results['loss_test'])
-        scatter(y=results['value'])
-        plt.scatter(x=float(self.params_best['alpha']), y=float(self.loss_best), color='r', s=50, alpha=1)
-
-        plt.xlabel('alpha')
-        plt.ylabel('loss')
-        plt.xscale('log')
-        plt.legend([
-            'loss_train',
-            'loss_test',
-            'loss_withPenalty',
-            'best model',
-        ])
-
 
 class LossFunction_MSE_CV():
     """
-    Calculates the mean-squared error loss of a classifier using
+    Calculates the mean-squared error loss of a model using
     cross-validation. 
     RH 2023
 
