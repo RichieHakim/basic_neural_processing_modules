@@ -8,13 +8,14 @@ import sklearn.linear_model
 import torch
 
 
-def OLS(X,y, add_bias_terms=False):
+def ols(X,y, add_bias_terms=False):
     '''
     Ordinary Least Squares regression.
     This method works great and is fast under most conditions.
     It tends to do poorly when X.shape[1] is small or too big 
      (overfitting can occur). Using OLS + EV is probably
      better than the 'orthogonalize' function.
+    y_rec = X @ theta + bias
     RH 2021
 
     Args:
@@ -28,43 +29,46 @@ def OLS(X,y, add_bias_terms=False):
     Returns:
         theta (ndarray):
             regression coefficents
-        y_rec (ndarray):
-            y reconstructions
         bias (ndarray):
             bias terms
     '''
     if X.ndim==1:
         X = X[:,None]
+
     if type(X) == np.ndarray:
         inv = np.linalg.inv
-        ones = np.ones
+        eye = np.eye(X.shape[1] + 1*add_bias_terms, dtype=X.dtype)
+        ones = functools.partial(np.ones, dtype=X.dtype)
+        zeros = functools.partial(np.zeros, dtype=X.dtype)
         cat = np.concatenate
     elif type(X) == torch.Tensor:
         inv = torch.inverse
-        ones = torch.ones
+        eye = torch.eye(X.shape[1] + 1*add_bias_terms, device=X.device, dtype=X.dtype)
+        ones = functools.partial(torch.ones, device=X.device, dtype=X.dtype)
+        zeros = functools.partial(torch.zeros, device=X.device, dtype=X.dtype)
         cat = torch.cat
 
     if add_bias_terms:
         X = cat((X, ones((X.shape[0],1))), axis=1)
 
     theta = inv(X.T @ X) @ X.T @ y
-    y_rec = X @ theta
 
     if add_bias_terms:
         bias = theta[-1]
         theta = theta[:-1]
     else:
-        bias = ones*0
+        bias = zeros((y.shape[1],))
 
-    return theta, y_rec, bias
+    return theta, bias
 
 
 # @njit
-def Ridge(X, y, lam=1, add_bias_terms=False):
+def ridge(X, y, lam=1, add_bias_terms=False):
     '''
     Ridge regression.
     This method works great and is fast under most conditions.
-    Lambda often ~100000
+    Lambda often ~1e5
+    y_rec = X @ theta + bias
     RH 2021
 
     Args:
@@ -80,37 +84,38 @@ def Ridge(X, y, lam=1, add_bias_terms=False):
     Returns:
         theta (ndarray):
             regression coefficents
-        y_rec (ndarray):
-            y reconstructions
         bias (ndarray):
             bias terms
     '''
     if X.ndim==1:
-        X = X[:,None]
+        X = X[:, None]
+
     if type(X) == np.ndarray:
         inv = np.linalg.inv
-        eye = np.eye(X.shape[1] + 1*add_bias_terms)
-        ones = np.ones((X.shape[0],1))
+        eye = np.eye(X.shape[1] + 1*add_bias_terms, dtype=X.dtype)
+        ones = functools.partial(np.ones, dtype=X.dtype)
+        zeros = functools.partial(np.zeros, dtype=X.dtype)
         cat = np.concatenate
     elif type(X) == torch.Tensor:
         inv = torch.inverse
-        eye = torch.eye(X.shape[1] + 1*add_bias_terms).to(X.device)
-        ones = torch.ones((X.shape[0],1), device=X.device)
+        eye = torch.eye(X.shape[1] + 1*add_bias_terms, device=X.device, dtype=X.dtype)
+        ones = functools.partial(torch.ones, device=X.device, dtype=X.dtype)
+        zeros = functools.partial(torch.zeros, device=X.device, dtype=X.dtype)
         cat = torch.cat
 
     if add_bias_terms:
-        X = cat((X, ones), axis=1)
+        X = cat((X, ones((X.shape[0],1))), axis=1)
 
     theta = inv(X.T @ X + lam*eye) @ X.T @ y
-    y_rec = X @ theta
 
     if add_bias_terms:
         bias = theta[-1]
         theta = theta[:-1]
     else:
-        bias = ones*0
+        bias = zeros((y.shape[1],))
 
-    return theta, y_rec, bias
+    return theta, bias
+
 
 class LinearRegression_sk(sklearn.base.BaseEstimator, sklearn.base.RegressorMixin):
     """
@@ -118,19 +123,45 @@ class LinearRegression_sk(sklearn.base.BaseEstimator, sklearn.base.RegressorMixi
     RH 2023
     """
 
-    def predict(self, X):
+    def get_backend_namespace(self, X, y=None):
         if isinstance(X, torch.Tensor):
-            cat = functools.partial(torch.cat, dim=1)
-            ones = functools.partial(torch.ones, device=X.device, dtype=X.dtype)
-            atleast_2d = torch.atleast_2d
+            backend = 'torch'
+            if y is not None:
+                device = X.device
+                assert X.device == y.device, 'X and y must be on the same device'
         elif isinstance(X, np.ndarray):
-            cat = functools.partial(np.concatenate, axis=1)
-            ones = functools.partial(np.ones, dtype=X.dtype)
-            atleast_2d = np.atleast_2d
+            backend = 'numpy'
+        else:
+            raise NotImplementedError
+        
+        if y is not None:
+            assert isinstance(y, type(X)), 'X and y must be the same type'
+        
+        dtype = X.dtype
 
-        X = atleast_2d(X)
-        # if self.fit_intercept:
-        #     X = cat((X, ones((X.shape[0], 1))))
+        ns = {}
+
+        if backend == 'numpy':
+            ns['inv'] = np.linalg.inv
+            ns['eye'] = functools.partial(np.eye, dtype=dtype)
+            ns['ones'] = functools.partial(np.ones, dtype=dtype)
+            ns['zeros'] = functools.partial(np.zeros, dtype=dtype)
+            ns['cat'] = np.concatenate
+        elif backend == 'torch':
+            ns['inv'] = torch.inverse
+            ns['eye'] = functools.partial(torch.eye, device=device, dtype=dtype)
+            ns['ones'] = functools.partial(torch.ones, device=device, dtype=dtype)
+            ns['zeros'] = functools.partial(torch.zeros, device=device, dtype=dtype)
+            ns['cat'] = torch.cat
+        else:
+            raise NotImplementedError
+        
+        return ns
+
+    def predict(self, X):
+
+        if X.ndim==1:
+            X = X[:, None]
 
         return X @ self.coef_ + self.intercept_
 
@@ -152,16 +183,36 @@ class LinearRegression_sk(sklearn.base.BaseEstimator, sklearn.base.RegressorMixi
             return torch.mean(output_scores) ## 'uniform_average' in sklearn
         
         elif isinstance(X, np.ndarray):
-            return sklearn.metrics.r2_score(y, y_pred, sample_weight=sample_weight, multioutput='uniform_average')
+            return sklearn.metrics.r2_score(
+                y_true=y, 
+                y_pred=y_pred, 
+                sample_weight=sample_weight, 
+                multioutput='uniform_average',
+            )
         
         else:
-            raise NotImplementedError       
+            raise NotImplementedError
+        
+    def to(self, device):
+        self.coef_ = torch.as_tensor(self.coef_, device=device)
+        self.intercept_ = torch.as_tensor(self.intercept_, device=device)
+        return self
+    def cpu(self):
+        return self.to('cpu')
+    def numpy(self):
+        def check_and_convert(x):
+            if isinstance(x, torch.Tensor):
+                return x.detach().cpu().numpy()
+            else:
+                return x
+        self.coef_, self.intercept_ = (check_and_convert(x) for x in (self.coef_, self.intercept_))
+        return self
 
 
-class Ridge_sk(LinearRegression_sk):
+class Ridge(LinearRegression_sk):
     """
     Estimator class for Ridge regression.
-    Based on the Ridge function above.
+    Based on the Cholesky's closed form solution.
 
     Args:
         alpha (float):
@@ -181,13 +232,32 @@ class Ridge_sk(LinearRegression_sk):
 
     def fit(self, X, y):
         self.n_features_in_ = X.shape[1]
-        self.coef_, self.y_rec, self.intercept_ = Ridge(X, y, lam=self.alpha, add_bias_terms=self.fit_intercept)
+
+        ns = self.get_backend_namespace(X=X, y=y)
+        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+
+        ## Regression algorithm
+        ### Append bias terms
+        if self.fit_intercept:
+            X = cat((X, ones((X.shape[0], 1))), axis=1)
+
+        ### Cholesky's closed form solution
+        theta = inv(X.T @ X + self.alpha*eye(X.shape[1])) @ X.T @ y
+
+        ### Extract bias terms
+        if self.fit_intercept:
+            self.intercept_ = theta[-1]
+            self.coef_ = theta[:-1]
+        else:
+            self.intercept_ = zeros((y.shape[1],))
+            self.coef_ = theta
+
         return self
 
-class OLS_sk(LinearRegression_sk):
+class OLS(LinearRegression_sk):
     """
     Estimator class for OLS regression.
-    Based on the OLS function above.
+    Based on the closed form OLS solution.
 
     Args:
         fit_intercept (bool):
@@ -204,7 +274,26 @@ class OLS_sk(LinearRegression_sk):
 
     def fit(self, X, y):
         self.n_features_in_ = X.shape[1]
-        self.coef_, self.y_rec, self.intercept_ = OLS(X, y, add_bias_terms=self.fit_intercept)
+
+        ns = self.get_backend_namespace(X=X, y=y)
+        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+
+        ## Regression algorithm
+        ### Append bias terms
+        if self.fit_intercept:
+            X = cat((X, ones((X.shape[0], 1))), axis=1)
+
+        ### OLS
+        theta = inv(X.T @ X) @ X.T @ y
+
+        ### Extract bias terms
+        if self.fit_intercept:
+            self.intercept_ = theta[-1]
+            self.coef_ = theta[:-1]
+        else:
+            self.intercept_ = zeros((y.shape[1],))
+            self.coef_ = theta
+
         return self
     
         

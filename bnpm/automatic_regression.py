@@ -246,6 +246,14 @@ class Autotuner_regression:
                 best_params (Optional[Dict[str, Any]]):
                     The best parameters obtained from hyperparameter tuning.
         """
+        # Set verbosity
+        if int(self.verbose) < 1:
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
+        elif int(self.verbose) == 1:
+            optuna.logging.set_verbosity(optuna.logging.INFO)
+        elif int(self.verbose) > 1:
+            optuna.logging.set_verbosity(optuna.logging.DEBUG)
+
         # Initialize an Optuna study
         self.study = optuna.create_study(
             direction="minimize", 
@@ -361,6 +369,17 @@ class Autotuner_regression:
             'loss_withPenalty',
             'best model',
         ])
+
+    def to(self, device):
+        if isinstance(self.model_best, linear_regression.LinearRegression_sk):
+            self.model_best.to(device)
+        return self
+    def cpu(self):
+        return self.to('cpu')
+    def numpy(self):
+        if isinstance(self.model_best, linear_regression.LinearRegression_sk):
+            self.model_best.numpy()
+        return self
 
 class Auto_LogisticRegression(Autotuner_regression):
     """
@@ -857,7 +876,7 @@ class Auto_RidgeRegression(Autotuner_regression):
         ## Prepare the regression class object
         if use_rich_method:
             self.model_obj = functools.partial(
-                linear_regression.Ridge_sk,
+                linear_regression.Ridge,
                 **kwargs_method,
             )
         else:
