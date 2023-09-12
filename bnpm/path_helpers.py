@@ -99,56 +99,72 @@ def get_numeric_contents(directory, sort=True, contains_string=None):
 
 
 def find_paths(
-    dir_outer, 
-    reMatch='filename', 
-    find_files=True, 
-    find_folders=False, 
-    depth=0, 
-    natsorted=True, 
-    alg_ns=None, 
-    verbose=False,
-):
+    dir_outer: Union[str, List[str]],
+    reMatch: str = 'filename', 
+    reMatch_in_path: Optional[str] = None,
+    find_files: bool = True, 
+    find_folders: bool = False, 
+    depth: int = 0, 
+    natsorted: bool = True, 
+    alg_ns: Optional[str] = None,
+    verbose: bool = False,
+) -> List[str]:
     """
-    Search for files and/or folders recursively in a directory.
-    RH 2022
+    Searches for files and/or folders recursively in a directory using a regex
+    match. 
+    RH 2022-2023
 
     Args:
-        dir_outer (str):
-            Path to directory to search
-        reMatch (str):
-            Regular expression to match
-            Each path name encountered will be compared using
-             re.search(reMatch, filename). If the output is not None,
-             the file will be included in the output.
-        find_files (bool):
-            Whether to find files
-        find_folders (bool):
-            Whether to find folders
-        depth (int):
-            Maximum folder depth to search.
-            depth=0 means only search the outer directory.
-            depth=2 means search the outer directory and two levels
-             of subdirectories below it.
-        natsorted (bool):
-            Whether to sort the output using natural sorting
-             with the natsort package.
-        alg_ns (str):
-            Algorithm to use for natural sorting.
-            See natsort.ns or
-             https://natsort.readthedocs.io/en/4.0.4/ns_class.html
-             for options.
-            Default is PATH.
-            Other commons are INT, FLOAT, VERSION.
+        dir_outer (Union[str, List[str]]):
+            Path(s) to the directory(ies) to search. If a list of directories,
+            then all directories will be searched.
+        reMatch (str): 
+            Regular expression to match. Each file or folder name encountered
+            will be compared using ``re.search(reMatch, filename)``. If the
+            output is not ``None``, the file will be included in the output.
+        reMatch_in_path (Optional[str]):
+            Additional regular expression to match anywhere in the upper path.
+            Useful for finding files/folders in specific subdirectories. If
+            ``None``, then no additional matching is done. \n
+            (Default is ``None``)
+        find_files (bool): 
+            Whether to find files. (Default is ``True``)
+        find_folders (bool): 
+            Whether to find folders. (Default is ``False``)
+        depth (int): 
+            Maximum folder depth to search. (Default is *0*). \n
+            * depth=0 means only search the outer directory. 
+            * depth=2 means search the outer directory and two levels of
+              subdirectories below it
+        natsorted (bool): 
+            Whether to sort the output using natural sorting with the natsort
+            package. (Default is ``True``)
+        alg_ns (str): 
+            Algorithm to use for natural sorting. See ``natsort.ns`` or
+            https://natsort.readthedocs.io/en/4.0.4/ns_class.html/ for options.
+            Default is PATH. Other commons are INT, FLOAT, VERSION. (Default is
+            ``None``)
         verbose (bool):
-            Whether to print the paths as they are found.
+            Whether to print the paths found. (Default is ``False``)
 
     Returns:
-        paths (List of str):
-            Paths to matched files and/or folders in the directory
+        (List[str]): 
+            paths (List[str]): 
+                Paths to matched files and/or folders in the directory.
     """
     import natsort
     if alg_ns is None:
         alg_ns = natsort.ns.PATH
+
+    def fn_match(path, reMatch, reMatch_in_path):
+        # returns true if reMatch is basename and reMatch_in_path in full dirname
+        if reMatch is not None:
+            if re.search(reMatch, os.path.basename(path)) is None:
+                return False
+        if reMatch_in_path is not None:
+            if re.search(reMatch_in_path, os.path.dirname(path)) is None:
+                return False
+        return True
 
     def get_paths_recursive_inner(dir_inner, depth_end, depth=0):
         paths = []
@@ -156,19 +172,37 @@ def find_paths(
             path = os.path.join(dir_inner, path)
             if os.path.isdir(path):
                 if find_folders:
-                    if re.search(reMatch, path) is not None:
+                    if fn_match(path, reMatch, reMatch_in_path):
+                        print(f'Found folder: {path}') if verbose else None
                         paths.append(path)
-                        print(path) if verbose else None
                 if depth < depth_end:
                     paths += get_paths_recursive_inner(path, depth_end, depth=depth+1)
             else:
                 if find_files:
-                    if re.search(reMatch, path) is not None:
+                    if fn_match(path, reMatch, reMatch_in_path):
+                        print(f'Found file: {path}') if verbose else None
                         paths.append(path)
-                        print(path) if verbose else None
         return paths
 
-    paths = get_paths_recursive_inner(dir_outer, depth, depth=0)
+    def fn_check_pathLike(obj):
+        if isinstance(obj, (
+            str,
+            Path,
+            os.PathLike,
+            np.str_,
+            bytes,
+            memoryview,
+            np.bytes_,
+            np.unicode_,
+            re.Pattern,
+            re.Match,
+        )):
+            return True
+        else:
+            return False            
+
+    dir_outer = [dir_outer] if fn_check_pathLike(dir_outer) else dir_outer
+    paths = list(set(sum([get_paths_recursive_inner(str(d), depth, depth=0) for d in dir_outer], start=[])))
     if natsorted:
         paths = natsort.natsorted(paths, alg=alg_ns)
     return paths
