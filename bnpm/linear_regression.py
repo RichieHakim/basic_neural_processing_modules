@@ -127,8 +127,8 @@ class LinearRegression_sk(sklearn.base.BaseEstimator, sklearn.base.RegressorMixi
         if isinstance(X, torch.Tensor):
             backend = 'torch'
             if y is not None:
-                device = X.device
                 assert X.device == y.device, 'X and y must be on the same device'
+            device = X.device
         elif isinstance(X, np.ndarray):
             backend = 'numpy'
         else:
@@ -225,31 +225,43 @@ class Ridge(LinearRegression_sk):
         self, 
         alpha=1, 
         fit_intercept=False,
+        X_precompute=None,
         **kwargs,
     ):
         self.alpha = alpha
         self.fit_intercept = fit_intercept
 
+        self.X_precompute = True if X_precompute is not None else False
+
+        if X_precompute is not None:
+            self.iXTXaeXT = self.prefit(X_precompute)
+        else:
+            self.iXTXaeXT = None
+
+    def prefit(self, X):
+        ns = self.get_backend_namespace(X=X)
+        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+        if self.fit_intercept:
+            X = cat((X, ones((X.shape[0], 1))), axis=1)
+        inv_XT_X_plus_alpha_eye_XT = inv(X.T @ X + self.alpha*eye(X.shape[1])) @ X.T
+        return inv_XT_X_plus_alpha_eye_XT
+
     def fit(self, X, y):
         self.n_features_in_ = X.shape[1]
 
         ns = self.get_backend_namespace(X=X, y=y)
-        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+        zeros = ns['zeros']
 
         ## Regression algorithm
-        ### Append bias terms
-        if self.fit_intercept:
-            X = cat((X, ones((X.shape[0], 1))), axis=1)
-
-        ### Cholesky's closed form solution
-        theta = inv(X.T @ X + self.alpha*eye(X.shape[1])) @ X.T @ y
+        inv_XT_X_plus_alpha_eye_XT = self.prefit(X) if self.iXTXaeXT is None else self.iXTXaeXT
+        theta = inv_XT_X_plus_alpha_eye_XT @ y
 
         ### Extract bias terms
         if self.fit_intercept:
             self.intercept_ = theta[-1]
             self.coef_ = theta[:-1]
         else:
-            self.intercept_ = zeros((y.shape[1],))
+            self.intercept_ = zeros((y.shape[1],)) if y.ndim == 2 else 0
             self.coef_ = theta
 
         return self
