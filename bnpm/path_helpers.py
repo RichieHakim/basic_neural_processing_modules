@@ -1,6 +1,7 @@
 """
 Functions for path manipulation and retrieval of files.
 """
+from typing import Union, Optional, List
 
 import os
 import numpy as np
