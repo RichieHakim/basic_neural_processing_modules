@@ -4,6 +4,7 @@ import PIL
 from PIL import ImageTk
 import csv
 import warnings
+import time
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -636,6 +637,7 @@ class Figure_Saver:
             'dpi': 300,
         },
         overwrite: bool=False,
+        mkdir: bool=True,
         verbose: int=1,
     ):
         """
@@ -668,6 +670,7 @@ class Figure_Saver:
         self.kwargs_savefig = kwargs_savefig
 
         self.overwrite = overwrite
+        self.mkdir = mkdir
         self.verbose = verbose
 
     def save(
@@ -715,6 +718,10 @@ class Figure_Saver:
                 name_file = '.'.join(titles)
             path_save = [str(Path(dir_save) / (name_file + '.' + f)) for f in self.format_save]
 
+        ## Make directory
+        if self.mkdir:
+            Path(path_save[0]).parent.mkdir(parents=True, exist_ok=True)
+
         ## Save figure
         for path, form in zip(path_save, self.format_save):
             if Path(path).exists():
@@ -758,8 +765,8 @@ class Figure_Saver:
     def __call__(
         self,
         fig,
-        path_save: str=None,
         name_file: str=None,
+        path_save: str=None,
         dir_save: str=None,
     ):
         """
@@ -788,7 +795,7 @@ class Select_ROI:
     RH 2021
     """
 
-    def __init__(self, image, kwargs_subplots={}, kwargs_imshow={}):
+    def __init__(self, image, kwargs_subplots={}, kwargs_imshow={}, backend='module://ipympl.backend_nbagg'):
         """
         Initialize the class
 
@@ -802,8 +809,10 @@ class Select_ROI:
         import matplotlib as mpl
 
         ## set jupyter notebook to use interactive matplotlib.
+        ## Available backends: ['GTK3Agg', 'GTK3Cairo', 'GTK4Agg', 'GTK4Cairo', 'MacOSX', 'nbAgg', 'QtAgg', 'QtCairo', 'Qt5Agg', 'Qt5Cairo', 'TkAgg', 'TkCairo', 'WebAgg', 'WX', 'WXAgg', 'WXCairo', 'agg', 'cairo', 'pdf', 'pgf', 'ps', 'svg', 'template']
         ## Set backend. Equivalent to %matplotlib widget
-        mpl.use('module://ipympl.backend_nbagg')
+        # mpl.use('module://ipympl.backend_nbagg')
+        mpl.use(backend)
         plt.ion()
 
         ## Set variables                
