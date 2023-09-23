@@ -34,3 +34,16 @@ def ttest_paired_ratio(a, b):
     ## above is equivalent to:
     # t_stat, p_val = scipy.stats.ttest_rel(np.log(a/b), np.zeros_like(a))
     return p_val
+
+def geometric_mean(a):
+    """
+    Computes the geometric mean of an array of data.
+    This is useful for computing the geometric mean of ratios.
+    
+    RH 2023
+
+    Args:
+        a (np.ndarray or torch.Tensor):
+            Array of data.
+    """
+    return np.exp(np.mean(np.log(a)))
