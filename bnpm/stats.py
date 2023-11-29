@@ -35,6 +35,7 @@ def ttest_paired_ratio(a, b):
     # t_stat, p_val = scipy.stats.ttest_rel(np.log(a/b), np.zeros_like(a))
     return p_val
 
+
 def geometric_mean(a):
     """
     Computes the geometric mean of an array of data.
@@ -47,3 +48,23 @@ def geometric_mean(a):
             Array of data.
     """
     return np.exp(np.mean(np.log(a)))
+
+
+def sparsity(a, axis=0):
+    """
+    A normalized dispersion index. Varies from 0 (dense) to 1 (sparse).
+    Computes the lifetime sparseness of an array of data.
+    From Vinje & Gallant 2000; and Willmore, Mazer, & Gallant 2011.
+    
+    RH 2023
+
+    Args:
+        a (np.ndarray or torch.Tensor):
+            Array of data.
+        axis (int):
+            Axis along which to compute sparsity.
+
+    Returns:
+        float: Sparsity value. 0 (dense) to 1 (sparse).
+    """
+    return 1 - ((a.mean(axis) ** 2) / (a ** 2).mean(axis))
