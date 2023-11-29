@@ -67,6 +67,7 @@ def bounded_logspace(start, stop, num,):
     """
     Like np.logspace, but with a defined start and
      stop.
+    NOTE: numpy.geomspace now has this functionality.
     RH 2022
     
     Args:
