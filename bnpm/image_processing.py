@@ -706,6 +706,90 @@ def compose_transform_matrices(
     return matrix_AC
 
 
+def shifts_to_remappingIdx(
+    shifts, 
+    im_shape=(512, 512), 
+    edge_method='clip', 
+    edge_value=0
+):
+    """
+    Convert a set of shifts to remapping indices.
+    RH 2023
+
+    Args:
+        shifts (np.ndarray or torch.Tensor):
+            Shifts (displacements) of all pixels in the image.
+            Shape: (N, 2) or (2,). Last dimension is (x, y).
+        im_shape (tuple):
+            Shape of the image. Shape: (H, W).
+            Used to create the grid of indices.
+        edge_method (str):
+            Method to use for handling edges.
+            Can be:
+                - 'none': Allow for indices outside the image.
+                - 'clip': Clip the indices to the min and max values of the
+                  image size.
+                - 'constant': Use a constant value defined by `edge_value`.
+                - 'reflect': Reflect the image at the edges.
+                - 'wrap': Wrap the image around.
+        edge_value (float):
+            Value to use for the 'constant' edge method.
+
+    Returns:
+        ri (np.ndarray or torch.Tensor):
+            Remapping indices.
+            Describes the index of the pixel in the original
+            image that should be mapped to the new pixel.
+            Shape: (N, H, W, 2). Last dimension is (x, y).
+    """
+    ## get functions
+    if isinstance(shifts, np.ndarray):
+        stack, meshgrid, arange, zeros, clip, full, abs, array, int64, mod = np.stack, np.meshgrid, np.arange, np.zeros, np.clip, np.full, np.abs, np.array, np.int64, np.mod
+    elif isinstance(shifts, torch.Tensor):
+        stack, meshgrid, arange, zeros, clip, full, abs, array, int64, mod = torch.stack, torch.meshgrid, torch.arange, torch.zeros, torch.clamp, torch.full, torch.abs, torch.as_tensor, torch.int64, torch.remainder
+
+    ## check inputs
+    ### check shifts
+    assert isinstance(shifts, (np.ndarray, torch.Tensor)), f"shifts must be a np.ndarray or torch.Tensor. Got {type(shifts)}"
+    assert shifts.ndim in [1, 2], f"shifts must be a 1D or 2D array. Got {shifts.ndim}D"
+    if shifts.ndim == 1:
+        shifts = shifts[None, :]
+    assert shifts.shape[-1] == 2, f"shifts must have shape (N, 2) or (2,). Got shape {shifts.shape}"
+    ### check im_shape
+    assert isinstance(im_shape, (tuple, list, np.ndarray, torch.Tensor)), f"im_shape must be a tuple, list, np.ndarray, or torch.Tensor. Got {type(im_shape)}"
+    if isinstance(im_shape, (tuple, list)):
+        im_shape = array(im_shape, dtype=int64)
+    assert im_shape.ndim == 1, f"im_shape must be 1D. Got {im_shape.ndim}D"
+    assert im_shape.shape[0] == 2, f"im_shape must have length 2. Got length {im_shape.shape[0]}"
+
+    # Create a grid of indices
+    grid = stack(meshgrid(arange(im_shape[1]), arange(im_shape[0]), indexing='xy'), axis=-1)  ## (H, W, 2). Last dimension is (x, y).
+    
+    # Apply shifts
+    ri = grid - shifts[:, None, None, :]  ## (N, H, W, 2). Last dimension is (x, y).
+
+    # Handle edges
+    if edge_method == 'none':
+        pass
+    elif edge_method == 'clip':
+        ri = clip(ri, array(0), im_shape - 1)
+    elif edge_method == 'constant':
+        mask = (ri < 0) | (ri >= im_shape)
+        ri = clip(ri, array(0), im_shape - 1)
+        ri[mask] = edge_value
+    elif edge_method == 'reflect':
+        # Reflect mode: Index wraps around to the other side of the image
+        reflect = lambda x, max_val: abs((x + max_val) % (2 * max_val) - max_val)
+        ri = reflect(ri, im_shape - 1)
+    elif edge_method == 'wrap':
+        # Wrap around
+        for dim in [0, 1]:  # x and y dimensions
+            ri[..., dim] = mod(ri[..., dim], im_shape[dim])
+    else:
+        raise ValueError(f"Invalid edge method: {edge_method}")
+
+    return ri
+
 def make_idx_grid(im):
     """
     Helper function to make a grid of indices for an image.
