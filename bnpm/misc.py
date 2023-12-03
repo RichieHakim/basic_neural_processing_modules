@@ -3,6 +3,8 @@ import sys
 import re
 import hashlib
 from pathlib import Path
+import warnings
+from typing import Callable, List, Any, Dict
 
 from . import path_helpers
 
@@ -245,6 +247,132 @@ def format_text(
     reset = '\x1b[0m'
     
     return ''.join(modifiers) + text + reset
+
+
+def system_info(verbose: bool = False,) -> Dict:
+    """
+    Checks and prints the versions of various important software packages.
+    RH 2022
+
+    Args:
+        verbose (bool): 
+            Whether to print the software versions. 
+            (Default is ``False``)
+
+    Returns:
+        (Dict): 
+            versions (Dict):
+                Dictionary containing the versions of various software packages.
+    """
+    ## Operating system and version
+    import platform
+    def try_fns(fn):
+        try:
+            return fn()
+        except:
+            return None
+    fns = {key: val for key, val in platform.__dict__.items() if (callable(val) and key[0] != '_')}
+    operating_system = {key: try_fns(val) for key, val in fns.items() if (callable(val) and key[0] != '_')}
+    print(f'== Operating System ==: {operating_system["uname"]}') if verbose else None
+
+    ## CPU info
+    try:
+        import cpuinfo
+        import multiprocessing as mp
+        # cpu_info = cpuinfo.get_cpu_info()
+        cpu_n_cores = mp.cpu_count()
+        cpu_brand = cpuinfo.cpuinfo.CPUID().get_processor_brand(cpuinfo.cpuinfo.CPUID().get_max_extension_support())
+        cpu_info = {'n_cores': cpu_n_cores, 'brand': cpu_brand}
+        if 'flags' in cpu_info:
+            cpu_info['flags'] = 'omitted'
+    except Exception as e:
+        warnings.warn(f'RH WARNING: unable to get cpu info. Got error: {e}')
+        cpu_info = 'Error: Failed to get'
+    print(f'== CPU Info ==: {cpu_info}') if verbose else None
+
+    ## RAM
+    import psutil
+    ram = psutil.virtual_memory()
+    print(f'== RAM ==: {ram}') if verbose else None
+
+    ## User
+    import getpass
+    user = getpass.getuser()
+
+    ## GPU
+    try:
+        import GPUtil
+        gpus = GPUtil.getGPUs()
+        gpu_info = {gpu.id: gpu.__dict__ for gpu in gpus}
+    except Exception as e:
+        warnings.warn(f'RH WARNING: unable to get gpu info. Got error: {e}')
+        gpu_info = 'Error: Failed to get'
+    print(f'== GPU Info ==: {gpu_info}') if verbose else None
+    
+    ## Conda Environment
+    import os
+    if 'CONDA_DEFAULT_ENV' not in os.environ:
+        conda_env = 'None'
+    else:
+        conda_env = os.environ['CONDA_DEFAULT_ENV']
+    print(f'== Conda Environment ==: {conda_env}') if verbose else None
+
+    ## Python
+    import sys
+    python_version = sys.version.split(' ')[0]
+    print(f'== Python Version ==: {python_version}') if verbose else None
+
+    ## GCC
+    import subprocess
+    try:
+        gcc_version = subprocess.check_output(['gcc', '--version']).decode('utf-8').split('\n')[0].split(' ')[-1]
+    except Exception as e:
+        warnings.warn(f'RH WARNING: unable to get gcc version. Got error: {e}')
+        gcc_version = 'Faled to get'
+    print(f'== GCC Version ==: {gcc_version}') if verbose else None
+    
+    ## PyTorch
+    import torch
+    torch_version = str(torch.__version__)
+    print(f'== PyTorch Version ==: {torch_version}') if verbose else None
+    ## CUDA
+    if torch.cuda.is_available():
+        cuda_version = torch.version.cuda
+        cudnn_version = torch.backends.cudnn.version()
+        torch_devices = [f'device {i}: Name={torch.cuda.get_device_name(i)}, Memory={torch.cuda.get_device_properties(i).total_memory / 1e9} GB' for i in range(torch.cuda.device_count())]
+        print(f"== CUDA Version ==: {cuda_version}, CUDNN Version: {cudnn_version}, Number of Devices: {torch.cuda.device_count()}, Devices: {torch_devices}, ") if verbose else None
+    else:
+        cuda_version = None
+        cudnn_version = None
+        torch_devices = None
+        print('== CUDA is not available ==') if verbose else None
+
+    ## all packages in environment
+    import pkg_resources
+    pkgs_dict = {i.key: i.version for i in pkg_resources.working_set}
+
+    ## get datetime
+    from datetime import datetime
+    dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    versions = {
+        'datetime': dt,
+        'operating_system': operating_system,
+        'cpu_info': cpu_info,  ## This is the slow one.
+        'user': user,
+        'ram': ram,
+        'gpu_info': gpu_info,
+        'conda_env': conda_env,
+        'python': python_version,
+        'gcc': gcc_version,
+        'torch': torch_version,
+        'cuda': cuda_version,
+        'cudnn': cudnn_version,
+        'torch_devices': torch_devices,
+        'pkgs': pkgs_dict,
+    }
+
+    return versions
 
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
