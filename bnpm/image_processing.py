@@ -1,5 +1,6 @@
 from functools import partial
 import typing
+from typing import Union, List, Any
 
 import numpy as np
 import cv2
@@ -351,51 +352,57 @@ def remap_images(
 
 
 def remap_sparse_images(
-    ims_sparse: typing.Union[scipy.sparse.spmatrix, typing.List[scipy.sparse.spmatrix]],
+    ims_sparse: Union[scipy.sparse.spmatrix, List[scipy.sparse.spmatrix]],
     remappingIdx: np.ndarray,
     method: str = 'linear',
     fill_value: float = 0,
-    dtype: typing.Union[str, np.dtype] = None,
+    dtype: Union[str, np.dtype] = None,
     safe: bool = True,
     n_workers: int = -1,
-    verbose=True,
-) -> typing.List[scipy.sparse.csr_matrix]:
+    verbose: bool = True,
+) -> List[scipy.sparse.csr_matrix]:
     """
     Remaps a list of sparse images using the given remap field.
+    RH 2023
 
     Args:
-        ims_sparse (scipy.sparse.spmatrix or List[scipy.sparse.spmatrix]): 
+        ims_sparse (Union[scipy.sparse.spmatrix, List[scipy.sparse.spmatrix]]): 
             A single sparse image or a list of sparse images.
         remappingIdx (np.ndarray): 
-            An array of shape (H, W, 2) representing the remap field. It
-             should be the same size as the images in ims_sparse.
+            An array of shape *(H, W, 2)* representing the remap field. It
+            should be the same size as the images in ims_sparse.
         method (str): 
-            Interpolation method to use. 
-            See scipy.interpolate.griddata.
-            Options are 'linear', 'nearest', 'cubic'.
-        fill_value (float, optional): 
-            Value used to fill points outside the convex hull. 
-        dtype (np.dtype): 
-            The data type of the resulting sparse images. 
-            Default is None, which will use the data type of the input
-             sparse images.
+            Interpolation method to use. See ``scipy.interpolate.griddata``.
+            Options are:
+            \n
+            * ``'linear'``
+            * ``'nearest'``
+            * ``'cubic'`` \n
+            (Default is ``'linear'``)
+        fill_value (float): 
+            Value used to fill points outside the convex hull. (Default is
+            ``0.0``)
+        dtype (Union[str, np.dtype]): 
+            The data type of the resulting sparse images. Default is ``None``,
+            which will use the data type of the input sparse images.
         safe (bool): 
-            If True, checks if the image is 0D or 1D and applies a tiny
-             Gaussian blur to increase the image width.
+            If ``True``, checks if the image is 0D or 1D and applies a tiny
+            Gaussian blur to increase the image width. (Default is ``True``)
         n_workers (int): 
-            Number of parallel workers to use. 
-            Default is -1, which uses all available CPU cores.
+            Number of parallel workers to use. Default is *-1*, which uses all
+            available CPU cores.
         verbose (bool):
-            Whether or not to use a tqdm progress bar.
+            Whether or not to use a tqdm progress bar. (Default is ``True``)
 
     Returns:
-        ims_sparse_out (List[scipy.sparse.csr_matrix]): 
-            A list of remapped sparse images.
+        (List[scipy.sparse.csr_matrix]): 
+            ims_sparse_out (List[scipy.sparse.csr_matrix]): 
+                A list of remapped sparse images.
 
     Raises:
-        AssertionError: If the image and remappingIdx have different spatial dimensions.
+        AssertionError: If the image and remappingIdx have different spatial
+        dimensions.
     """
-    
     # Ensure ims_sparse is a list of sparse matrices
     ims_sparse = [ims_sparse] if not isinstance(ims_sparse, list) else ims_sparse
 
@@ -433,29 +440,43 @@ def remap_sparse_images(
         rows, cols = im_coo.row, im_coo.col
         data = im_coo.data
 
-        # Account for 1d images by convolving image with tiny gaussian kernel to increase image width
         if safe:
-            ## append if there are < 3 nonzero pixels
-            if (np.unique(rows).size == 1) or (np.unique(cols).size == 1) or (rows.size < 3):
+            # can't use scipy.interpolate.griddata with 1d values
+            is_horz = np.unique(rows).size == 1
+            is_vert = np.unique(cols).size == 1
+
+            # check for diagonal pixels 
+            # slope = rise / run --- don't need to check if run==0 
+            rdiff = np.diff(rows)
+            cdiff = np.diff(cols)
+            is_diag = np.unique(cdiff / rdiff).size == 1 if not np.any(rdiff==0) else False
+            
+            # best practice to just convolve instead of interpolating if too few pixels
+            is_smol = rows.size < 3 
+
+            if is_horz or is_vert or is_smol or is_diag:
+                # warp convolved sparse image directly without interpolation
                 return warp_sparse_image(im_sparse=conv2d(im_sparse, batching=False), remappingIdx=remappingIdx)
 
         # Get values at the grid points
-        grid_values = scipy.interpolate.griddata(
-            points=(rows, cols), 
-            values=data, 
-            xi=remappingIdx[:,:,::-1], 
-            method=method, 
-            fill_value=fill_value,
-        )
-
+        try:
+            grid_values = scipy.interpolate.griddata(
+                points=(rows, cols), 
+                values=data, 
+                xi=remappingIdx[:,:,::-1], 
+                method=method, 
+                fill_value=fill_value,
+            )
+        except Exception as e:
+            raise Exception(f"Error interpolating sparse image. Something is either weird about one of the input images or the remappingIdx. Error: {e}")
+        
         # Create a new sparse image from the nonzero pixels
         warped_sparse_image = scipy.sparse.csr_matrix(grid_values, dtype=dtype)
         warped_sparse_image.eliminate_zeros()
-
         return warped_sparse_image
     
     wsi_partial = partial(warp_sparse_image, remappingIdx=remappingIdx)
-    ims_sparse_out = parallel_helpers.map_parallel(func=wsi_partial, args=(ims_sparse,), method='multithreading', workers=n_workers, prog_bar=verbose)
+    ims_sparse_out = parallel_helpers.map_parallel(func=wsi_partial, args=[ims_sparse,], method='multithreading', workers=n_workers, prog_bar=verbose)
     return ims_sparse_out
 
 
