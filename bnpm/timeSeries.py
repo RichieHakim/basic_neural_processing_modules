@@ -377,16 +377,25 @@ def event_triggered_traces(
     assert isinstance(arr, (np.ndarray, torch.Tensor)), "arr must be np.ndarray or torch.Tensor"
     assert isinstance(idx_triggers, (list, np.ndarray, torch.Tensor)), "idx_triggers must be list, np.ndarray, or torch.Tensor"
     assert isinstance(win_bounds, (list, tuple, np.ndarray)), "win_bounds must be list, tuple, or np.ndarray"
+
+    ## Convert stuff to torch Tensors
+    dtype_in = 'np' if isinstance(arr, np.ndarray) else 'torch' if isinstance(arr, torch.Tensor) else 'unknown'
+    if isinstance(arr, np.ndarray):
+        arr = torch.as_tensor(arr)
+    if isinstance(idx_triggers, np.ndarray):
+        idx_triggers = torch.as_tensor(idx_triggers)
+    if isinstance(win_bounds, np.ndarray):
+        win_bounds = torch.as_tensor(win_bounds)
+
     ## Warn if idx_triggers are not integers
-    if isinstance(idx_triggers, np.ndarray) and not np.issubdtype(idx_triggers.dtype, np.integer):
-        warn("idx_triggers is np.ndarray but not integer dtype. Converting to torch.long dtype.")
-    if isinstance(idx_triggers, torch.Tensor) and not torch.is_tensor(idx_triggers, dtype=torch.long):
-        warn("idx_triggers is torch.Tensor but not dtype torch.long. Converting to torch.long dtype.")
-    if isinstance(idx_triggers, list):
-        warn("Using a list for idx_triggers is slow. Convert to np.array or torch.Tensor.")
-        if all([isinstance(i, int) for i in idx_triggers]): 
-            warn("idx_triggers is list but not all elements are integers. Converting to torch.long dtype.")        
-        
+    if idx_triggers.dtype != torch.long:
+        warn("idx_triggers should be integers. Converting to integers.")
+        idx_triggers = idx_triggers.type(torch.long)
+
+    ## Warn if idx_triggers are likely boolean (all values are isin 0 and 1)
+    if torch.all(torch.isin(idx_triggers, torch.tensor([0,1]))):
+        warn("idx_triggers are likely in boolean format. Please convert to index format via np.where or torch.where or similar")
+    
     ## if idx_triggers is length 0, return empty arrays
     if len(idx_triggers)==0:
         print("idx_triggers is length 0. Returning empty arrays.") if verbose>0 else None
@@ -395,14 +404,12 @@ def event_triggered_traces(
         windows_out = np.empty((0, win_bounds[1]-win_bounds[0]))
         return arr_out, xAxis_out, windows_out
     
-    dtype_in = 'np' if isinstance(arr, np.ndarray) else 'torch' if isinstance(arr, torch.Tensor) else 'unknown'
-    arr = torch.as_tensor(arr)  ## convert to tensor
+    ## Find x-axis
     xAxis = torch.arange(win_bounds[0], win_bounds[1], dtype=torch.long)  ## x-axis for each window relative to trigger
     
     dim = arr.ndim + dim if dim<0 else dim  ## convert negative dim to positive dim
     
-    isnan = torch.isnan if isinstance(idx_triggers, torch.Tensor) else np.isnan if isinstance(idx_triggers, np.ndarray) else None
-    idx_triggers_clean = torch.as_tensor(idx_triggers[~isnan(idx_triggers)], dtype=torch.long)  ## remove nans from idx_triggers and convert to torch.long
+    idx_triggers_clean = torch.as_tensor(idx_triggers[~torch.isnan(idx_triggers)], dtype=torch.long)  ## remove nans from idx_triggers and convert to torch.long
 
     windows = torch.stack([xAxis + i for i in torch.as_tensor(idx_triggers_clean, dtype=torch.long)], dim=0)  ## make windows. shape = (n_triggers, len_window)
     win_toInclude = (torch.any(windows<0, dim=1)==0) * (torch.any(windows>arr.shape[dim], dim=1)==0)  ## boolean array of windows that are within the bounds of the length of 'dim'
