@@ -360,6 +360,8 @@ def make_VQT_filters(
     F_max=400,
     n_freq_bins=55,
     win_size=501,
+    symmetry='center',
+    taper_asymmetric=True,
     plot_pref=False
 ):
     """
@@ -387,6 +389,17 @@ def make_VQT_filters(
             Number of frequency bins to use.
         win_size (int):
             Size of the window to use, in samples.
+        symmetry (str):
+            Whether to use a symmetric window or a single-sided window.
+            - 'center': Use a symmetric / centered / 'two-sided' window.
+            - 'left': Use a one-sided, left-half window. Only left half of the
+            filter will be nonzero.
+            - 'right': Use a one-sided, right-half window. Only right half of the
+            filter will be nonzero.
+        taper_asymmetric (bool):
+            Only used if symmetry is not 'center'.
+            Whether to taper the center of the window by multiplying center
+            sample of window by 0.5.
         plot_pref (bool):
             Whether to plot the filters.
 
@@ -404,27 +417,55 @@ def make_VQT_filters(
 
     assert win_size%2==1, "RH Error: win_size should be an odd integer"
     
-    freqs = math_functions.bounded_logspace(
+    ## Make frequencies. Use a geometric spacing.
+    freqs = np.geomspace(
         start=F_min,
         stop=F_max,
         num=n_freq_bins,
+        endpoint=True,
+        dtype=np.float32,
     )
 
     periods = 1 / freqs
     periods_inSamples = Fs_sample * periods
 
-    sigma_all = math_functions.bounded_logspace(
+    ## Make sigmas for gaussian windows. Use a geometric spacing.
+    sigma_all = np.geomspace(
         start=Q_lowF,
         stop=Q_highF,
         num=n_freq_bins,
+        endpoint=True,
+        dtype=np.float32,
     )
     sigma_all = sigma_all * periods_inSamples / 4
 
+    ## Make windows
+    ### Make windows gaussian
     wins = torch.stack([math_functions.gaussian(torch.arange(-win_size//2, win_size//2), 0, sig=sigma) for sigma in sigma_all])
+    ### Make windows symmetric or asymmetric
+    if symmetry=='center':
+        pass
+    else:
+        heaviside = (torch.arange(win_size) <= win_size//2).float()
+        if symmetry=='left':
+            pass
+        elif symmetry=='right':
+            heaviside = torch.flip(heaviside, dims=[0])
+        else:
+            raise ValueError("symmetry must be 'center', 'left', or 'right'")
+        wins *= heaviside
+        ### Taper the center of the window by multiplying center sample of window by 0.5
+        if taper_asymmetric:
+            wins[:, win_size//2] = wins[:, win_size//2] * 0.5
+
 
     filts = torch.stack([torch.cos(torch.linspace(-np.pi, np.pi, win_size) * freq * (win_size/Fs_sample)) * win for freq, win in zip(freqs, wins)], dim=0)    
     filts_complex = torch_hilbert(filts.T, dim=0).T
+
+    ## Normalize filters to have unit magnitude
+    filts_complex = filts_complex / torch.sum(torch.abs(filts_complex), dim=1, keepdims=True)
     
+    ## Plot
     if plot_pref:
         plt.figure()
         plt.plot(freqs)
@@ -441,7 +482,7 @@ def make_VQT_filters(
         plt.ylabel('window width (sigma of gaussian)')    
 
         plt.figure()
-        plt.imshow(filts / torch.max(filts, 1, keepdims=True)[0], aspect='auto', cmap='bwr', vmin=-1, vmax=1)
+        plt.imshow(torch.real(filts_complex) / torch.max(torch.real(filts_complex), 1, keepdims=True)[0], aspect='auto', cmap='bwr', vmin=-1, vmax=1)
         plt.title('filters (real component)')
 
 
@@ -476,6 +517,8 @@ class VQT():
         F_max=400,
         n_freq_bins=55,
         win_size=501,
+        symmetry='center',
+        taper_asymmetric=True,
         downsample_factor=4,
         padding='valid',
         DEVICE_compute='cpu',
@@ -520,6 +563,17 @@ class VQT():
                 Number of frequency bins to use.
             win_size (int):
                 Size of the window to use, in samples.
+            symmetry (str):
+                Whether to use a symmetric window or a single-sided window.
+                - 'center': Use a symmetric / centered / 'two-sided' window.
+                - 'left': Use a one-sided, left-half window. Only left half of the
+                filter will be nonzero.
+                - 'right': Use a one-sided, right-half window. Only right half of the
+                filter will be nonzero.
+            taper_asymmetric (bool):
+                Only used if symmetry is not 'center'.
+                Whether to taper the center of the window by multiplying center
+                sample of window by 0.5.
             downsample_factor (int):
                 Factor to downsample the signal by.
                 If the length of the input signal is not
@@ -568,6 +622,8 @@ class VQT():
                 F_max=F_max,
                 n_freq_bins=n_freq_bins,
                 win_size=win_size,
+                symmetry=symmetry,
+                taper_asymmetric=taper_asymmetric,
                 plot_pref=plot_pref,
             )
         ## Gather parameters from arguments
@@ -647,8 +703,8 @@ class VQT():
                 padding=self.padding
             ),
             kernel_size=[int(self.downsample_factor)], 
-            stride=self.downsample_factor, ceil_mode=True
-            ).squeeze()
+            stride=self.downsample_factor, ceil_mode=True,
+        ).squeeze()
         
         return specs, x_axis, self.freqs
 
