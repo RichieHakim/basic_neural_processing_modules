@@ -233,8 +233,9 @@ class Convergence_checker_optuna:
         else:
             duration = 0
         
-        if trial.value < self.best:
-            self.best = trial.value
+        if trial.value is not None:
+            if trial.value < self.best:
+                self.best = trial.value
         self.bests.append(self.best)
             
         bests_recent = np.unique(self.bests[-self.n_patience:])

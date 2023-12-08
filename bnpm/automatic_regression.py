@@ -214,10 +214,14 @@ class Autotuner_regression:
         if len(loss_train_all) == 1:
             loss_train, loss_test, loss = loss_train_all[0], loss_test_all[0], loss_all[0]        
         else:
-            if isinstance(loss_train_all[0], np.ndarray):
+            if isinstance(loss_train_all[0], (np.ndarray, np.generic)):
                 stack = np.stack
             elif isinstance(loss_train_all[0], torch.Tensor):
                 stack = torch.stack
+            elif loss_train_all[0] is None:
+                stack = lambda x: x
+            else:
+                raise ValueError(f'loss_train_all[0] must be either np.ndarray, np.generic, torch.Tensor, or None. Got {type(loss_train_all[0])}')
             loss_train, loss_test, loss = (self.fn_reduce_repeats(stack(l)) for l in [loss_train_all, loss_test_all, loss_all])
 
 
@@ -228,6 +232,7 @@ class Autotuner_regression:
         self.params_running.append(kwargs_model)
 
         # Update the bests
+        loss = np.nan if loss is None else loss
         if loss < self.loss_best:
             self.loss_best = loss
             self.model_best = model
@@ -334,9 +339,16 @@ class Autotuner_regression:
     def plot_param_curve(
         self,
         param='alpha',
+        xscale='linear',
     ):
         """
         Makes a scatter plot of a selected values vs loss values.
+
+        Args:
+            param (str):
+                The parameter to plot.
+            xscale (str):
+                The scale of the x-axis. Either ``'linear'`` or ``'log'``.
         """
         def prep(x):
             """to numpy"""
@@ -362,7 +374,7 @@ class Autotuner_regression:
 
         plt.xlabel(param)
         plt.ylabel('loss')
-        plt.xscale('log')
+        plt.xscale(xscale)
         plt.legend([
             'loss_train',
             'loss_test',
@@ -390,7 +402,7 @@ class Auto_LogisticRegression(Autotuner_regression):
         X (np.ndarray):
             Training data. (shape: *(n_samples, n_features)*)
         y (np.ndarray):
-            Target variable. (shape: *(n_samples,)*)
+            Target variable. (shape: *(n_samples, n_features)*)
         params_LogisticRegression (Dict):
             Dictionary of Logistic Regression parameters. 
             For each item in the dictionary if item is: \n
@@ -421,8 +433,6 @@ class Auto_LogisticRegression(Autotuner_regression):
             ``'lbfgs'``). Set ``n_jobs_optuna`` to ``1`` for these solvers.
         penalty_testTrainRatio (float):
             Penalty ratio for test and train. 
-        test_size (float):
-            Test set ratio.
         class_weight (Union[Dict[str, float], str]):
             Weights associated with classes in the form of a dictionary or
             string. If given "balanced", class weights will be calculated.
@@ -438,6 +448,9 @@ class Auto_LogisticRegression(Autotuner_regression):
                   next(self.cv.split(self.X, self.y))`` \n
             If ``None``, then a StratifiedShuffleSplit cross-validator will be
             used.
+        test_size (float):
+            Test set ratio.
+            Only used if ``cv`` is ``None``.
         verbose (bool):
             Whether to print progress messages.
 
@@ -494,10 +507,10 @@ class Auto_LogisticRegression(Autotuner_regression):
         fn_reduce_repeats: Callable = np.median,
         n_jobs_optuna: int = 1,
         penalty_testTrainRatio: float = 1.0,
-        test_size: float = 0.3,
         class_weight: Optional[Union[Dict[str, float], str]] = 'balanced',
         sample_weight: Optional[List[float]] = None,
         cv: Optional[sklearn.model_selection._split.BaseCrossValidator] = None,
+        test_size: float = 0.3,
         verbose: bool = True,
     ) -> None:
         """
@@ -731,7 +744,7 @@ class Auto_RidgeRegression(Autotuner_regression):
         X (np.ndarray):
             Training data. (shape: *(n_samples, n_features)*)
         y (np.ndarray):
-            Target variable. (shape: *(n_samples,)*)
+            Target variable. (shape: *(n_samples, n_features)*)
         params_RidgeRegression (Dict):
             Dictionary of Ridge Regression parameters. 
             For each item in the dictionary if item is: \n
@@ -756,14 +769,16 @@ class Auto_RidgeRegression(Autotuner_regression):
                 * ``'max_trials'`` (int): The maximum number of trials to run.
                 * ``'max_duration'`` (int): The maximum duration of the
                   optimization in seconds. \n
+        n_repeats (int):
+            Number of times to repeat the cross-validation. (Default is *1*)
+        fn_reduce_repeats (Callable):
+            Function to reduce the loss from the repeated cross-validation.
         n_jobs_optuna (int):
             Number of jobs for Optuna. Set to ``-1`` to use all cores.
             Note that some ``'solver'`` options are already parallelized (like
             ``'lbfgs'``). Set ``n_jobs_optuna`` to ``1`` for these solvers.
         penalty_testTrainRatio (float):
             Penalty ratio for test and train. 
-        test_size (float):
-            Test set ratio.
         cv (Optional[sklearn.model_selection._split.BaseCrossValidator]):
             A Scikit-Learn cross-validator class.
             If not ``None``, then must have: \n
@@ -771,6 +786,9 @@ class Auto_RidgeRegression(Autotuner_regression):
                   next(self.cv.split(self.X, self.y))`` \n
             If ``None``, then a ShuffleSplit cross-validator will be
             used.
+        test_size (float):
+            Test set ratio.
+            Only used if ``cv`` is None.
         verbose (bool):
             Whether to print progress messages.
         use_rich_method (bool):
@@ -826,8 +844,8 @@ class Auto_RidgeRegression(Autotuner_regression):
         fn_reduce_repeats: Callable = np.median,
         n_jobs_optuna: int = 1,
         penalty_testTrainRatio: float = 1.0,
-        test_size: float = 0.3,
         cv: Optional[sklearn.model_selection._split.BaseCrossValidator] = None,
+        test_size: float = 0.3,
         verbose: bool = True,
         use_rich_method: bool = False,
     ) -> None:
@@ -884,6 +902,160 @@ class Auto_RidgeRegression(Autotuner_regression):
                 sklearn.linear_model.Ridge,
                 **kwargs_method,
             )
+
+        ## Initialize the Autotuner superclass
+        super().__init__(
+            model_class=self.model_obj,
+            params=params,
+            X=X,
+            y=y,
+            n_startup=n_startup,
+            kwargs_convergence=kwargs_convergence,
+            n_repeats=n_repeats,
+            fn_reduce_repeats=fn_reduce_repeats,
+            n_jobs_optuna=n_jobs_optuna,
+            cv=self.cv,
+            fn_loss=self.fn_loss,
+            catch_convergence_warnings=True,
+            verbose=verbose,
+        )
+
+
+class Auto_ElasticNetRegression(Autotuner_regression):
+    """
+    Implements automatic hyperparameter tuning for ElasticNet Regression.
+    RH 2023
+
+    Args:
+        X (np.ndarray):
+            Training data. (shape: *(n_samples, n_features)*)
+        y (np.ndarray):
+            Target variable. (shape: *(n_samples,)*)
+        params_ElasticNet (Dict):
+            Dictionary of ElasticNet parameters. 
+            For each item in the dictionary if item is: \n
+                * ``list``: The parameter is tuned. If the values are numbers,
+                  then the list wil be the bounds [low, high] to search over. If
+                  the values are strings, then the list will be the categorical
+                  values to search over.
+                * **not** a ``list``: The parameter is fixed to the given value. \n
+            See sklearn.linear_model.ElasticNet for full list of arguments.
+            for a full list of arguments.
+        n_startup (int):
+            Number of startup trials. (Default is *15*)
+        kwargs_convergence (Dict[str, Union[int, float]]):
+            Convergence settings for the optimization. Includes: \n
+                * ``'n_patience'`` (int): The number of trials to wait for
+                  convergence before stopping the optimization.
+                * ``'tol_frac'`` (float): The fractional tolerance for
+                  convergence. After ``n_patience`` trials, the optimization
+                  will stop if the loss has not improved by at least
+                  ``tol_frac``.
+                * ``'max_trials'`` (int): The maximum number of trials to run.
+                * ``'max_duration'`` (int): The maximum duration of the
+                  optimization in seconds. \n
+        n_repeats (int):
+            Number of times to repeat the cross-validation. (Default is *1*)
+        fn_reduce_repeats (Callable):
+            Function to reduce the loss from the repeated cross-validation.
+        n_jobs_optuna (int):
+            Number of jobs for Optuna. Set to ``-1`` to use all cores.
+            Note that some ``'solver'`` options are already parallelized (like
+            ``'lbfgs'``). Set ``n_jobs_optuna`` to ``1`` for these solvers.
+        penalty_testTrainRatio (float):
+            Penalty ratio for test and train. 
+        cv (Optional[sklearn.model_selection._split.BaseCrossValidator]):
+            A Scikit-Learn cross-validator class.
+            If not ``None``, then must have: \n
+                * Call signature: ``idx_train, idx_test =
+                  next(self.cv.split(self.X, self.y))`` \n
+            If ``None``, then a ShuffleSplit cross-validator will be
+            used.
+        test_size (float):
+            Test set ratio.
+            Only used if ``cv`` is ``None``.
+        verbose (bool):
+            Whether to print progress messages.
+        use_rich_method (bool):
+            Whether to use Rich's method for Ridge Regression. In
+            linear_regression module. This is especially good when X and y are
+            torch.Tensor and/or on GPU.
+
+    Demo:
+        .. code-block:: python
+
+        # Initialize with TUNING 'alpha', 'l1_ratio'. Other params are fixed.
+        auto_elasticnet = Auto_ElasticNetRegression(
+            X, y,
+            params_ElasticNet={
+                'alpha': [1e-1, 1e3],
+                'l1_ratio': [0.0, 1.0],
+                'fit_intercept': True,
+                'max_iter': 1000,
+                'tol': 0.0001,
+                'positive': False,
+            }
+        )
+    """
+    def __init__(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        params_ElasticNet: Dict = {
+            'alpha': [1e-1, 1e3],
+            'l1_ratio': [0.0, 1.0],
+            'fit_intercept': True,
+            'max_iter': 1000,
+            'tol': 0.0001,
+            'positive': False,
+        },
+        n_startup: int = 15,
+        kwargs_convergence: Dict = {
+            'n_patience': 50,
+            'tol_frac': 0.05,
+            'max_trials': 150,
+            'max_duration': 60*10,
+        },
+        n_repeats: int = 1,
+        fn_reduce_repeats: Callable = np.median,
+        n_jobs_optuna: int = -1,
+        penalty_testTrainRatio: float = 1.0,
+        cv: Optional[sklearn.model_selection._split.BaseCrossValidator] = None,
+        test_size: float = 0.3,
+        verbose: bool = True,
+    ) -> None:
+        """
+        Initializes Auto_ElasticNetRegression with the given parameters and data.
+        """
+        # Prepare loss function
+        self.fn_loss = LossFunction_MSE_CV(penalty_testTrainRatio)
+
+        # Prepare cross-validation
+        self.cv = cv if cv is not None else sklearn.model_selection.ShuffleSplit(n_splits=1, test_size=test_size)
+
+        # Prepare static and dynamic kwargs
+        kwargs_ElasticNet = {k: v for k, v in params_ElasticNet.items() if not isinstance(v, list)}
+        params_OptunaSuggest = {k: v for k, v in params_ElasticNet.items() if isinstance(v, list)}
+
+        # Mapping for ElasticNet parameters for Optuna
+        params = {
+            'alpha':         {'type': 'real',        'kwargs': {'log': True}},
+            'l1_ratio':      {'type': 'real',        'kwargs': {'log': False}},
+            'fit_intercept': {'type': 'real',        'kwargs': {'bool': True}},
+            'max_iter':      {'type': 'int',         'kwargs': {'log': True}},
+            'tol':           {'type': 'real',        'kwargs': {'log': True}},
+            'positive':      {'type': 'real',        'kwargs': {'bool': True}},
+        }
+        # Include only parameters to be tuned
+        params = {k: v for k, v in params.items() if k in params_OptunaSuggest}
+        for key, val in params_OptunaSuggest.items():
+            if params[key]['type'] in ['real', 'int']:
+                params[key]['kwargs'].update(dict(zip(['low', 'high', 'step', 'log'], val)))
+            elif params[key]['type'] == 'categorical':
+                params[key]['kwargs']['choices'] = val
+
+        # Initialize the ElasticNet class with Optuna suggestions
+        self.model_obj = functools.partial(sklearn.linear_model.ElasticNet, **kwargs_ElasticNet)
 
         ## Initialize the Autotuner superclass
         super().__init__(
@@ -986,5 +1158,13 @@ class LossFunction_MSE_CV():
             loss_train = mse_loss(y_pred_train, y_train_true, reduction='mean')
             loss_test =  mse_loss(y_pred_test,  y_test_true,  reduction='mean')
             loss = self.fn_penalty_testTrainRatio(loss_test, loss_train)
+        else:
+            raise ValueError(f'Expected y_pred_train to be of type np.ndarray or torch.Tensor, but got type {type(y_pred_train)}.')
         
+        # # print(y_pred_test, y_pred_train, y_test_true, y_train_true)
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(y_pred_train.cpu().numpy(), y_train_true.cpu().numpy(), 'o')
+        # plt.plot(y_pred_test.cpu().numpy(), y_test_true.cpu().numpy(), 'o')
+
         return loss, loss_train, loss_test
