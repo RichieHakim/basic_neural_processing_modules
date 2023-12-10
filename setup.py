@@ -32,6 +32,7 @@ deps_all_latest = copy.deepcopy(deps_names)
 deps_core = [deps_all_dict[dep] for dep in [
     'numpy',
     'scipy',
+    'kornia',
     'matplotlib',
     'numba',
     'scikit-learn',

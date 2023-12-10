@@ -2,6 +2,7 @@
 h5py
 decord
 ipywidgets
+kornia
 matplotlib
 natsort
 numba
