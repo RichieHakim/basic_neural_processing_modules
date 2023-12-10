@@ -38,6 +38,7 @@ deps_core = [deps_all_dict[dep] for dep in [
     'tqdm',
     'h5py',
     'opencv-contrib-python',
+    'optuna',
     'sparse',
     'natsort',
     'paramiko',
