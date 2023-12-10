@@ -5,6 +5,9 @@ import copy
 import time
 import typing
 import sys
+import datetime
+
+import natsort
 
 from . import container_helpers
 
@@ -743,7 +746,14 @@ class sftp_interface():
 
                 print(f'cwd: {cwd}, name: {name}, isdir: {isdir}, depth: {depth}') if verbose > 1 else None
             return search_results
-        return _recursive_search(search_results, self.sftp, cwd=path, search_pattern_re=search_pattern_re, depth=0, verbose=verbose)
+        return natsort.natsorted(_recursive_search(
+            search_results, 
+            self.sftp, 
+            cwd=path, 
+            search_pattern_re=search_pattern_re, 
+            depth=0, 
+            verbose=verbose,
+        ))
         
     def list_fileSizes_recursive(self, directory='.'):
         """
@@ -772,6 +782,50 @@ class sftp_interface():
             return sizes
 
         return dict(_recursive_list_sizes(self.sftp, cwd=directory, sizes=sizes))
+
+    
+    def get_fileProperties(self, paths, error_on_missing=False):
+        """
+        Return a dictionary of properties for one or more files.
+
+        Args:
+            paths (str or list of str):
+                Path or list of paths to the files.
+            error_on_missing (bool):
+                Whether or not to raise an error if a file is missing.
+        Returns:
+            dict:
+                Dictionary of properties for each file.
+        """
+        if isinstance(paths, str):
+            paths = [paths]
+        
+        props_raw = {}
+        for path in paths:
+            try:
+                props_raw[path] = self.sftp.stat(path)
+            except FileNotFoundError:
+                if error_on_missing:
+                    raise FileNotFoundError(f'File not found: {path}')
+                else:
+                    props_raw[path] = None
+
+        props = {}
+        for path, prop in props_raw.items():
+            if prop is not None:
+                props[path] = {
+                    'size': prop.st_size,
+                    'last_modified': datetime.datetime.fromtimestamp(prop.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                    'last_accessed': datetime.datetime.fromtimestamp(prop.st_atime).strftime('%Y-%m-%d %H:%M:%S'),
+                    'permissions': prop.st_mode,
+                }
+            else:
+                props[path] = None
+        
+        if len(props) == 1:
+            props = props[paths[0]]
+
+        return props
 
 
     def hierarchical_folderSizes(self, directory='.'):
