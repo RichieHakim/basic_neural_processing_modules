@@ -1145,6 +1145,11 @@ class LossFunction_MSE_CV():
                 loss_test (float): 
                     The cross-entropy loss of the test set.
         """
+        # Normalize the y values such that the variance of the true values is 1.
+        y_pred_train = y_pred_train / y_train_true.std()
+        y_pred_test = y_pred_test / y_test_true.std()
+        y_train_true = y_train_true / y_train_true.std()
+        y_test_true = y_test_true / y_test_true.std()
 
         # Calculate the mean-squared error loss using cross-validation.
         if isinstance(y_pred_train, np.ndarray):
