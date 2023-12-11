@@ -1166,10 +1166,4 @@ class LossFunction_MSE_CV():
         else:
             raise ValueError(f'Expected y_pred_train to be of type np.ndarray or torch.Tensor, but got type {type(y_pred_train)}.')
         
-        # # print(y_pred_test, y_pred_train, y_test_true, y_train_true)
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.plot(y_pred_train.cpu().numpy(), y_train_true.cpu().numpy(), 'o')
-        # plt.plot(y_pred_test.cpu().numpy(), y_test_true.cpu().numpy(), 'o')
-
         return loss, loss_train, loss_test
