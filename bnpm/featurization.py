@@ -119,7 +119,7 @@ def make_cosine_kernels(y=None,
     return kernels_output , LUT
 
 
-def amplitude_basis_expansion(y, LUT, kernels, device='cpu'):
+def amplitude_basis_expansion(y, LUT, kernels, device='cpu', verbose=False):
     '''
     Performs amplitude basis expansion of one or more arrays using a set
     of kernels.
@@ -167,15 +167,15 @@ def amplitude_basis_expansion(y, LUT, kernels, device='cpu'):
     tic = time.time()
     LUT_array = torch.tile(LUT, (len(y),1)).T
     
-    print(f'computing basis expansion')
+    print(f'computing basis expansion') if verbose else None
     LUT_idx = torch.argmin(
         torch.abs(LUT_array[:,:,None] - y),
         dim=0)
 
     y_expanded = kernels[LUT_idx,:]
 
-    print(f'finished in {round(time.time() - tic, 3)} s')
-    print(f'output array size: {y_expanded.shape}')
+    print(f'finished in {round(time.time() - tic, 3)} s') if verbose else None
+    print(f'output array size: {y_expanded.shape}') if verbose else None
 
     if flag_numpy:
         y_expanded = y_expanded.cpu().numpy()
