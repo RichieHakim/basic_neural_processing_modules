@@ -243,6 +243,12 @@ class Ridge(LinearRegression_sk):
         cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
         if self.fit_intercept:
             X = cat((X, ones((X.shape[0], 1))), axis=1)
+        
+        ## There is a bug in torch's inverse function that causes it to fail. This is a workaround that should be removed once the bug is fixed.
+        if isinstance(X, torch.Tensor):
+            if X.device.type != 'cpu':
+                inv(torch.ones((1,1), device=X.device)) ## This line is a hack to force the GPU to initialize the CUDA context. Otherwise, the next line will fail.
+        
         inv_XT_X_plus_alpha_eye_XT = inv(X.T @ X + self.alpha*eye(X.shape[1])) @ X.T
         return inv_XT_X_plus_alpha_eye_XT
 
