@@ -1,6 +1,6 @@
 from functools import partial
 import typing
-from typing import Union, List, Any
+from typing import Union, List, Any, Tuple, Optional, Dict, Callable, Iterable, Sequence
 
 import numpy as np
 import cv2
