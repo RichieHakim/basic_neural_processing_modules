@@ -1,5 +1,3 @@
-## Please write an LSTM for time series regression
-
 import torch
 
 class RegressionRNN(torch.nn.Module):
