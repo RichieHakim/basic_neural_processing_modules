@@ -123,7 +123,7 @@ class RegressionRNN(torch.nn.Module):
                 batch_size=x.size(0), 
                 hidden_initialization=hidden_initialization,
             )
-        out, hidden = self.rnn(x, hidden)
+        out, hidden = self.rnn(x, hidden)  ## Note that hidden is a tuple for LSTM (h0, c0)
         out = self.fc(out)
         return out, hidden
     
