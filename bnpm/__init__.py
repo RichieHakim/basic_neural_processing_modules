@@ -17,6 +17,7 @@ __all__ = [
             'linear_regression',
             'math_functions',
             'misc',
+            'neural_networks',
             'optimization',
             'other_peoples_code',
             'parallel_helpers',
