@@ -1,4 +1,7 @@
+import copy
+
 import torch
+import numpy as np
 
 class RegressionRNN(torch.nn.Module):
     """
@@ -193,3 +196,118 @@ class RegressionRNN(torch.nn.Module):
             hidden = (fn_fill(fn_empty()), fn_fill(fn_empty()))
         
         return hidden
+    
+
+class Dataloader_MultiTimeSeries():
+    """
+    Dataloader for loading random chunks of multiple time series that all have
+    the same number of features but may have different durations.
+    The inputs are a list of 2D arrays of shape (duration, num_features).
+    The output is a batch of shape (batch_size=n_datasets, batch_duration,
+    num_features).
+    Note that this is not a true pytorch Dataloader class, and does not support
+    multiprocessing and other features.
+
+    Args:
+        timeseries (list):
+            List of 2D arrays of shape (duration, num_features).
+            Each array should be a torch.Tensor
+            If 1D, then it will be converted to 2D with shape (duration, 1).
+        batch_size (int):
+            Batch size.
+        batch_duration (int):
+            Duration of each batch.
+        shuffle_datasets (bool):
+            If True, then the datasets are shuffled.
+            If False, then the batch_size will be the number of datasets and the
+            batch_size argument will be ignored.
+        shuffle_startIdx (bool):
+            If True, then the starting indices of each batch are shuffled each epoch.
+            If False, then the sequence will be sequential chunks of
+            batch_duration starting at 0.
+        device (str):
+            Device to use.
+        """
+    def __init__(
+        self, 
+        timeseries, 
+        batch_size=1, 
+        batch_duration=100, 
+        shuffle_datasets=True, 
+        shuffle_startIdx=True,
+    ): 
+        if not isinstance(timeseries, list):
+            timeseries = [timeseries]
+        
+        assert all([isinstance(ts, torch.Tensor) for ts in timeseries]), 'All timeseries must be torch.Tensor'
+        timeseries = [ts[:,None] if ts.ndim == 1 else ts for ts in timeseries]
+        assert all([ts.ndim == 2 for ts in timeseries]), 'All timeseries must be 2D'
+        assert all([ts.shape[1] == timeseries[0].shape[1] for ts in timeseries]), f"All timeseries must have the same number of features. Got {[ts.shape for ts in timeseries]}"
+        
+        self.batch_size = batch_size
+        self.batch_duration = batch_duration
+        self.shuffle_datasets = shuffle_datasets
+        self.shuffle_startIdx = shuffle_startIdx
+
+        self.num_datasets = len(timeseries)
+        self.num_features = timeseries[0].shape[1]
+        self.durations = [ts.shape[0] for ts in timeseries]
+        self.duration_min = min(self.durations)
+
+        self.timeseries = timeseries
+        self.num_batches = self.duration_min // self.batch_duration
+        self.idx_starts_raw = [
+            torch.arange(0, d - self.batch_duration, self.batch_duration) 
+            for d in self.durations
+        ]
+
+        self.idx_datasets_ = torch.arange(self.num_datasets)
+
+        self.current_batch_ = 0
+        self.idx_starts_ = None
+
+    def __len__(self):
+        return self.num_batches
+
+    def __iter__(self):
+        self.current_batch_ = 0
+        
+        if self.shuffle_startIdx:
+            ## Roll (modulo % the duration - batch_duration) and randperm each idx_starts_raw
+            rolls = [int(torch.randint(0, d, (1,))[0]) for d in self.durations]
+            self.idx_starts_ = np.array([
+                (torch.roll(self.idx_starts_raw[idx], rolls[idx]) % (self.durations[idx] - self.batch_duration))[torch.randperm(len(self.idx_starts_raw[idx]))]
+                for idx in torch.arange(self.num_datasets)
+            ], dtype=object)
+
+            self.current_startIdx_ = torch.zeros(len(self.idx_starts_), dtype=torch.long)
+        else:
+            self.idx_starts_ = self.idx_starts_raw
+            self.current_startIdx_ = torch.zeros(len(self.idx_starts_), dtype=torch.long)
+
+        return self
+
+    def _next_startIdx(self, idx_dataset):
+        if self.current_startIdx_[idx_dataset].item() >= len(self.idx_starts_[idx_dataset]):
+            raise StopIteration
+        
+        idx_start = self.idx_starts_[idx_dataset][self.current_startIdx_[idx_dataset]]
+        self.current_startIdx_[idx_dataset] += 1
+        return idx_start
+
+    def __next__(self):
+        if self.current_batch_ >= self.num_batches:
+            raise StopIteration
+
+        # Shuffle datasets and starting indices if required
+        if self.shuffle_datasets:
+            self.idx_datasets_ = torch.arange(self.num_datasets)[torch.randint(0, self.num_datasets, (self.batch_size,))]
+
+        # Prepare batch data
+        batch_data = [
+            self.timeseries[idx_data][(w := self._next_startIdx(idx_data)):w + self.batch_duration,:]
+            for idx_data in self.idx_datasets_
+        ]
+
+        self.current_batch_ += 1
+        return torch.stack(batch_data, dim=0)
