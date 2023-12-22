@@ -13,7 +13,7 @@ from . import optimization
 from . import linear_regression
 
 
-class Autotuner_regression:
+class Autotuner_BaseEstimator:
     """
     A class for automatic hyperparameter tuning and training of a regression
     model.
@@ -40,7 +40,7 @@ class Autotuner_regression:
         fn_loss (Callable):
             Function to compute the loss.
             Must have: \n
-                * Call signature: ``loss, loss_train, loss_test = fn_loss(y_pred_train, y_pred_test, y_true_train, y_true_test, sample_weight_train, sample_weight_test)`` \n
+                * Call signature: ``loss, loss_train, loss_test = fn_loss(y_train_pred, y_test_pred, y_true_train, y_true_test, sample_weight_train, sample_weight_test)`` \n
         n_jobs_optuna (int):
             Number of jobs for Optuna. Set to ``-1`` to use all cores.
             Note that some ``'solver'`` options are already parallelized (like
@@ -174,7 +174,7 @@ class Autotuner_regression:
         for ii in range(self.n_repeats):
             # Split the data
             idx_train, idx_test = next(self.cv.split(self.X, self.y))
-            X_train, y_train, X_test, y_test = self.X[idx_train], self.y[idx_train], self.X[idx_test], self.y[idx_test]
+            X_train, y_train_true, X_test, y_test_true = self.X[idx_train], self.y[idx_train], self.X[idx_test], self.y[idx_test]
             if self.sample_weight is not None:
                 sample_weight_train, sample_weight_test = self.sample_weight[idx_train], self.sample_weight[idx_test]
             else:
@@ -184,24 +184,24 @@ class Autotuner_regression:
             ## Turn off ConvergenceWarning
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=sklearn.exceptions.ConvergenceWarning) if self.catch_convergence_warnings else None
-                model.fit(X_train, y_train)
+                model.fit(X_train, y_train_true)
 
             # Transform the training data
             if hasattr(model, 'predict_proba'):
-                y_pred_train = model.predict_proba(X_train)
-                y_pred_test = model.predict_proba(X_test)
+                y_train_pred = model.predict_proba(X_train)
+                y_test_pred = model.predict_proba(X_test)
             elif hasattr(model, 'predict'):
-                y_pred_train = model.predict(X_train)
-                y_pred_test = model.predict(X_test)
+                y_train_pred = model.predict(X_train)
+                y_test_pred = model.predict(X_test)
             else:
                 raise ValueError('Model must have either a predict_proba or predict method.')
 
             # Evaluate the model using the scoring method
             loss, loss_train, loss_test = self.fn_loss(
-                y_pred_train=y_pred_train, 
-                y_pred_test=y_pred_test,
-                y_train_true=y_train,
-                y_test_true=y_test,
+                y_train_pred=y_train_pred, 
+                y_test_pred=y_test_pred,
+                y_train_true=y_train_true,
+                y_test_true=y_test_true,
                 sample_weight_train=sample_weight_train,
                 sample_weight_test=sample_weight_test,
             )
@@ -393,7 +393,7 @@ class Autotuner_regression:
             self.model_best.numpy()
         return self
 
-class Auto_LogisticRegression(Autotuner_regression):
+class Auto_LogisticRegression(Autotuner_BaseEstimator):
     """
     Implements automatic hyperparameter tuning for Logistic Regression.
     RH 2023
@@ -692,8 +692,8 @@ class LossFunction_CrossEntropy_CV():
     
     def __call__(
         self,
-        y_pred_train: np.ndarray, 
-        y_pred_test: np.ndarray,
+        y_train_pred: np.ndarray, 
+        y_test_pred: np.ndarray,
         y_train_true: np.ndarray,
         y_test_true: np.ndarray,
         sample_weight_train: Optional[List[float]] = None,
@@ -703,10 +703,10 @@ class LossFunction_CrossEntropy_CV():
         Calculates the cross-entropy loss using cross-validation.
 
         Args:
-            y_pred_train (np.ndarray): 
+            y_train_pred (np.ndarray): 
                 Predicted output data for the training set. (shape:
                 *(n_samples,)*)
-            y_pred_test (np.ndarray): 
+            y_test_pred (np.ndarray): 
                 Predicted output data for the test set. (shape: *(n_samples,)*)
             y_train_true (np.ndarray): 
                 True output data for the training set. (shape: *(n_samples,)*)
@@ -728,14 +728,14 @@ class LossFunction_CrossEntropy_CV():
         """
         # Calculate the cross-entropy loss using cross-validation.
         from sklearn.metrics import log_loss
-        loss_train = log_loss(y_train_true, y_pred_train, sample_weight=sample_weight_train, labels=self.labels)
-        loss_test =  log_loss(y_test_true,  y_pred_test,  sample_weight=sample_weight_test,  labels=self.labels)
+        loss_train = log_loss(y_train_true, y_train_pred, sample_weight=sample_weight_train, labels=self.labels)
+        loss_test =  log_loss(y_test_true,  y_test_pred,  sample_weight=sample_weight_test,  labels=self.labels)
         loss = self.fn_penalty_testTrainRatio(loss_test, loss_train)
 
         return loss, loss_train, loss_test
 
 
-class Auto_RidgeRegression(Autotuner_regression):
+class Auto_RidgeRegression(Autotuner_BaseEstimator):
     """
     Implements automatic hyperparameter tuning for Ridge Regression.
     RH 2023
@@ -921,7 +921,7 @@ class Auto_RidgeRegression(Autotuner_regression):
         )
 
 
-class Auto_ElasticNetRegression(Autotuner_regression):
+class Auto_ElasticNetRegression(Autotuner_BaseEstimator):
     """
     Implements automatic hyperparameter tuning for ElasticNet Regression.
     RH 2023
@@ -976,10 +976,6 @@ class Auto_ElasticNetRegression(Autotuner_regression):
             Only used if ``cv`` is ``None``.
         verbose (bool):
             Whether to print progress messages.
-        use_rich_method (bool):
-            Whether to use Rich's method for Ridge Regression. In
-            linear_regression module. This is especially good when X and y are
-            torch.Tensor and/or on GPU.
 
     Demo:
         .. code-block:: python
@@ -1111,8 +1107,8 @@ class LossFunction_MSE_CV():
     
     def __call__(
         self,
-        y_pred_train: np.ndarray, 
-        y_pred_test: np.ndarray,
+        y_train_pred: np.ndarray, 
+        y_test_pred: np.ndarray,
         y_train_true: np.ndarray,
         y_test_true: np.ndarray,
         sample_weight_train: Optional[List[float]] = None,
@@ -1122,10 +1118,10 @@ class LossFunction_MSE_CV():
         Calculates the cross-entropy loss using cross-validation.
 
         Args:
-            y_pred_train (np.ndarray): 
+            y_train_pred (np.ndarray): 
                 Predicted output data for the training set. (shape:
                 *(n_samples,)*)
-            y_pred_test (np.ndarray): 
+            y_test_pred (np.ndarray): 
                 Predicted output data for the test set. (shape: *(n_samples,)*)
             y_train_true (np.ndarray): 
                 True output data for the training set. (shape: *(n_samples,)*)
@@ -1146,24 +1142,340 @@ class LossFunction_MSE_CV():
                     The cross-entropy loss of the test set.
         """
         # Normalize the y values such that the variance of the true values is 1.
-        y_pred_train = y_pred_train / y_train_true.std()
-        y_pred_test = y_pred_test / y_test_true.std()
+        y_train_pred = y_train_pred / y_train_true.std()
+        y_test_pred = y_test_pred / y_test_true.std()
         y_train_true = y_train_true / y_train_true.std()
         y_test_true = y_test_true / y_test_true.std()
 
         # Calculate the mean-squared error loss using cross-validation.
-        if isinstance(y_pred_train, np.ndarray):
+        if isinstance(y_train_pred, np.ndarray):
             from sklearn.metrics import mean_squared_error
-            loss_train = mean_squared_error(y_train_true, y_pred_train, sample_weight=sample_weight_train)
-            loss_test =  mean_squared_error(y_test_true,  y_pred_test,  sample_weight=sample_weight_test)
+            loss_train = mean_squared_error(y_train_true, y_train_pred, sample_weight=sample_weight_train)
+            loss_test =  mean_squared_error(y_test_true,  y_test_pred,  sample_weight=sample_weight_test)
             loss = self.fn_penalty_testTrainRatio(loss_test, loss_train)
-        elif isinstance(y_pred_train, torch.Tensor):
+        elif isinstance(y_train_pred, torch.Tensor):
             from torch.nn.functional import mse_loss
             assert (sample_weight_test is None) and (sample_weight_train is None), 'sample weights not supported for torch tensors.'
-            loss_train = mse_loss(y_pred_train, y_train_true, reduction='mean')
-            loss_test =  mse_loss(y_pred_test,  y_test_true,  reduction='mean')
+            loss_train = mse_loss(y_train_pred, y_train_true, reduction='mean')
+            loss_test =  mse_loss(y_test_pred,  y_test_true,  reduction='mean')
             loss = self.fn_penalty_testTrainRatio(loss_test, loss_train)
         else:
-            raise ValueError(f'Expected y_pred_train to be of type np.ndarray or torch.Tensor, but got type {type(y_pred_train)}.')
+            raise ValueError(f'Expected y_train_pred to be of type np.ndarray or torch.Tensor, but got type {type(y_train_pred)}.')
         
         return loss, loss_train, loss_test
+
+
+class Auto_Classifier(Autotuner_BaseEstimator):
+    """
+    Implements automatic hyperparameter tuning for a user defined classification model.
+    RH 2023
+
+    Args:
+        X (np.ndarray):
+            Training data. (shape: *(n_samples, n_features)*)
+        y (np.ndarray):
+            Target variable. (shape: *(n_samples, n_features)*)
+        Model (class):
+            A class to be used as the classifier. 
+            Must have: \n
+                * Method: ``fit(X, y)``
+                * Method: ``predict_proba(X)`` (for classifiers) \n            
+        params_model (Dict):
+            Dictionary of model class initialization parameters. 
+            For each item in the dictionary if item is: \n
+                * ``list``: The parameter is tuned. If the values are numbers,
+                  then the list wil be the bounds [low, high] to search over. If
+                  the values are strings, then the list will be the categorical
+                  values to search over. Note that the type of the parameter
+                  (int, float, str) will be used to determine the type of the
+                  optuna suggest.
+                * **not** a ``list``: The parameter is fixed to the given value. \n
+        params_log (Dict):
+            Dictionary of parameters that vary logarithmically: \n
+                * If True: parameter is set to logaritmically varying. \n
+                * If False: parameter is set to linearly varying. \n
+                * If not specified: parameter is set to logaritmically varying.
+                  \n
+        n_startup (int):
+            Number of startup trials.
+        kwargs_convergence (Dict[str, Union[int, float]]):
+            Convergence settings for the optimization. Includes: \n
+                * ``'n_patience'`` (int): The number of trials to wait for
+                  convergence before stopping the optimization.
+                * ``'tol_frac'`` (float): The fractional tolerance for
+                  convergence. After ``n_patience`` trials, the optimization
+                  will stop if the loss has not improved by at least
+                  ``tol_frac``.
+                * ``'max_trials'`` (int): The maximum number of trials to run.
+                * ``'max_duration'`` (int): The maximum duration of the
+                  optimization in seconds. \n
+        n_repeats (int):
+            Number of repetitions for each trial.
+        fn_reduce_repeats (Callable):
+            Function to aggregate results from repetitions. (Default:
+            `np.median`)
+        n_jobs_optuna (int):
+            Number of jobs for Optuna. Set to ``-1`` to use all cores.
+            Note that some ``'solver'`` options are already parallelized (like
+            ``'lbfgs'``). Set ``n_jobs_optuna`` to ``1`` for these solvers.
+        penalty_testTrainRatio (float):
+            Penalty ratio for test and train. 
+        sample_weight (Optional[List[float]]):
+            Sample weights. Applied only during cross-validation train/test
+            accuracy, not model training. \n
+            See `LogisticRegression
+            <https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html>`_
+            for more details.
+        cv (Optional[sklearn.model_selection._split.BaseCrossValidator]):
+            An Scikit-Learn cross-validator class.
+            If not ``None``, then must have: \n
+                * Call signature: ``idx_train, idx_test =
+                  next(self.cv.split(self.X, self.y))`` \n
+            If ``None``, then a StratifiedShuffleSplit cross-validator will be
+            used.
+        test_size (float):
+            Test set ratio.
+            Only used if ``cv`` is ``None``.
+        verbose (bool):
+            Whether to print progress messages.
+
+    Demo:
+        .. code-block:: python
+
+            ## Initialize sklearn LogisticRegression class with NO TUNING. All
+            parameters are fixed.
+            autoclassifier = Auto_LogisticRegression(
+                X, 
+                y, 
+                params_model={
+                    'C': 1e-14,
+                    'penalty': 'l2',
+                    'solver': 'lbfgs',
+                },
+            )
+
+            ## Initialize with TUNING 'C', 'penalty', and 'l1_ratio'. 'solver' is fixed.
+            autoclassifier = Auto_LogisticRegression(
+                X,
+                y,
+                params_model={
+                    'C': [1e-14, 1e3],
+                    'penalty': ['l1', 'l2', 'elasticnet'],
+                    'l1_ratio': [0.0, 1.0],
+                    'solver': 'lbfgs',
+                },
+                params_log={
+                    'C': True,
+                    'l1_ratio': False,
+                },
+            )
+    """
+
+    def __init__(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        Model: Callable,
+        params_model: Dict = {
+            'C': [1e-14, 1e3],
+            'penalty': 'l2',
+            'fit_intercept': True,
+            'solver': 'lbfgs',
+            'max_iter': 1000,
+            'tol': 0.0001,
+            'n_jobs': None,
+            'l1_ratio': None,
+            'warm_start': False,
+        },
+        params_log: Dict = {
+            'C': True,
+            'max_iter': False,
+        },
+        n_startup: int = 15,
+        kwargs_convergence: Dict = {
+            'n_patience': 50,
+            'tol_frac': 0.05,
+            'max_trials': 150,
+            'max_duration': 60*10,
+        }, 
+        n_repeats: int = 1,
+        fn_reduce_repeats: Callable = np.median,
+        n_jobs_optuna: int = 1,
+        penalty_testTrainRatio: float = 1.0,
+        sample_weight: Optional[List[float]] = None,
+        cv: Optional[sklearn.model_selection._split.BaseCrossValidator] = None,
+        test_size: float = 0.3,
+        verbose: bool = True,
+    ) -> None:
+        """
+        Initializes Auto_Classifier with the given parameters and data.
+        """
+        assert y.ndim == 1, f'y.ndim must be 1. Found {y.ndim}.'
+
+        ## Prepare sample weights
+        self.sample_weight = sklearn.utils.class_weight.compute_sample_weight(
+            class_weight=sample_weight, 
+            y=y,
+        )
+
+        ## Prepare the loss function
+        self.fn_loss = LossFunction_CrossEntropy_CV(
+            penalty_testTrainRatio=penalty_testTrainRatio,
+            labels=y,
+            test_or_train='test',
+        )
+
+        ## Prepare the cross-validation
+        self.cv = sklearn.model_selection.StratifiedShuffleSplit(
+            n_splits=1,
+            test_size=test_size,
+        ) if cv is None else cv
+
+        ## Prepare static and dynamic parameters for optuna
+        params_dynamic, params_static = _infer_params_types(params_model, params_log)
+
+        ## Prepare the classifier class
+        self.classifier_class = functools.partial(
+            Model,
+            **params_static,
+        )
+
+        ## Initialize the Autotuner superclass
+        super().__init__(
+            model_class=self.classifier_class,
+            params=params_dynamic,
+            X=X,
+            y=y,
+            n_startup=n_startup,
+            kwargs_convergence=kwargs_convergence,
+            n_repeats=n_repeats,
+            fn_reduce_repeats=fn_reduce_repeats,
+            n_jobs_optuna=n_jobs_optuna,
+            cv=self.cv,
+            fn_loss=self.fn_loss,
+            catch_convergence_warnings=True,
+            verbose=verbose,
+        )
+
+    def evaluate_model(
+        self, 
+        model: Optional[object] = None,
+        X: Optional[np.ndarray] = None, 
+        y: Optional[np.ndarray] = None,
+        sample_weight: Optional[List[float]] = None,
+    ) -> Tuple[float, np.array]:
+        """
+        Evaluates the given model on the given data. Makes label predictions,
+        then computes the accuracy and confusion matrix.
+
+        Args:
+            model (Optional[object]):
+                The model to evaluate.
+                If None, then self.model_best is used.
+            X (np.ndarray):
+                The data to evaluate on.
+                If None, then self.X is used.
+            y (np.ndarray):
+                The labels to evaluate on.
+                If None, then self.y is used.
+            sample_weight (List[float]):
+                The sample weights to evaluate on.
+                If None, then self.sample_weight is used.
+
+        Returns:
+            (tuple): Tuple containing:
+                accuracy (float):
+                    The accuracy of the model on the given data.
+                confusion_matrix (np.array):
+                    The confusion matrix of the model on the given data.
+        """
+        model = self.model_best if model is None else model
+        X = self.X if X is None else X
+        y = self.y if y is None else y
+        sample_weight = self.sample_weight if sample_weight is None else sample_weight
+
+        y_pred = model.predict(X)
+        
+        accuracy = sklearn.metrics.accuracy_score(
+            y_true=y,
+            y_pred=y_pred,
+            sample_weight=sample_weight,
+            normalize=True,
+        )
+
+        confusion_matrix = sklearn.metrics.confusion_matrix(
+            y_true=y,
+            y_pred=y_pred,
+            sample_weight=sample_weight,
+            labels=self.classes,
+            normalize='true',
+        ).T
+
+        return accuracy, confusion_matrix
+    
+
+def _infer_params_types(
+    params_model, 
+    params_log={}, 
+    log_default=True,
+):
+    """
+    Infers the type of each parameter in params_model.
+    RH 2023
+
+    Args:
+        params_model (Dict):
+            Dictionary of model class initialization parameters. 
+            For each item in the dictionary if item is: \n
+                * ``list``: The parameter is tuned. If the values are numbers,
+                  then the list wil be the bounds [low, high] to search over. If
+                  the values are strings, then the list will be the categorical
+                  values to search over. Note that the type of the parameter
+                  (int, float, str) will be used to determine the type of the
+                  optuna suggest.
+                * **not** a ``list``: The parameter is fixed to the given value. \n
+        params_log (Dict):
+            Dictionary of parameters that vary logarithmically: \n
+                * If True: parameter is set to logaritmically varying. \n
+                * If False: parameter is set to linearly varying. \n
+                * If not specified: parameter is set to logaritmically varying.
+                  \n
+    
+    Returns:
+        (tuple): tuple containing:
+            params_dynamic (Dict):
+                Dictionary of parameters to be tuned. \n
+                Formatted as: \n
+                .. code-block:: python
+                    
+            params_static (Dict):
+                Dictionary of parameters with their types. \n
+    """
+    params_dynamic = {}
+    params_static = {}
+    for key, val in params_model.items():
+        ## Dynamic parameters
+        if isinstance(val, list):
+            ## Categorical parameters
+            if isinstance(val[0], str):
+                params_dynamic[key] = {
+                    'type': 'categorical', 
+                    'kwargs': {}
+                }
+                params_dynamic[key]['kwargs']['choices'] = val
+            ## Numerical parameters
+            elif isinstance(val[0], (int, float)):
+                assert len(val) >= 2, f'Parameter "{key}" must have at least 2 values.'
+                assert all([isinstance(v, type(val[0])) for v in val]), f'Parameter "{key}" must have all values of the same type. Found types {[type(v) for v in val]}.'
+                kwargs = ['low', 'high', 'step', 'log']
+                params_dynamic[key] = {
+                    'type': 'real' if isinstance(val[0], float) else 'int',
+                    'kwargs': {kwargs[ii]: val for ii, val in enumerate(val)},
+                }
+                params_dynamic[key]['kwargs']['log'] = params_log.get(key, log_default)
+            else:
+                raise ValueError(f'Parameter "{key}" has type {type(val[0])}, which is not supported.')
+        ## Static parameters
+        else:
+            params_static[key] = val
+    return params_dynamic, params_static

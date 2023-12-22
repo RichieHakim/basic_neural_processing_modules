@@ -2,6 +2,7 @@ import copy
 
 import torch
 import numpy as np
+from tqdm import tqdm
 
 class RegressionRNN(torch.nn.Module):
     """
@@ -43,7 +44,7 @@ class RegressionRNN(torch.nn.Module):
     """
     def __init__(
         self, 
-        input_size=1, 
+        features=1, 
         hidden_size=100, 
         num_layers=1, 
         output_size=1,
@@ -58,7 +59,7 @@ class RegressionRNN(torch.nn.Module):
         dtype=torch.float32,
     ):
         super().__init__()
-        self.input_size = input_size
+        self.input_size = features
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.output_size = output_size
@@ -311,3 +312,134 @@ class Dataloader_MultiTimeSeries():
 
         self.current_batch_ += 1
         return torch.stack(batch_data, dim=0)
+
+
+class BinaryClassification_RNN():
+    def __init__(
+        self,
+        features=1,
+        batch_size=50,
+        batch_duration=900,
+        num_epochs=1000,
+        hidden_size=20,
+        num_layers=2,
+        dropout=0.0,
+        val_check_period=10,
+        device='cpu',
+        lr=0.01,
+        verbose=True,
+    ):
+        self.batch_size = batch_size
+        self.batch_duration = batch_duration
+        self.num_epochs = num_epochs
+
+        self.device = device
+        self.val_check_period=val_check_period
+        self.verbose = verbose
+    
+        self.model = RegressionRNN(
+            features=features, 
+            hidden_size=hidden_size, 
+            num_layers=num_layers, 
+            output_size=1,
+            batch_first=True,
+            architecture='RNN',
+            kwargs_architecture={},
+            nonlinearity='tanh',
+            bias=True,
+            dropout=dropout,
+            bidirectional=False,
+            device=self.device,
+            dtype=torch.float32,
+        ).to(self.device)
+        
+        # Loss and optimizer
+        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+        self.loss_all = {}
+        self.loss_val_all = {}
+        self.epoch = 0
+
+    def fit(
+        self,
+        X,
+        y,
+        X_val=None,
+        y_val=None,
+    ):
+        if isinstance(X, list):
+            assert all([x.ndim == 2 for x in X]), f'All X must be 2D. Got {[x.ndim for x in X]}'
+            assert all([x.shape[1] == X[0].shape[1] for x in X]), f'All X must have the same number of features. Got {[x.shape for x in X]}'
+            assert all([y.ndim == 1 for y in y]), f'All y must be 1D. Got {[y.ndim for y in y]}'
+            timeseries = [torch.as_tensor(np.concatenate((y[:,None], x), axis=1), dtype=torch.float32, device=self.device) for x, y in zip(X, y)]
+        else:
+            assert isinstance(X, (np.ndarray, torch.Tensor)), f'X must be a list of 2D arrays or a 2D array. Got {type(X)}'
+            assert X.ndim == 2, f'X must be 2D. Got {X.ndim}'
+            assert X.shape[0] == y.shape[0], f'X and y must have the same number of samples. Got {X.shape[0]} and {y.shape[0]}'
+            assert y.ndim == 1, f'y must be 1D. Got {y.ndim}'
+            timeseries = [torch.as_tensor(np.concatenate((y[:,None], X), axis=1), dtype=torch.float32, device=self.device)]
+
+        self.dataloader_XYcat = Dataloader_MultiTimeSeries(
+            timeseries=timeseries,
+            batch_size=self.batch_size,
+            batch_duration=self.batch_duration,
+            shuffle_datasets=True,
+            shuffle_startIdx=True,
+        )
+        
+        if (X_val is not None) and (y_val is not None):
+            self.X_val = torch.as_tensor(X_val, dtype=torch.float32, device=self.device)[None,:,:]
+            self.y_val = torch.as_tensor(y_val, dtype=torch.float32, device=self.device)[None,:,:]
+            self.run_validation = True
+        else:
+            self.run_validation = False
+            
+        
+        num_epochs = self.epoch + self.num_epochs
+        for self.epoch in tqdm(range(self.epoch, num_epochs), disable=not self.verbose):
+            self.model.train()
+            for iter_x, batch in enumerate(self.dataloader_XYcat):
+                x_batch = batch[:,:,1:].to(self.device)
+                y_batch = batch[:,:,0:1].to(self.device)
+            
+                self.optimizer.zero_grad()
+                outputs, hidden = self.model.forward(
+                    x=x_batch,
+                    hidden_initialization='orthogonal',
+                ) 
+                # Ensure output dimensions match target dimensions
+                loss = self.criterion(outputs.view(-1, 1), y_batch.view(-1,1))
+                loss.backward()
+                self.optimizer.step()
+            
+                self.loss_all[(self.epoch, iter_x)] = loss.item()
+            
+            if self.epoch >= num_epochs:
+                break
+
+            if self.run_validation and ((self.epoch % self.val_check_period) == 0):
+                self.model.eval()
+                y_hat_val, hidden = self.model.forward(
+                    x=self.X_val,
+                    hidden_initialization='orthogonal',
+                )
+                loss_val = self.criterion(y_hat_val.view(-1, 1), self.y_val.view(-1,1)).item()
+                self.loss_val_all[self.epoch] = loss_val
+            else:
+                loss_val = torch.nan
+                
+            if self.verbose:
+                print(f'Epoch [{self.epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Loss val: {loss_val:.4f}')
+
+    def predict_proba(self, X):
+        self.model.eval()
+        y_hat, hidden = self.model.forward(
+            x=torch.as_tensor(X, dtype=torch.float32, device=self.device)[None,:,:],
+            hidden_initialization='orthogonal',
+        )
+        proba = torch.sigmoid(y_hat).detach().cpu().numpy()[0,:,0]
+        proba_onehot = np.stack([1-proba, proba], axis=-1)
+        return proba_onehot
+    
+    def predict(self, X):
+        return np.argmax(self.predict_proba(X), axis=-1)
