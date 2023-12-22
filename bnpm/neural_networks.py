@@ -325,6 +325,8 @@ class BinaryClassification_RNN():
         num_layers=2,
         dropout=0.0,
         val_check_period=10,
+        X_val=None,
+        y_val=None,
         device='cpu',
         lr=0.01,
         verbose=True,
@@ -332,6 +334,9 @@ class BinaryClassification_RNN():
         self.batch_size = batch_size
         self.batch_duration = batch_duration
         self.num_epochs = num_epochs
+
+        self.X_val = X_val
+        self.y_val = y_val
 
         self.device = device
         self.val_check_period=val_check_period
@@ -364,8 +369,6 @@ class BinaryClassification_RNN():
         self,
         X,
         y,
-        X_val=None,
-        y_val=None,
     ):
         if isinstance(X, list):
             assert all([x.ndim == 2 for x in X]), f'All X must be 2D. Got {[x.ndim for x in X]}'
@@ -387,9 +390,9 @@ class BinaryClassification_RNN():
             shuffle_startIdx=True,
         )
         
-        if (X_val is not None) and (y_val is not None):
-            self.X_val = torch.as_tensor(X_val, dtype=torch.float32, device=self.device)[None,:,:]
-            self.y_val = torch.as_tensor(y_val, dtype=torch.float32, device=self.device)[None,:,:]
+        if (self.X_val is not None) and (self.y_val is not None):
+            self.X_val = torch.as_tensor(self.X_val, dtype=torch.float32, device=self.device)[None,:,:]
+            self.y_val = torch.as_tensor(self.y_val, dtype=torch.float32, device=self.device)[None,:,:]
             self.run_validation = True
         else:
             self.run_validation = False
