@@ -166,9 +166,6 @@ class Autotuner_BaseEstimator:
         for name, config in self.params.items():
             kwargs_model[name] = LUT_suggest[config['type']](name, **config['kwargs'])
 
-        # Initialize the model with the suggested hyperparameters
-        model = self.model_class(**kwargs_model)
-
         # Train the model
         loss_train_all, loss_test_all, loss_all = [], [], []
         for ii in range(self.n_repeats):
@@ -179,6 +176,9 @@ class Autotuner_BaseEstimator:
                 sample_weight_train, sample_weight_test = self.sample_weight[idx_train], self.sample_weight[idx_test]
             else:
                 sample_weight_train, sample_weight_test = None, None
+
+            # Initialize the model with the suggested hyperparameters
+            model = self.model_class(**kwargs_model)
 
             # Train the model
             ## Turn off ConvergenceWarning
