@@ -391,8 +391,11 @@ class BinaryClassification_RNN():
         )
         
         if (self.X_val is not None) and (self.y_val is not None):
+            assert self.X_val.ndim == 2, f'X_val must be 2D. Got {self.X_val.ndim}'
+            assert self.y_val.ndim == 1, f'y_val must be 1D. Got {self.y_val.ndim}'
+            assert self.X_val.shape[0] == self.y_val.shape[0], f'X_val and y_val must have the same number of samples. Got {self.X_val.shape[0]} and {self.y_val.shape[0]}'
             self.X_val = torch.as_tensor(self.X_val, dtype=torch.float32, device=self.device)[None,:,:]
-            self.y_val = torch.as_tensor(self.y_val, dtype=torch.float32, device=self.device)[None,:,:]
+            self.y_val = torch.as_tensor(self.y_val, dtype=torch.float32, device=self.device)[None,:,None]
             self.run_validation = True
         else:
             self.run_validation = False
