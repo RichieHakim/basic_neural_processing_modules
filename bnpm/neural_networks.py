@@ -198,6 +198,12 @@ class RegressionRNN(torch.nn.Module):
         
         return hidden
     
+    def to(self, device):
+        self.device = device
+        self.rnn.to(device)
+        self.fc.to(device)
+        return self
+    
 
 class Dataloader_MultiTimeSeries():
     """
@@ -312,6 +318,11 @@ class Dataloader_MultiTimeSeries():
 
         self.current_batch_ += 1
         return torch.stack(batch_data, dim=0)
+    
+    def to(self, device):
+        self.device = device
+        self.timeseries = [ts.to(device) for ts in self.timeseries]
+        return self
 
 
 class BinaryClassification_RNN():
@@ -324,6 +335,7 @@ class BinaryClassification_RNN():
         hidden_size=20,
         num_layers=2,
         dropout=0.0,
+        architecture='RNN',
         val_check_period=10,
         X_val=None,
         y_val=None,
@@ -341,6 +353,16 @@ class BinaryClassification_RNN():
         self.device = device
         self.val_check_period=val_check_period
         self.verbose = verbose
+
+        if (self.X_val is not None) and (self.y_val is not None):
+            assert self.X_val.ndim in [2], f'X_val must be 2D. Got {self.X_val.ndim}D'
+            assert self.y_val.ndim in [1], f'y_val must be 1D. Got {self.y_val.ndim}D'
+            assert self.X_val.shape[0] == self.y_val.shape[0], f'X_val and y_val must have the same number of samples. Got {self.X_val.shape[0]} and {self.y_val.shape[0]}'
+            self.X_val = torch.as_tensor(self.X_val, dtype=torch.float32, device=self.device)[None,:,:]
+            self.y_val = torch.as_tensor(self.y_val, dtype=torch.float32, device=self.device)[None,:,None]
+            self.run_validation = True
+        else:
+            self.run_validation = False
     
         self.model = RegressionRNN(
             features=features, 
@@ -348,7 +370,7 @@ class BinaryClassification_RNN():
             num_layers=num_layers, 
             output_size=1,
             batch_first=True,
-            architecture='RNN',
+            architecture=architecture,
             kwargs_architecture={},
             nonlinearity='tanh',
             bias=True,
@@ -388,18 +410,7 @@ class BinaryClassification_RNN():
             batch_duration=self.batch_duration,
             shuffle_datasets=True,
             shuffle_startIdx=True,
-        )
-        
-        if (self.X_val is not None) and (self.y_val is not None):
-            assert self.X_val.ndim == 2, f'X_val must be 2D. Got {self.X_val.ndim}'
-            assert self.y_val.ndim == 1, f'y_val must be 1D. Got {self.y_val.ndim}'
-            assert self.X_val.shape[0] == self.y_val.shape[0], f'X_val and y_val must have the same number of samples. Got {self.X_val.shape[0]} and {self.y_val.shape[0]}'
-            self.X_val = torch.as_tensor(self.X_val, dtype=torch.float32, device=self.device)[None,:,:]
-            self.y_val = torch.as_tensor(self.y_val, dtype=torch.float32, device=self.device)[None,:,None]
-            self.run_validation = True
-        else:
-            self.run_validation = False
-            
+        )            
         
         num_epochs = self.epoch + self.num_epochs
         for self.epoch in tqdm(range(self.epoch, num_epochs), disable=not self.verbose):
@@ -449,3 +460,27 @@ class BinaryClassification_RNN():
     
     def predict(self, X):
         return np.argmax(self.predict_proba(X), axis=-1)
+    
+    def to(self, device):
+        self.device = device
+        self.model.to(device)
+        
+        ## Move optimizer parameters to new device
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device)
+
+        ## Move X_val and y_val to new device
+        if hasattr(self, 'X_val'):
+            if isinstance(self.X_val, torch.Tensor):
+                self.X_val = self.X_val.to(device)
+        if hasattr(self, 'y_val'):
+            if isinstance(self.y_val, torch.Tensor):
+                self.y_val = self.y_val.to(device)
+
+        ## Move dataloader to new device
+        if hasattr(self, 'dataloader_XYcat'):
+            self.dataloader_XYcat.to(device)
+            
+        return self
