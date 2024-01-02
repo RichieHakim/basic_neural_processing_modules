@@ -323,3 +323,30 @@ def find_subDict_key(d: dict, s: str, max_depth: int=9999999):
                 if isinstance(v, dict):
                     yield from helper_find_subDict_key(v, s, depth, _k_all + [k])
     return list(helper_find_subDict_key(d, s, depth=max_depth, _k_all=[]))
+
+
+def merge_dicts(dicts: List[Dict]) -> Dict:
+    """
+    Merges a list of dictionaries into a single dictionary.
+    If there are sub-dictionaries, then they are merged recursively.
+    RH 2023
+
+    Args:
+        dicts (List):
+            List of dictionaries to merge.
+
+    Returns:
+        output (Dict):
+            merged dictionary
+    """
+    assert isinstance(dicts, list), f"RH ERROR, dicts must be a list, not {type(dicts)}"
+
+    merged_dict = {}
+    for d in dicts:
+        for k, v in d.items():
+            if isinstance(v, dict):
+                merged_dict[k] = merge_dicts([merged_dict.get(k, {}), v])
+            else:
+                merged_dict[k] = v
+
+    return merged_dict
