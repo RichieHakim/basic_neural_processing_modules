@@ -133,6 +133,9 @@ class Autotuner_BaseEstimator:
         self.loss_running_train = []
         self.loss_running_test = []
         self.loss_running = []
+        self.loss_repeats_train = []
+        self.loss_repeats_test = []
+        self.loss_repeats = []
         self.params_running = []
         self.model_best = None
         self.loss_best = np.inf
@@ -229,6 +232,9 @@ class Autotuner_BaseEstimator:
         self.loss_running_train.append(loss_train)
         self.loss_running_test.append(loss_test)
         self.loss_running.append(loss)
+        self.loss_repeats_train.append(loss_train_all)
+        self.loss_repeats_test.append(loss_test_all)
+        self.loss_repeats.append(loss_all)
         self.params_running.append(kwargs_model)
 
         # Update the bests
@@ -340,6 +346,7 @@ class Autotuner_BaseEstimator:
         self,
         param='alpha',
         xscale='linear',
+        jitter=0.01,
     ):
         """
         Makes a scatter plot of a selected values vs loss values.
@@ -364,21 +371,41 @@ class Autotuner_BaseEstimator:
             'loss_train': prep(self.loss_running_train), 
             'loss_test': prep(self.loss_running_test),
         }
-
+       
         plt.figure()
-        scatter = functools.partial(plt.scatter, x=results[param], alpha=0.3, s=10)
-        scatter(y=results['loss_train'])
-        scatter(y=results['loss_test'])
-        scatter(y=results['value'])
-        plt.scatter(x=float(self.params_best[param]), y=float(self.loss_best), color='r', s=50, alpha=1)
+        isnumeric = np.issubdtype(results[param].dtype, np.number)
+        n_vals = len(results[param])
+        range_vals = np.ptp(results['value'])
+        jitter_scaling = np.ptp(results[param]) if isnumeric else n_vals
+        jitter_vals = np.random.uniform(-jitter, jitter, size=n_vals) * jitter * jitter_scaling
+        xaxis = results[param] if isnumeric else np.unique(results[param], return_inverse=True)[1]
+        xaxis_unique, xaxis_counts = np.unique(xaxis, return_counts=True)
+        results_means = np.array([(u, np.mean(results['value'][xaxis == u])) for u in xaxis_unique])
+        scatter = functools.partial(
+            plt.scatter, 
+            x=xaxis + jitter_vals,
+            alpha=0.3, 
+            s=10
+        )
+        scatter(y=results['loss_train'], color='blue')
+        scatter(y=results['loss_test'], color='orange')
+        scatter(y=results['value'], color='k')
+        plt.scatter(results_means[:,0], results_means[:,1], s=70, color='k') if any(xaxis_counts > 1) else None
+        plt.scatter(x=self.params_best[param], y=float(self.loss_best), color='r', s=100, alpha=1)
 
         plt.xlabel(param)
         plt.ylabel('loss')
-        plt.xscale(xscale)
+        if isnumeric:
+            plt.xscale(xscale)
+        else:
+            plt.xticks(xaxis, results[param], rotation=90)
+            plt.xlim(-1, len(xaxis_unique))
+            plt.ylim(np.min(results['value']) + (range_vals * -0.1), np.max(results['value']) + (range_vals * 0.1))
         plt.legend([
             'loss_train',
             'loss_test',
             'loss_withPenalty',
+            'loss_withPenalty_mean',
             'best model',
         ])
 
@@ -704,14 +731,17 @@ class LossFunction_CrossEntropy_CV():
 
         Args:
             y_train_pred (np.ndarray): 
-                Predicted output data for the training set. (shape:
+                Predicted output probabilities for the training set. (shape:
                 *(n_samples,)*)
             y_test_pred (np.ndarray): 
-                Predicted output data for the test set. (shape: *(n_samples,)*)
+                Predicted output probabilities for the test set. (shape:
+                *(n_samples,)*)
             y_train_true (np.ndarray): 
-                True output data for the training set. (shape: *(n_samples,)*)
+                True output probabilities for the training set. (shape:
+                *(n_samples,)*)
             y_test_true (np.ndarray): 
-                True output data for the test set. (shape: *(n_samples,)*)
+                True output probabilities for the test set. (shape:
+                *(n_samples,)*)
             sample_weight_train (Optional[List[float]]): 
                 Weights assigned to each training sample. 
             sample_weight_test (Optional[List[float]]): 
