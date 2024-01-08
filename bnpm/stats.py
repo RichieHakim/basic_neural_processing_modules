@@ -68,3 +68,64 @@ def sparsity(a, axis=0):
         float: Sparsity value. 0 (dense) to 1 (sparse).
     """
     return 1 - ((a.mean(axis) ** 2) / (a ** 2).mean(axis))
+
+
+def error_interval(
+    data, 
+    axis=0,
+    error="sem",
+    confidence=0.95, 
+):
+    """
+    Calculate the mean and the confidence interval of the mean.
+
+    Args:
+    data (np.ndarray): 
+        The input data. Can be a list or a numpy array.
+    axis (int): 
+        Axis along which to compute the mean and confidence interval. Default is 0.
+    error (str):
+        Type of error to compute. \n
+            * "std" - Standard deviation.
+            * "sem" - Standard error of the mean.
+            * "ci" - Confidence interval. \n
+    confidence (float): 
+        The confidence level for the interval. Only used if error is "ci".
+
+    Returns:
+    tuple:
+        mean (float): 
+            The mean of the data along the specified axis.
+        lower (float):
+            The lower bound of the confidence interval.
+        upper (float):
+            The upper bound of the confidence interval.
+    """
+
+    assert confidence > 0 and confidence < 1, "Confidence level must be between 0 and 1."
+    assert isinstance(data, np.ndarray), "Data must be a numpy array."
+
+    # Calculate the size along the specified axis
+    n = data.shape[axis]
+
+    # Compute the mean along the specified axis
+
+    if error in ["std", "sem", "ci"]:
+        m = np.mean(data, axis=axis)
+    
+        # Compute the standard deviation along the specified axis
+        sd = np.std(data, axis=axis)
+        if error in ["sem", "ci"]:
+            # Compute the standard error of the mean along the specified axis
+            se = sd / np.sqrt(n)
+        if error == "ci":
+            # Compute the margin of error
+            h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+            mean, lower, upper = m, m-h, m+h
+        if error == "sem":
+            mean, lower, upper = m, m-se, m+se
+        if error == "std":
+            mean, lower, upper = m, m-sd, m+sd
+        raise ValueError("Unknown error type.")
+    
+    return mean, lower, upper
