@@ -342,10 +342,12 @@ def find_nearest_array(array, values):
         array_val (np.ndarray):
             Values of the nearest values in array.
     '''
-    vals_nearest = np.zeros_like(values)
-    idx_nearest = np.zeros_like(values)
-    for ii in prange(len(values)):
-        vals_nearest[ii] , idx_nearest[ii] = find_nearest(array , values[ii])
+    vals_nearest = np.zeros(values.shape if array.size > 0 else (0,), dtype=array.dtype)
+    idx_nearest  = np.zeros(values.shape if array.size > 0 else (0,), dtype=np.int64)
+    
+    if array.size > 0:
+        for ii in prange(len(values)):
+            vals_nearest[ii] , idx_nearest[ii] = find_nearest(array , values[ii])
     return vals_nearest, idx_nearest
 
 
