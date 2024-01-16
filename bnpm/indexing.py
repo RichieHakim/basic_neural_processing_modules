@@ -319,12 +319,16 @@ def find_nearest(array, value):
             Index of the nearest value in array.
         array_val (scalar):
             Value of the nearest value in array.
+        diff (scalar):
+            Difference between the value and the
+             nearest value in array.
     '''
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
-    return array[idx] , idx
+    diff = array[idx] - value
+    return array[idx], idx, diff
 @njit(parallel=True)
-def find_nearest_array(array, values):
+def find_nearest_array(array, values, unique=False):
     '''
     Finds the values and indices of the nearest
      values in an array.
@@ -335,20 +339,29 @@ def find_nearest_array(array, values):
             Array of values to search through.
         values (np.ndarray):
             Values to search for.
+        unique (bool):
+            Whether to return only unique values.
 
     Returns:
         array_idx (np.ndarray):
             Indices of the nearest values in array.
         array_val (np.ndarray):
             Values of the nearest values in array.
+        diff (np.ndarray):
+            Differences between the values and the
+             nearest values in array.
     '''
     vals_nearest = np.zeros(values.shape if array.size > 0 else (0,), dtype=array.dtype)
     idx_nearest  = np.zeros(values.shape if array.size > 0 else (0,), dtype=np.int64)
+    diff_nearest = np.zeros(values.shape if array.size > 0 else (0,), dtype=array.dtype)
     
     if array.size > 0:
         for ii in prange(len(values)):
-            vals_nearest[ii] , idx_nearest[ii] = find_nearest(array , values[ii])
-    return vals_nearest, idx_nearest
+            vals_nearest[ii] , idx_nearest[ii], diff_nearest[ii] = find_nearest(array , values[ii])
+    if unique:
+        idx_unique = np.unique(idx_nearest)
+        vals_nearest, idx_nearest, diff_nearest = vals_nearest[idx_unique], idx_nearest[idx_unique], diff_nearest[idx_unique]
+    return vals_nearest, idx_nearest, diff_nearest
 
 
 def pad_with_singleton_dims(array, n_dims_pre=0, n_dims_post=0):
