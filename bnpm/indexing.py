@@ -63,6 +63,8 @@ def idx2bool(idx, length=None):
         bool_vec (np.ndarray):
             1-D boolean array.
     '''
+    ## remove NaNs
+    idx = idx[~np.isnan(idx)].astype(np.int64)
     if length is None:
         length = np.uint64(np.max(idx) + 1)
     out = np.zeros(length, dtype=np.bool8)
