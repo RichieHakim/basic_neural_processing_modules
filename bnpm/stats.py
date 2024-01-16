@@ -126,6 +126,7 @@ def error_interval(
             mean, lower, upper = m, m-se, m+se
         if error == "std":
             mean, lower, upper = m, m-sd, m+sd
-        raise ValueError("Unknown error type.")
+    else:
+        raise ValueError("Error must be one of 'std', 'sem', or 'ci'.")
     
     return mean, lower, upper
