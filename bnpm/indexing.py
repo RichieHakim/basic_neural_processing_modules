@@ -302,11 +302,11 @@ def make_batches(
 
 
 @njit
-def find_nearest(array, value):
+def find_nearest_idx(array, value):
     '''
     Finds the value and index of the nearest
      value in an array.
-    RH 2021
+    RH 2021, 2024
     
     Args:
         array (np.ndarray):
@@ -317,30 +317,24 @@ def find_nearest(array, value):
     Returns:
         array_idx (int):
             Index of the nearest value in array.
-        array_val (scalar):
-            Value of the nearest value in array.
-        diff (scalar):
-            Difference between the value and the
-             nearest value in array.
     '''
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    diff = array[idx] - value
-    return array[idx], idx, diff
+    idx = np.searchsorted(array, value, side="left")
+    if idx > 0 and (idx == len(array) or np.abs(value - array[idx-1]) < np.abs(value - array[idx])):
+        return idx-1
+    else:
+        return idx
 @njit(parallel=True)
-def find_nearest_array(array, values, unique=False):
+def find_nearest_array(array, values, max_diff=None):
     '''
     Finds the values and indices of the nearest
      values in an array.
-    RH 2021
+    RH 2021, 2024
 
     Args:
         array (np.ndarray):
             Array of values to search through.
         values (np.ndarray):
             Values to search for.
-        unique (bool):
-            Whether to return only unique values.
 
     Returns:
         array_idx (np.ndarray):
@@ -351,16 +345,26 @@ def find_nearest_array(array, values, unique=False):
             Differences between the values and the
              nearest values in array.
     '''
+    assert array.ndim == 1, 'array must be 1-D'
+    assert values.ndim == 1, 'values must be 1-D'
+    
     vals_nearest = np.zeros(values.shape if array.size > 0 else (0,), dtype=array.dtype)
     idx_nearest  = np.zeros(values.shape if array.size > 0 else (0,), dtype=np.int64)
     diff_nearest = np.zeros(values.shape if array.size > 0 else (0,), dtype=array.dtype)
     
     if array.size > 0:
         for ii in prange(len(values)):
-            vals_nearest[ii] , idx_nearest[ii], diff_nearest[ii] = find_nearest(array , values[ii])
-    if unique:
-        idx_unique = np.unique(idx_nearest)
-        vals_nearest, idx_nearest, diff_nearest = vals_nearest[idx_unique], idx_nearest[idx_unique], diff_nearest[idx_unique]
+            idx_nearest[ii] = find_nearest_idx(array , values[ii])
+
+        vals_nearest = array[idx_nearest]
+        diff_nearest = np.abs(vals_nearest - values)
+
+        if max_diff is not None:
+            bool_keep = diff_nearest <= max_diff
+            vals_nearest = vals_nearest[bool_keep]
+            idx_nearest = idx_nearest[bool_keep]
+            diff_nearest = diff_nearest[bool_keep]
+            
     return vals_nearest, idx_nearest, diff_nearest
 
 
