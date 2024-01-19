@@ -374,6 +374,16 @@ def system_info(verbose: bool = False,) -> Dict:
 
     return versions
 
+
+def array_hasher():
+    """
+    Returns a function that hashes an array.
+    """
+    from functools import partial
+    import xxhash
+    return partial(xxhash.xxh64_hexdigest, seed=0)
+
+
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################

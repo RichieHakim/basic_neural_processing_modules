@@ -350,3 +350,20 @@ def merge_dicts(dicts: List[Dict]) -> Dict:
                 merged_dict[k] = v
 
     return merged_dict
+
+
+def invert_dict(d: Dict) -> Dict:
+    """
+    Inverts a dictionary. Requires that values are hashable. 
+    Warning: if values are not unique, then only the last key will be kept.
+    RH 2024
+
+    Args:
+        d (Dict):
+            dictionary to invert
+
+    Returns:
+        output (Dict):
+            inverted dictionary
+    """
+    return {v: k for k, v in d.items()}
