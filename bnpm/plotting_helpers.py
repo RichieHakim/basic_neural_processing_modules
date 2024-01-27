@@ -970,7 +970,7 @@ class Image_labeler:
         self.images = image_array
         self._resize_factor = resize_factor
         self._index = start_index - 1  ## -1 because we increment before displaying
-        self.path_csv = path_csv if path_csv is not None else str(Path(tempfile.gettempdir()) / ('roicat_labels_' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + '.csv'))
+        self.path_csv = path_csv if path_csv is not None else str(Path(tempfile.gettempdir()) / ('labels_' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + '.csv'))
         self._save_csv = save_csv
         self.labels_ = {}
         self._img_tk = None

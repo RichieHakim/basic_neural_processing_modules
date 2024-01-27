@@ -330,7 +330,7 @@ class Autotuner_BaseEstimator:
             model=self.model_best,
             name=str(self.model_best.__class__),
             initial_types=initial_types,
-            doc_string=f"Created by ROICaT Autotuner. Saved on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.",
+            doc_string=f"Created by Autotuner. Saved on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.",
         )
         
         # Save the model
