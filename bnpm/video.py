@@ -1,6 +1,7 @@
 import threading
 from typing import Union
 import time
+from pathlib import Path
 
 import torch
 import torchvision
@@ -1058,3 +1059,99 @@ def make_tiled_video_array(
             ] = chunk_rs
 
     return video_out
+
+
+def save_array_as_video_ffmpeg(
+    array,
+    filepath,
+    frame_rate=30,
+    quality=25,
+    lossless=False,
+    codec='libx264',
+    pixel_format='yuv420p',
+    speed='medium',
+    overwrite=False,
+    verbose=True,
+    **kwargs,
+):
+    """
+    Saves a video array to a video file using ffmpegio. Defaults to using x264
+    codec with yuv420p pixel format. This is a function that just scratches the
+    surface of what ffmpeg can do. For more advanced options, check ffmpeg docs and pass
+    them in as kwargs.
+    RH 2024
+
+    Args:
+        array (ndarray):
+            Video array to save. \n
+            Dtype: uint8 for pixel_format='yuv420p', check ffmpegio and ffmpeg
+            docs otherwise. \n
+            Shape: (frames, height, width, channels) or (frames, height, width)
+            or (frames, height, width, channels, 1) \n
+        filepath (str):
+            Path to save video file to.
+        frame_rate (float):
+            Frame rate of the video.
+        quality (int):
+            Quality of the video. (0 to 100)
+            This is converted to 'crf' for 'libx264' codec.
+        lossless (bool):
+            Whether or not to use compression.
+        codec (str):
+            Codec to use. 'libx264' is a good default.
+        pixel_format (str):
+            Pixel format to use. 'yuv420p' is a good default for 'libx264'
+            codec.
+        speed (str):
+            Speed of compression. For 'libx264', you can use the following: \n
+                * ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo \n
+        overwrite (bool):
+            Whether to overwrite existing file.
+        verbose (bool):
+            Whether to print progress.
+        **kwargs:
+            Additional arguments to pass to ffmpegio.video.write(). You can pass
+            ffmpeg options as keyword arguments.
+    """
+    import ffmpegio
+
+    ## Check that array is a numpy array
+    assert isinstance(array, np.ndarray), f"array must be a numpy array. Got {type(array)}"
+    ## Check that array is either 3D or 4D
+    assert array.ndim in [3,4], f"array must be 3D or 4D. Got {array.ndim} dimensions"
+
+    ## Set the crf (quality) for 'libx264' codec
+    if codec == 'libx264':
+        q_max = 51
+        crf = int(np.round((100 - np.clip(quality, 0, 100)) * q_max / 100))
+
+
+    if Path(filepath).exists() and not overwrite:
+        raise FileExistsError(f"File already exists: {filepath}")
+        
+    if verbose:
+        print(f"Saving video to: {filepath}")
+
+    # Options for ffmpeg
+    ffmpeg_options = {
+        'vcodec': codec,
+        'pix_fmt': pixel_format,
+        'an': None,
+    }
+    if (not lossless) and (codec == 'libx264'):
+        ffmpeg_options.update({'crf': crf})
+        ffmpeg_options.update({'preset': speed})
+    ffmpeg_options.update(kwargs)
+
+    # Writing the video file
+    ffmpegio.video.write(
+        url=filepath,
+        rate_in=frame_rate,
+        data=array,
+        overwrite=overwrite,
+        show_log=verbose,
+        **ffmpeg_options,
+    )
+
+    if verbose:
+        print("Video saved successfully.")
