@@ -57,7 +57,7 @@ deps_core = [deps_all_dict[dep] for dep in [
 deps_advanced = [deps_all_dict[dep] for dep in [
     'tables',
     'opt-einsum',
-    'rolling-quantiles',
+    # 'rolling-quantiles',
     'pulp',
     'spconv',
     'torch-sparse',
