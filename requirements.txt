@@ -1,6 +1,6 @@
 ## Required
 h5py
-decord
+eva-decord
 ipywidgets
 kornia
 matplotlib
@@ -11,6 +11,7 @@ opencv-contrib-python
 optuna
 pandas
 paramiko
+psutil
 PyYAML
 pytest
 scikit-learn
