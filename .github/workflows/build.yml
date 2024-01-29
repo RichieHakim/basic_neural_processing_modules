@@ -48,7 +48,7 @@ jobs:
         ]
         extra: [
           " ",
-          advanced,
+          "[advanced]",
         ]
         install-level: [
           system,
@@ -129,7 +129,7 @@ jobs:
     - name: Install package with pip dependencies -- user-level
       if: matrix.install-level == 'user'
       run: |
-        pip install -v -e .[${{ matrix.extra }}] --user
+        pip install -v -e .${{ matrix.extra }} --user
 
 
     - name: Check installed packages
