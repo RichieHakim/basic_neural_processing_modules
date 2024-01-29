@@ -125,7 +125,7 @@ jobs:
       if: matrix.install-level == 'system'
       run: |
         ## install dependencies with optional extras
-        pip install -v -e .[${{ matrix.extra }}]
+        pip install -v -e .${{ matrix.extra }}
     - name: Install package with pip dependencies -- user-level
       if: matrix.install-level == 'user'
       run: |
