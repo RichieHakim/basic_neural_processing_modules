@@ -44,13 +44,14 @@ deps_core = [deps_all_dict[dep] for dep in [
     'natsort',
     'paramiko',
     'pandas',
+    'psutil',
     'pytest',
     'PyYAML',
     'torch',
     'torchvision',
     'torchaudio',
     'ipywidgets',
-    'decord',
+    'eva-decord',
 ]]
 
 deps_advanced = [deps_all_dict[dep] for dep in [
