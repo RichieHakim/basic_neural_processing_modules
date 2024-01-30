@@ -109,6 +109,8 @@ setup(
 
     install_requires=deps_core,
     extras_require={
-        'advanced': deps_advanced,
+        'all': list(deps_all_dict.values()),
+        'all_latest': list(deps_all_latest.values()),
+        'core': deps_core,
     },
 )
