@@ -90,12 +90,14 @@ deps_advanced = {dep: deps_all_dict[dep] for dep in [
 
 deps_core_latest = {dep: deps_all_latest[dep] for dep in deps_core.keys()}
 
-print({
-    'deps_all': deps_all,
-    'deps_all_latest': deps_all_latest,
-    'deps_core': deps_core,
-    'deps_advanced': deps_advanced,
-})
+extras_require = {
+    'all': list(deps_all_dict.values()),
+    'all_latest': list(deps_all_latest.values()),
+    'core': list(deps_core.values()),
+    'core_latest': list(deps_core_latest.values()),
+}
+
+print(extras_require)
 
 ## Get README.md
 with open(str(dir_parent / "README.md"), "r") as f:
@@ -122,11 +124,6 @@ setup(
 
     packages=['bnpm'],
 
-    install_requires=deps_core,
-    extras_require={
-        'all': list(deps_all_dict.values()),
-        'all_latest': list(deps_all_latest.values()),
-        'core': list(deps_core.values()),
-        'core_latest': list(deps_core_latest.values()),
-    },
+    install_requires=[],
+    extras_require=extras_require,
 )
