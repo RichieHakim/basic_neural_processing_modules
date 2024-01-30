@@ -88,8 +88,7 @@ deps_advanced = {dep: deps_all_dict[dep] for dep in [
     'mat73',
 ]}
 
-deps_core_latest = dict(zip(deps_core.keys(), deps_core.keys()))
-deps_advanced_latest = dict(zip(deps_advanced.keys(), deps_advanced.keys()))
+deps_core_latest = dict(zip(list(deps_core.keys()), list(deps_core.keys())))
 
 print({
     'deps_all': deps_all,
@@ -128,5 +127,6 @@ setup(
         'all': list(deps_all_dict.values()),
         'all_latest': list(deps_all_latest.values()),
         'core': list(deps_core.values()),
+        'core_latest': list(deps_core_latest.values()),
     },
 )
