@@ -43,7 +43,7 @@ if system == "Darwin" and version and ('opencv_contrib_python' in deps_all_dict)
 
 ## Make different versions of dependencies
 ### Also pull out the version number from the requirements (specified in deps_all_dict values).
-deps_core = [deps_all_dict[dep] for dep in [
+deps_core = {dep: deps_all_dict[dep] for dep in [
     'numpy',
     'scipy',
     'kornia',
@@ -66,9 +66,9 @@ deps_core = [deps_all_dict[dep] for dep in [
     'torchaudio',
     'ipywidgets',
     'eva-decord',
-]]
+]}
 
-deps_advanced = [deps_all_dict[dep] for dep in [
+deps_advanced = {dep: deps_all_dict[dep] for dep in [
     'tables',
     'opt-einsum',
     # 'rolling-quantiles',
@@ -86,8 +86,10 @@ deps_advanced = [deps_all_dict[dep] for dep in [
     'jupyter',
     'PyWavelets',
     'mat73',
-]]
+]}
 
+deps_core_latest = dict(zip(deps_core.keys(), deps_core.keys()))
+deps_advanced_latest = dict(zip(deps_advanced.keys(), deps_advanced.keys()))
 
 print({
     'deps_all': deps_all,
@@ -125,6 +127,6 @@ setup(
     extras_require={
         'all': list(deps_all_dict.values()),
         'all_latest': list(deps_all_latest.values()),
-        'core': deps_core,
+        'core': list(deps_core.values()),
     },
 )
