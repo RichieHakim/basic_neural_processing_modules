@@ -11,7 +11,7 @@ Normal installation of `bnpm` does not install all possible dependencies; there 
 
 Install stable version:
 ```
-pip install bnpm
+pip install bnpm[core]
 ```
 
 If installing on a server or any computer without graphics/display, after installing `bnpm`, please uninstall `opencv-contrib-python` and install `opencv-contrib-python-headless` instead. 

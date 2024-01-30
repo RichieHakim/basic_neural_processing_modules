@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 
+
 ###############################################################################
 ## This block of code is used to initialize cv2.imshow
 ## This is necessary because importing av and decord 
@@ -28,7 +29,7 @@ def prepare_cv2_imshow():
     import cv2
     test = np.zeros((1,300,400,3))
     for frame in test:
-        cv2.putText(frame, "WELCOME TO FACE RHYTHM!", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
+        cv2.putText(frame, "WELCOME TO BNPM!", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
         cv2.putText(frame, "Prepping CV2", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
         cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,150), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
         cv2.putText(frame, "to work without crashing if this function", (10,170), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
