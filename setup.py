@@ -92,9 +92,9 @@ deps_core_latest = {dep: deps_all_latest[dep] for dep in deps_core.keys()}
 
 
 ## Make versions with cv2 headless (for servers)
-deps_core_dict_cv2Headless = copy.deepcopy(deps_all_dict)
+deps_core_dict_cv2Headless = copy.deepcopy(deps_core)
 deps_core_dict_cv2Headless['opencv-contrib-python'] = 'opencv-contrib-python-headless' + deps_core_dict_cv2Headless['opencv-contrib-python'][21:]
-deps_core_latest_cv2Headless = copy.deepcopy(deps_all_latest)
+deps_core_latest_cv2Headless = copy.deepcopy(deps_core_latest)
 deps_core_latest_cv2Headless['opencv-contrib-python'] = 'opencv-contrib-python-headless'
 
 
