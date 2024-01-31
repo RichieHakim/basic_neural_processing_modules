@@ -25,7 +25,7 @@ jobs:
                 git config --local user.email "richhakim@gmail.com"
                 git config --local user.name "Richard Hakim"
                 git fetch --all
-                git checkout dev
+                git checkout main
                 git pull
                 
             - name: Increment version
