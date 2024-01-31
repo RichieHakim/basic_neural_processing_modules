@@ -1,20 +1,20 @@
 ## Required
 h5py
-eva-decord
+eva_decord
 ipywidgets
 kornia
 matplotlib
 natsort
 numba
 numpy
-opencv-contrib-python
+opencv_contrib_python
 optuna
 pandas
 paramiko
 psutil
 PyYAML
 pytest
-scikit-learn
+scikit_learn
 tqdm
 sparse
 scipy
@@ -25,11 +25,11 @@ torchaudio
 
 ## Optional / Advanced
 tables
-opt-einsum
-# rolling-quantiles
+opt_einsum
+# rolling_quantiles
 pulp
 spconv
-torch-sparse
+torch_sparse
 av
 pynwb
 sendgrid
@@ -37,7 +37,7 @@ pycuda
 cuml
 cupy
 cudf
-scanimage-tiff-reader
+scanimage_tiff_reader
 jupyter
 PyWavelets
 mat73
