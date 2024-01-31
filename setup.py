@@ -50,6 +50,8 @@ if (system == "Darwin"):
 import re
 ## find the numbers in the string
 version_opencv = '.'.join(re.findall(r'[0-9]+', deps_all_dict['opencv_contrib_python']))
+if len(version_opencv) > 0:
+    version_opencv = f"<={version_opencv}"
 
 ## Make different versions of dependencies
 ### Also pull out the version number from the requirements (specified in deps_all_dict values).
@@ -103,7 +105,7 @@ deps_core_latest = {dep: deps_all_latest[dep] for dep in deps_core.keys()}
 
 ## Make versions with cv2 headless (for servers)
 deps_core_dict_cv2Headless = copy.deepcopy(deps_core)
-deps_core_dict_cv2Headless['opencv_contrib_python'] = 'opencv_contrib_python_headless' + '<=' + version_opencv
+deps_core_dict_cv2Headless['opencv_contrib_python'] = 'opencv_contrib_python_headless' + version_opencv
 deps_core_latest_cv2Headless = copy.deepcopy(deps_core_latest)
 deps_core_latest_cv2Headless['opencv_contrib_python'] = 'opencv_contrib_python_headless'
 
