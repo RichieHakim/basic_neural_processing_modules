@@ -70,9 +70,9 @@ def convolve_along_axis(
 
         kernel = np.ascontiguousarray(kernel)
         if axis==0:
-            output_list = parallel_helpers.map_parallel(convFun_axis0, [range(array.shape[1])], method='multithreading', workers=-1, prog_bar=verbose)
+            output_list = parallel_helpers.map_parallel(convFun_axis0, [range(array.shape[1])], method='multithreading', n_workers=-1, prog_bar=verbose)
         if axis==1:
-            output_list = parallel_helpers.map_parallel(convFun_axis1, [range(array.shape[0])], method='multithreading', workers=-1, prog_bar=verbose)
+            output_list = parallel_helpers.map_parallel(convFun_axis1, [range(array.shape[0])], method='multithreading', n_workers=-1, prog_bar=verbose)
         
         if verbose:
             print(f'ThreadPool elapsed time : {round(time.time() - tic , 2)} s. Now unpacking list into array.')
@@ -280,23 +280,32 @@ def rolling_percentile_pd(
         kwargs_rolling['closed'] = None
 
     from functools import partial
-    _rolling_ptile_pd_helper_partial = partial(_rolling_ptile_pd_helper, win=int(window), ptile=ptile, kwargs_rolling=kwargs_rolling, interpolation=interpolation)
+    # _rolling_ptile_pd_helper_partial = partial(_rolling_ptile_pd_helper, win=int(window), ptile=ptile, kwargs_rolling=kwargs_rolling, interpolation=interpolation)
+    ## Avoid using partial because it doesn't work with multiprocessing
 
     if multiprocessing_pref:
         from .parallel_helpers import map_parallel
-        from .indexing import make_batches
         import multiprocessing as mp
-        n_batches = mp.cpu_count()
-        batches = make_batches(X, num_batches=n_batches)
+        batches = list(indexing.make_batches(X, num_batches=mp.cpu_count()))
+        n_batches = len(batches)
+        ## Make args as a list of iterables, each with length n_batches. This is the format for map and map_parallel
+        args = [
+            batches,
+            [int(window)] * n_batches,
+            [ptile] * n_batches,
+            [kwargs_rolling] * n_batches,
+            [interpolation] * n_batches
+        ]
         output = map_parallel(
-            _rolling_ptile_pd_helper_partial,
-            [list(batches)],
+            _rolling_ptile_pd_helper,
+            args,
             method='multiprocessing',
+            n_workers=-1,
             prog_bar=prog_bar,
         )
         output = np.concatenate(output, axis=0)
     else:
-        output = _rolling_ptile_pd_helper_partial(X)
+        output = _rolling_ptile_pd_helper(X, win=int(window), ptile=ptile, kwargs_rolling=kwargs_rolling, interpolation=interpolation)
 
     return output
 def _rolling_ptile_pd_helper(X, win, ptile, kwargs_rolling, interpolation='linear'):
