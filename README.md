@@ -33,13 +33,10 @@ import bnpm
 
 ## Usage 
 My favorites:
-- **`featurization.Toeplitz_convolution2d`**
-    - 1D and 2D convolution. Uses sparse Toeplitz matrix multiplication to speed up computation.
-    - **Allows for sparse convolution.**
-    - Same options as scipy.signal.convolve2d, but orders of magnitude faster in most cases.
-- **`spectral.VQT`**
-    - Variable-Q transform. Generates spectrograms with variable frequency resolution.
-    - Comparable to librosa's VQT, but faster, more flexible, without approximations, with GPU support, and pytorch autograd compatible.
+- **`automatic_regression`** module
+    - Allows for easy and fast hyperparameter optimization of regression models
+    - Any model with a `fit` and `predict` method can be used (e.g. `sklearn` and similar)
+    - Uses `optuna` for hyperparameter optimization
 
 
 Other useful functions:
@@ -50,20 +47,16 @@ Other useful functions:
         - Fast creation of a matrix of aligned traces relative to specified event times
 
 - Machine Learning:
+    - `neural_networks` module
+        - Has nice RNN regression and classification classes
     - `decomposition.torch_PCA`
         - Fast standard PCA using PyTorch
-    - `linear_regression.LinearRegression_sweep`
-        - Performs linear regression with a variety of hyperparameters and methods (L1, L2, Logistic, optional GPU methods using cuml)
-    - `misc.make_batches`
-        - Creates batches of data or any other iterable
-    - `similarity.orthogonalize` and `similarity.pairwise_orthogonalization`
-        - Orthogonalize a matrix relative to a set of vectors using a Gram-Schmidt related process
+    - `similarity.orthogonalize`
+        - Orthogonalize a matrix relative to a set of vectors using OLS or Gram-Schmidt process
 
 - Miscellaneous
     - `path_helpers.find_paths`
         - Find paths to files and/or folders in a directory. Searches recursively using regex.
-    - `misc.estimate_size_of_float_array`
-        - Estimates the size of a float array in bytes
     - `image_processing.play_video_cv2`
         - Plays and/or saves a 3D array as a video using OpenCV
     - `h5_handling.simple_save` and `h5_handling.simple_load`
