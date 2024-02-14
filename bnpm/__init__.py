@@ -1,9 +1,10 @@
 __all__ = [
     'automatic_regression',
     'ca2p_preprocessing',
+    'circular',
     'classification',
     'clustering',
-    'server',
+    'container_helpers',
     'cross_validation',
     'cupy_helpers',
     'decomposition',
@@ -78,4 +79,4 @@ if run_cv2_imshow:
 for pkg in __all__:
     exec('from . import ' + pkg)
 
-__version__ = '0.3.5'
+__version__ = '0.3.6'
