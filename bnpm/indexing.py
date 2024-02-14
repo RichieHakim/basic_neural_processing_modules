@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 from numba import jit, njit, prange
 import copy
@@ -86,69 +88,6 @@ def bool2idx(bool_vec):
             1-D array of indices.
     '''
     return np.where(bool_vec)[0]
-
-
-def moduloCounter_to_linearCounter(trace, modulus, modulus_value=None, diff_thresh=None, plot_pref=False):
-    '''
-    Converts a (sawtooth) trace of modulo counter
-     values to a linear counter.
-    Useful for converting a pixel clock with a modulus
-     to total times. Use this for FLIR camera top pixel
-     stuff.
-    The function basically just finds where the modulus
-     events occur in the trace and adds 'modulus_value'
-     to the next element in the trace.
-    RH 2021
-
-    Args:
-        trace (np.ndarray):
-            1-D array of modulo counter values.
-        modulus (scalar):
-            Modulus of the counter. Values in trace
-             should range from 0 to modulus-1.
-        modulus_value (scalar):
-            Multiplier for the modulus counter. The
-             value of a modulus event. If None, then
-             modulus_value is set to modulus.
-        diff_thresh (scalar):
-            Threshold for defining a modulus event.
-            Should typically be a negative value
-             smaller than 'modulus', but larger
-             than the difference between consecutive
-             trace values.
-        plot_pref (bool):
-            Whether or not to plot the trace.
-
-    Returns:
-        linearCounter (np.ndarray):
-            1-D array of linearized counter values.
-    '''
-
-    if diff_thresh is None:
-        diff_thresh = -modulus/2
-
-    if modulus_value is None:
-        modulus_value = modulus
-
-    diff_trace = np.diff(np.double(trace))
-    mod_times = np.where(diff_trace<diff_thresh)[0]
-
-
-    mod_times_bool = np.zeros(len(trace))
-    mod_times_bool[mod_times+1] = modulus_value
-    mod_times_steps = np.cumsum(mod_times_bool)
-    trace_times = (trace/modulus)*modulus_value + mod_times_steps
-
-    if plot_pref:
-        plt.figure()
-        plt.plot(trace)
-        plt.plot(mod_times , trace[mod_times] , 'o')
-
-        plt.figure()
-        plt.plot(mod_times_steps)
-        plt.plot(trace_times)
-    
-    return trace_times
 
 
 @njit
@@ -288,7 +227,7 @@ def make_batches(
         l = length
     
     if batch_size is None:
-        batch_size = np.int64(np.ceil(l / num_batches))
+        batch_size = int(math.ceil(l / num_batches))
     
     for start in range(idx_start, l, batch_size):
         end = min(start + batch_size, l)
