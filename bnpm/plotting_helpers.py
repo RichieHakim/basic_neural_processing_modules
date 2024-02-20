@@ -328,6 +328,59 @@ def shaded_error_bar(
     return ax
 
 
+def barplot_with_points(
+    data,
+    point_jitter=0.1,
+    point_offset=0.1,
+    point_size=10,
+    point_color='k',
+    point_alpha=0.5,
+    **kwargs_barplot,
+):
+    """
+    Makes a seaborn barplot with points on top.
+    RH 2024
+
+    Args:
+        data (dict):
+            Dictionary containing np.ndarrays.
+            Columns are reduced to get the barplot.
+            Rows are used to get the points.
+        point_jitter (float):
+            Magnitude of jitter for the points.
+        point_offset (float):
+            Offset for the points in the x-direction.
+        point_size (float):
+            Size of the points.
+        point_color (str):
+            Color of the points.
+        point_alpha (float):
+            Alpha value for the points.
+        **kwargs_barplot:
+            Keyword arguments for the barplot.
+            Will be passed to sns.barplot().
+
+    Returns:
+        ax (matplotlib.axes):
+            Axes.
+    """
+    import seaborn as sns
+    import pandas as pd
+
+    assert isinstance(data, dict), 'data must be a dictionary containing np.ndarrays.'
+
+    ## Make barplot
+    ax = sns.barplot(data=data, **kwargs_barplot)
+
+    ## Add points
+    for ii, key in enumerate(data.keys()):
+        x = np.random.normal(ii, point_jitter, len(data[key])) + point_offset
+        y = data[key]
+        ax.scatter(x, y, s=point_size, c=point_color, alpha=point_alpha)
+
+    return ax
+
+
 ###############
 ### Helpers ###
 ###############
