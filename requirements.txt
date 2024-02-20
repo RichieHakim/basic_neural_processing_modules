@@ -16,6 +16,7 @@ PyYAML
 pytest
 scikit_learn
 tqdm
+seaborn
 sparse
 scipy
 xxhash
