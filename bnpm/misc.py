@@ -6,7 +6,6 @@ from pathlib import Path
 import warnings
 from typing import Callable, List, Any, Dict
 
-from . import path_helpers
 
 def estimate_array_size(
     array=None, 
