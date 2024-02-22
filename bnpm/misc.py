@@ -8,7 +8,13 @@ from typing import Callable, List, Any, Dict
 
 from . import path_helpers
 
-def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64, units='GB'):
+def estimate_array_size(
+    array=None, 
+    numel=None, 
+    input_shape=None, 
+    bitsize=64, 
+    units='GB',
+):
     '''
     Estimates the size of a hypothetical array based on shape or number of 
     elements and the bitsize
@@ -38,24 +44,26 @@ def estimate_array_size(array=None, numel=None, input_shape=None, bitsize=64, un
             but for numpy arrays, this is usually very small (~128 bytes)
 
     '''
+    ## Either array supplied or numel or input_shape
+    assert sum([(array is not None), (numel is not None), (input_shape is not None)]) == 1, 'Exactly one of array, numel, or input_shape must be supplied'
+
     if array is not None:
         assert hasattr(array, 'shape'), f'array must have a shape attribute'
         input_shape = array.shape
-        numel = (input_shape)
 
         if isinstance(array, np.ndarray):
-            bitsize = array.dtype.itemsize*8
+            bitsize = array.dtype.itemsize * 8
         else:
             import torch
             if isinstance(array, torch.Tensor):
-                bitsize = array.element_size()*8
+                bitsize = array.element_size() * 8
             else:
                 raise TypeError(f'array must be a numpy or torch array. Got {type(array)}')
 
-    elif numel is None:
-        numel = np.prod(input_shape)
+    if numel is None:
+        numel = np.prod(np.array(input_shape, dtype=np.float64))
     
-    bytes_per_element = bitsize/8
+    bytes_per_element = float(bitsize / 8)
     
     size_estimate_in_bytes = numel * bytes_per_element
     size_out = convert_size(size_estimate_in_bytes, units)
