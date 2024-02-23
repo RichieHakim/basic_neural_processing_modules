@@ -4,6 +4,9 @@ import time
 import numpy as np
 import scipy.signal
 
+import pytest
+import hypothesis
+
 from .. import math_functions
 
 from ..optimization import Convergence_checker
@@ -11,6 +14,8 @@ from ..optimization import Convergence_checker
 from ..similarity import pairwise_orthogonalization_torch
 
 from ..clustering import cluster_similarity_matrices
+
+from ..path_helpers import find_date_in_path
 
 
 
@@ -199,3 +204,27 @@ def test_cluster_similarity_matrices():
     assert np.allclose(cs_mean, cs_mean_expected, atol=1e-6)
     assert np.allclose(cs_max, cs_max_expected, atol=1e-6)
     assert np.allclose(cs_min, cs_min_expected, atol=1e-6)
+
+
+@pytest.mark.parametrize("path,expected_date,reverse_path_order", [
+    (r"/home/user/documents/20220203/report.txt", "20220203", True),
+    (r"/home/user/docs/2022_02_03/report.pdf", "2022_02_03", True),
+    (r"/home/02_03_22/data.txt", "02_03_22", True),
+    (r"/2022-02-03/home/data.txt", "2022-02-03", True),
+    (r"/home/data_2_3_2022.txt", "2_3_2022", True),
+    (r"/home/docs/data_2-03-22.txt", '2-03-22', True),
+    (r"C:\home\docs\data_2-03-22.txt", '2-03-22', True),
+    (r"/home/docs/19900101/data_2-03-22.txt", '2-03-22', True),
+    (r"/home/docs/19900101/data_2-03-22.txt", '19900101', False),
+    (r"/home/docs/_19900101/data_2-03-22.txt", '19900101', False),
+    (r"/home/docs/19900101_/data_2-03-22.txt", '19900101', False),
+    (r"/home/docs/_19900101_/data_2-03-22.txt", '19900101', False),
+    (r"/home/docs/_19900101_/data_020322.txt", '19900101', False),
+    (r"/home/docs/_19900101_/data_20230322.txt", '19900101', False),
+    (r"/home/docs/_19900101_/data_20230322.txt", '20230322', True),
+    (r"/home/docs/_1990010_/data_2023032.txt", None, True),
+    (r"/home/docs/_1990010_/data_0 32.txt", None, True),
+    (r"/home/docs/_/data_.txt", None, True),
+])
+def test_known_dates_in_path(path, expected_date, reverse_path_order):
+    assert find_date_in_path(path, reverse_path_order=reverse_path_order) == expected_date

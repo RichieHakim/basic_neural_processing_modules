@@ -252,3 +252,86 @@ def fix_spaces_in_unix_path(path):
     """
     from pathlib import Path
     return Path(path).as_posix().replace(' ', r'\ ')
+
+
+def find_date_in_path(
+    path, 
+    regex_date_formats=[
+        r'\d{4}\d{2}\d{2}',     # 20220203
+        r'\d{4}\D\d{2}\D\d{2}', # 2022_02_03
+        r'\d{2}\D\d{2}\D\d{4}', # 02_03_2022
+        r'\d{1}\D\d{1}\D\d{4}', # 2_3_2022
+        r'\d{1}\D\d{2}\D\d{4}', # 2_03_2022
+        r'\d{2}\D\d{1}\D\d{4}', # 02_3_2022
+        r'\d{2}\D\d{2}\D\d{2}', # 02_03_22
+        r'\d{1}\D\d{1}\D\d{2}', # 2_3_22
+        r'\d{1}\D\d{2}\D\d{2}', # 2_03_22
+        r'\d{2}\D\d{1}\D\d{2}', # 02_3_22
+    ],
+    reverse_path_order=True,
+):
+    """
+    Searches a file or directory path for a date string matching one of several
+    regex patterns and returns the first match.
+    
+    RH 2024
+
+    Args:
+        path (str):
+            The file or directory path in which to search for a date.
+        regex_date_formats (List[str]):
+            A list of regex patterns to match against parts of the path.\n
+            Search goes in order of the list and stops at the first match.\n
+            (Default is a list of common date formats)
+        reverse_path_order (bool):
+            If True, search from the end of the path backwards.
+    
+    Returns:
+        str or None:
+            The first matching date string found, or None if no match is found.
+    """
+    ## make a list of strings
+    regex_date_formats = [regex_date_formats] if isinstance(regex_date_formats, str) else regex_date_formats
+
+    ## Dictionary to modify regex based on the presence of separators at start/end of the date.
+    modifiers = {
+        (0, 0): [r''  , r''  ],
+        (1, 0): [r'\D', r''  ],
+        (0, 1): [r''  , r'\D'],
+        (1, 1): [r'\D', r'\D'],
+    }
+
+    ## Split the path into components and optionally reverse the order of search.
+    parts = Path(path).parts
+    parts = parts[::-1] if reverse_path_order else parts
+
+    def _finder(regexs, parts):
+        """Inner function to find the first date in the path parts based on
+        provided regex patterns."""
+        date = []
+        for part in parts:
+            for regex in regexs:
+                date = re.findall(regex, part)
+                if len(date) > 0:
+                    ## Return the last match found in the current part.
+                    date = date[-1]
+                    break
+            if isinstance(date, str):
+                break
+        date = None if isinstance(date, list) else date
+        return date
+    
+    ## Run the finder with each modifier and stop at the first match.
+    date = None
+    for num, mod in modifiers.items():
+        ## Apply modifiers to each regex pattern and search the path parts.
+        date = _finder(
+            regexs=[mod[0] + regex + mod[1] for regex in regex_date_formats], 
+            parts=parts,
+        )
+        if date is not None:
+            ## Remove the modifiers from the date string.
+            date = date[num[0]:-num[1] if num[1]>0 else None]
+            break
+
+    return date
