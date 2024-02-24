@@ -126,6 +126,10 @@ def batch_run(
     import os
     import shutil
 
+    ## Assert that the inputs are valid
+    for val in ['paths_scripts', 'params_list', 'sbatch_config_list']:
+        assert isinstance(locals()[val], list), f'{val} must be a list'
+
     # make sure the arguments are matched in length
     n_jobs = max(len(paths_scripts), len(params_list), len(sbatch_config_list))
     if max_n_jobs is not None:
