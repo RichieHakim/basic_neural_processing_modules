@@ -1,3 +1,4 @@
+from typing import List, Tuple, Union, Optional, Dict, Any, Callable, Iterable
 from pathlib import Path
 import tkinter as tk
 import PIL
@@ -8,6 +9,7 @@ import time
 
 from matplotlib import pyplot as plt
 import numpy as np
+import torch
 import cv2
 
 
@@ -58,7 +60,7 @@ def plot_image_grid(images, labels=None, grid_shape=(10,10), show_axis='off', cm
 
 def widget_toggle_image_stack(images, labels=None, clim=None, figsize=None):
     """
-    Scrub through iamges in a stack using a slider.
+    Scrub through imaes in a stack using a slider.
     Requires %matplotlib notebook or %matplotlib widget
     RH 2022
 
@@ -88,25 +90,33 @@ def widget_toggle_image_stack(images, labels=None, clim=None, figsize=None):
     interact(update, i_frame=widgets.IntSlider(min=0, max=len(images)-1, step=1, value=0));
 
 
-def display_toggle_image_stack(images, image_size=None, clim=None, interpolation='nearest'):
+def display_toggle_image_stack(
+    images: Union[List[np.ndarray], List[torch.Tensor]],
+    image_size: Optional[Union[Tuple[int, int], int, float]] = None,
+    clim: Optional[Tuple[float, float]] = None,
+    interpolation: str = 'nearest',
+) -> None:
     """
-    Display images in a slider using Jupyter Notebook.
+    Displays images in a slider using Jupyter Notebook. 
     RH 2023
 
     Args:
-        images (list of numpy arrays or PyTorch tensors):
-            List of images as numpy arrays or PyTorch tensors
-        image_size (tuple of ints, optional):
-            Tuple of (width, height) for resizing images.
-            If None (default), images are not resized.
-        clim (tuple of floats, optional):
-            Tuple of (min, max) values for scaling pixel intensities.
-            If None (default), min and max values are computed from the images
-             and used as bounds for scaling.
-        interpolation (string, optional):
-            String specifying the interpolation method for resizing.
-            Options: 'nearest', 'box', 'bilinear', 'hamming', 'bicubic', 'lanczos'.
-            Uses the Image.Resampling.* methods from PIL.
+        images (Union[List[np.ndarray], List[torch.Tensor]]): 
+            List of images as numpy arrays or PyTorch tensors.
+        image_size (Optional[Tuple[int, int]]): 
+            Tuple of *(width, height)* for resizing images.\n
+            If ``None``, images are not resized.\n
+            If a single integer or float is provided, the images are resized by
+            that factor.\n
+            (Default is ``None``)
+        clim (Optional[Tuple[float, float]]): 
+            Tuple of *(min, max)* values for scaling pixel intensities. If
+            ``None``, min and max values are computed from the images and used
+            as bounds for scaling. (Default is ``None``)
+        interpolation (str): 
+            String specifying the interpolation method for resizing. Options are
+            'nearest', 'box', 'bilinear', 'hamming', 'bicubic', 'lanczos'. Uses
+            the Image.Resampling.* methods from PIL. (Default is 'nearest')
     """
     from IPython.display import display, HTML
     import numpy as np
@@ -118,6 +128,16 @@ def display_toggle_image_stack(images, image_size=None, clim=None, interpolation
     import hashlib
     import sys
     
+    # Get the image size for display
+    if image_size is None:
+        image_size = images[0].shape[:2]  
+    elif isinstance(image_size, (int, float)):
+        image_size = tuple((np.array(images[0].shape[:2]) * image_size).astype(np.int64))
+    elif isinstance(image_size, (tuple, list)):
+        image_size = tuple(image_size)
+    else:
+        raise ValueError("Invalid image size. Must be a tuple of (width, height) or a single integer or float.")
+
     def normalize_image(image, clim=None):
         """Normalize the input image using the min-max scaling method. Optionally, use the given clim values for scaling."""
         if isinstance(image, torch.Tensor):
@@ -182,9 +202,6 @@ def display_toggle_image_stack(images, image_size=None, clim=None, interpolation
 
     # Process all images in the input list
     base64_images = [process_image(img) for img in images]
-
-    # Get the image size for display
-    image_size = images[0].shape[:2] if image_size is None else image_size
 
     # Generate the HTML code for the slider
     html_code = f"""
