@@ -220,6 +220,8 @@ class Ridge(LinearRegression_sk):
         fit_intercept (bool):
             If True, add a column of ones to X.
             Theta will not contain the bias term.
+        X_precompute (ndarray):
+            X array to precompute X.T @ X + alpha*I
     """
     def __init__(
         self, 
