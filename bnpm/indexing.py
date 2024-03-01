@@ -190,54 +190,96 @@ def make_batches(
     return_idx=False, 
     length=None,
     idx_start=0,
+    randomize_batch_indices=False,
+    shuffle_batch_order=False,
+    shuffle_iterable_order=False,
 ):
     """
     Make batches of data or any other iterable.
-    RH 2021
+    RH 2021-2024
 
     Args:
         iterable (iterable):
-            iterable to be batched
+            Iterable to be batched.
         batch_size (int):
-            size of each batch
-            if None, then batch_size based on num_batches
+            Size of each batch.\n
+            if None, then ``batch_size`` based on ``num_batches``.
         num_batches (int):
-            number of batches to make
+            Number of batches to make.\n
+            if None, then ``num_batches`` based on ``batch_size``.
         min_batch_size (int):
-            minimum size of each batch
+            Minimum size of each batch. Set to ``-1`` to equal ``batch_size``.
         return_idx (bool):
-            whether to return the slice indices of the batches.
-            output will be [start, end] idx
+            Whether to also return the slice indices of the batches. Returns will
+            be the tuple: ``(iterable[idx], [idx_start, idxend])``
         length (int):
-            length of the iterable.
-            if None, then length is len(iterable)
-            This is useful if you want to make batches of 
-             something that doesn't have a __len__ method.
+            Length of the iterable. Determines ``idx_end``. If ``None``, then
+            length is ``len(iterable)`` This is useful if you want to make
+            batches of something that doesn't have a ``__len__`` method.
         idx_start (int):
-            starting index of the iterable.
+            Starting index of the iterable.
+        randomize_batch_indices
+            Whether to randomize the transition indices between batches.\n
+            So ``[(1,2,3), (4,5,6),]`` can become ``[(1,), (2,3,4), (5,6),]``.
+        shuffle_batch_order (bool):
+            Whether to shuffle the order in which batches are yielded.
+        shuffle_iterable_order (bool):
+            Whether to shuffle the order of the contents of the iterable before
+            batching.
     
     Returns:
         output (iterable):
             batches of iterable
     """
 
-    if length is None:
-        l = len(iterable)
-    else:
-        l = length
-    
+    ## Prepare parameters
+    l = len(iterable) if length is None else length
+
+    assert sum([(batch_size is None), (num_batches is None)]) == 1, 'Exactly one of batch_size or num_batches must be specified. The other must be None.'
     if batch_size is None:
+        assert isinstance(num_batches, int), 'num_batches must be an integer'
         batch_size = int(math.ceil(l / num_batches))
-    
-    for start in range(idx_start, l, batch_size):
-        end = min(start + batch_size, l)
-        if (end-start) < min_batch_size:
-            break
-        else:
-            if return_idx:
-                yield iterable[start:end], [start, end]
-            else:
-                yield iterable[start:end]
+    if num_batches is None:
+        assert isinstance(batch_size, int), 'batch_size must be an integer'
+        num_batches = int(math.ceil(l / batch_size))
+
+    if min_batch_size == -1:
+        min_batch_size = batch_size
+
+    assert batch_size > 0, 'batch_size must be greater than 0'
+    assert min_batch_size <= batch_size, 'min_batch_size must be less than or equal to batch_size'
+    assert num_batches > 0, 'num_batches must be greater than 0'    
+
+    ## Make slices
+    offset = np.random.randint(0, batch_size) if randomize_batch_indices else 0
+    idx_slices = [slice(s, min(e, l), None) for s, e in (zip(np.arange(idx_start + offset, l, batch_size), np.arange(idx_start + batch_size + offset, l + batch_size + offset, batch_size)))]
+    if offset > 0:
+        idx_slices = [slice(0, offset, None)] + idx_slices
+
+    ## Remove small batches
+    if min_batch_size > 0:
+        idx_slices = [idx for idx in idx_slices if (idx.stop - idx.start) >= min_batch_size]
+
+    ## Shuffle batch order
+    if shuffle_batch_order:
+        idx_slices = [idx_slices[ii] for ii in np.random.permutation(len(idx_slices))]
+
+    ## Crop to num_batches
+    idx_slices = idx_slices[:num_batches]
+
+    ## Shuffle iterable contents order
+    if shuffle_iterable_order:
+        order = np.random.permutation(l)
+    else:
+        order = range(l)
+
+    ## Yield batches
+    if return_idx:
+        for idx in idx_slices:
+            yield iterable[order[idx]], [order[idx.start], order[idx.stop]]
+    else:
+        for idx in idx_slices:
+            yield iterable[order[idx]]
 
 
 @njit
