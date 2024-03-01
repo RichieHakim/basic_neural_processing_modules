@@ -265,6 +265,80 @@ class Basic_dataset(Dataset):
         return self.X[idx], idx
 
 
+class BatchRandomSampler(torch.utils.data.Sampler):
+    """
+    Creates a sampler similar to torch.utils.data.BatchSampler, but allows for
+    randomized sampling of the batches. Wraps indexing.make_batches.
+    RH 2024
+
+    Args:
+        len_dataset(int):
+            The number of samples in the dataset.
+        batch_size (int):
+            Size of each batch.\n
+            if None, then ``batch_size`` based on ``num_batches``.
+        num_batches (int):
+            Number of batches to make.\n
+            if None, then ``num_batches`` based on ``batch_size``.
+        min_batch_size (int):
+            Minimum size of each batch. Set to ``-1`` to equal ``batch_size``.
+        randomize_batch_indices
+            Whether to randomize the transition indices between batches.\n
+            So ``[(1,2,3), (4,5,6),]`` can become ``[(1,), (2,3,4), (5,6),]``.
+        shuffle_batch_order (bool):
+            Whether to shuffle the order in which batches are yielded.
+        shuffle_iterable_order (bool):
+            Whether to shuffle the order of the contents of the iterable before
+            batching.
+
+    Returns:
+        (torch.utils.data.Sampler):
+            A sampler for the dataset.
+    """
+    def __init__(
+        self,
+        len_dataset: int,
+        batch_size: Optional[int] = None,
+        num_batches: Optional[int] = None,
+        min_batch_size: int = 1,
+        randomize_batch_indices: bool = False,
+        shuffle_batch_order: bool = False,
+        shuffle_iterable_order: bool = False,
+    ):
+        """
+        Initializes the BatchRandomSampler with the provided parameters.
+        """
+        assert isinstance(len_dataset, int), 'len_dataset must be an integer.'
+        self.len_dataset = len_dataset
+        self.batch_size = batch_size
+        self.num_batches = num_batches
+        self.min_batch_size = min_batch_size
+        self.randomize_batch_indices = randomize_batch_indices
+        self.shuffle_batch_order = shuffle_batch_order
+        self.shuffle_iterable_order = shuffle_iterable_order
+
+    def __iter__(self):
+        """
+        Returns an iterator over the batches.
+        """
+        self.batches = indexing.make_batches(
+            iterable=torch.arange(self.len_dataset),
+            batch_size=self.batch_size,
+            num_batches=self.num_batches,
+            min_batch_size=self.min_batch_size,
+            randomize_batch_indices=self.randomize_batch_indices,
+            shuffle_batch_order=self.shuffle_batch_order,
+            shuffle_iterable_order=self.shuffle_iterable_order,
+        )
+        return iter(self.batches)
+    
+    def __len__(self):
+        """
+        Returns the number of samples in the dataset.
+        """
+        return self.len_dataset
+
+
 ##################################################################
 ############# STUFF PYTORCH SHOULD ALREADY HAVE ##################
 ##################################################################
