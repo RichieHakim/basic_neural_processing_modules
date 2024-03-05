@@ -2,6 +2,7 @@ import sys
 import gc
 import copy
 from typing import Union, List, Tuple, Dict, Callable, Optional, Any
+from contextlib import contextmanager
 
 import torch
 from torch.utils.data import Dataset
@@ -48,6 +49,37 @@ def show_all_tensors(
 
     for string in strings:
         print(string)
+
+
+
+@contextmanager
+def temp_eval(module):
+    """
+    Temporarily sets the network to evaluation mode within a context manager.
+    RH 2024
+
+    Args:
+        module (torch.nn.Module):
+            The network to temporarily set to evaluation mode.
+
+    Yields:
+        (torch.nn.Module):
+            The network temporarily set to evaluation mode.
+
+    Demo:
+        .. highlight:: python
+        .. code-block:: python
+
+            with temp_eval(model):
+                y = model(x)
+    """
+    state_train = module.training
+    module.eval()
+    try:
+        yield module
+    finally:
+        if state_train:
+            module.train()
 
 
 ######################################

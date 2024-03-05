@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 import warnings
 from typing import Callable, List, Any, Dict
+from contextlib import contextmanager
 
 
 def estimate_array_size(
@@ -389,6 +390,35 @@ def array_hasher():
     from functools import partial
     import xxhash
     return partial(xxhash.xxh64_hexdigest, seed=0)
+
+
+@contextmanager
+def temp_set_attr(obj, attr_name, new_value):
+    """
+    Temporarily set an attribute of an object to a new value within a context
+    manager / closure.
+    RH 2024
+
+    Args:
+        obj (object):
+            Object to toggle attribute for.
+        attr_name (str):
+            Attribute to toggle.
+        new_value (Any):
+            New value to set attribute to.
+
+    Demo:
+        .. code-block:: python
+            
+                with temp_set_attr(obj, attr, new_val):
+                    # do something
+    """
+    original_value = getattr(obj, attr_name)
+    setattr(obj, attr_name, new_value)
+    try:
+        yield
+    finally:
+        setattr(obj, attr_name, original_value)
 
 
 #########################################################
