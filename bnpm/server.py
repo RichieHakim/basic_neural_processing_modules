@@ -699,6 +699,7 @@ class sftp_interface():
         self, 
         path='.', 
         search_pattern_re='', 
+        search_pattern_inPath_re='',
         max_depth=6,
         find_files=True,
         find_folders=True,
@@ -714,6 +715,8 @@ class sftp_interface():
                 Current working directory.
             search_pattern_re (str):
                 Regular expression to search for.
+            search_pattern_inPath_re (str):
+                Regular expression to search for in the path.
             max_depth (int):
                 Maximum depth (number of hierarchical subdirectories) to search.
             find_files (bool):
@@ -738,7 +741,7 @@ class sftp_interface():
             contents = {name: stat.S_ISDIR(attr.st_mode)  for name, attr in zip(sftp.listdir(cwd), sftp.listdir_attr(cwd))}
             for name, isdir  in contents.items():
                 if (isdir and find_folders) or (not isdir and find_files):
-                    if re.search(search_pattern_re, name):
+                    if re.search(search_pattern_re, name) and re.search(search_pattern_inPath_re, str(Path(cwd) / name)):
                         path_found = str(Path(cwd) / name)
                         search_results.append(path_found)
                         print(path_found) if verbose else None
