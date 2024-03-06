@@ -79,4 +79,4 @@ if run_cv2_imshow:
 for pkg in __all__:
     exec('from . import ' + pkg)
 
-__version__ = '0.3.7'
+__version__ = '0.3.8'
