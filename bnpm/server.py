@@ -703,6 +703,7 @@ class sftp_interface():
         max_depth=6,
         find_files=True,
         find_folders=True,
+        return_natsorted=True,
         verbose=True
     ):
         """
@@ -723,6 +724,8 @@ class sftp_interface():
                 Whether or not to search for files.
             find_folders (bool):
                 Whether or not to search for folders.
+            return_natsorted (bool):
+                Whether or not to return the results natsorted.
             verbose (bool):
                 Whether or not to print the paths of the files found.
                 If False, no output is printed.
@@ -758,7 +761,10 @@ class sftp_interface():
 
                 print(f'cwd: {cwd}, name: {name}, isdir: {isdir}, depth: {depth}') if verbose > 1 else None
             return search_results
-        return natsort.natsorted(_recursive_search(
+        
+        fn_sort = natsort.natsorted if return_natsorted else lambda x: x
+        
+        return fn_sort(_recursive_search(
             search_results, 
             self.sftp, 
             cwd=path, 
