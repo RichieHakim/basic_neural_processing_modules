@@ -1,7 +1,9 @@
-import numpy as np
+import functools
 import time
-from matplotlib import pyplot as plt
 import copy
+
+import numpy as np
+from matplotlib import pyplot as plt
 from numba import njit, jit, prange
 import pandas as pd
 import torch
@@ -11,6 +13,7 @@ from .parallel_helpers import multiprocessing_pool_along_axis
 from . import cross_validation
 from .math_functions import polar2cartesian, cartesian2polar, gaussian
 from . import indexing
+from . import torch_helpers
 
 
 def convolve_along_axis(
@@ -153,18 +156,17 @@ def threshold(
 
 def scale_between(
     x, 
-    lower=0, 
-    upper=1, 
-    axes=0, 
-    lower_percentile=None, 
-    upper_percentile=None, 
-    crop_pref=True,
-    verbose=False
-    ):
+    low=0, 
+    high=1, 
+    axis=0, 
+    low_percentile=None, 
+    high_percentile=None, 
+    clip=True,
+):
     '''
     Scales the first (or more) dimension of an array to be between 
     lower and upper bounds.
-    RH 2021
+    RH 2024
 
     Args:
         x (ndarray):
@@ -173,47 +175,47 @@ def scale_between(
             lower bound for scaling
         upper (scalar):
             upper bound for scaling
-        axes (tuple):
-            UNTESTED for values other than 0.
-            It should work for tuples defining axes, so long
-            as the axes are sequential starting from 0
-            (eg. (0,1,2,3) ).
-        lower_percentile (scalar):
+        axis (int or tuple):
+            axis to scale along
+        low_percentile (scalar):
             Ranges between 0-100. Defines what percentile of
             the data to set as the lower bound
-        upper_percentile (scalar):
+        high_percentile (scalar):
             Ranges between 0-100. Defines what percentile of
             the data to set as the upper bound
-        crop_pref (bool):
-            If true then data is cropped to be between lower
+        clip (bool):
+            If true then data is clipped to be between lower
             and upper. Only meaningful if lower_percentile or
             upper_percentile is not None.
-        verbose (bool):
-            Whether or not to print the highest and lowest values.
 
     Returns:
         x_out (ndarray):
             Scaled array
     '''
+    if isinstance(x, torch.Tensor):
+        percentile = lambda x, p: torch.quantile(x, q=p/100, axis=axis, keepdims=True)
+        nanmin = lambda x: torch_helpers.nanmin(x, axis=axis, keepdims=True)[0]
+        nanmax = lambda x: torch_helpers.nanmax(x, axis=axis, keepdims=True)[0]
+        clip = lambda x, low, high: torch.clamp(x, min=low, max=high)
+    elif isinstance(x, np.ndarray):
+        percentile = lambda x, p: np.percentile(x, q=p, axis=axis, keepdims=True)
+        nanmin = lambda x, axis: np.nanmin(x, axis=axis, keepdims=True)
+        nanmax = lambda x: np.nanmax(x, axis=axis, keepdims=True)
+        clip = lambda x, low, high: np.clip(x, a_min=low, a_max=high)
 
-    if lower_percentile is not None:
-        lowest_val = np.percentile(x, lower_percentile, axis=axes, keepdims=True)
+    if low_percentile is not None:
+        lowest_val = percentile(x, low_percentile)
     else:
-        lowest_val = np.nanmin(x, axis=axes, keepdims=True)
-    if upper_percentile is not None:
-        highest_val = np.percentile(x, upper_percentile, axis=axes, keepdims=True)
+        lowest_val = nanmin(x)
+    if high_percentile is not None:
+        highest_val = percentile(x, high_percentile)
     else:
-        highest_val = np.nanmax(x, axis=axes, keepdims=True)
+        highest_val = nanmax(x)
 
-    if verbose:
-        print(f'Highest value: {highest_val}')
-        print(f'Lowest value: {lowest_val}')
+    x_out = ((x - lowest_val) * (high - low) / (highest_val - lowest_val) ) + low
 
-    x_out = ((x - lowest_val) * (upper - lower) / (highest_val - lowest_val) ) + lower
-
-    if crop_pref:
-        np.putmask(x_out, x_out < np.squeeze(lower), lower)
-        np.putmask(x_out, x_out > np.squeeze(upper), upper)
+    if clip:
+        x_out = clip(x_out, low, high)
 
     return x_out
 
