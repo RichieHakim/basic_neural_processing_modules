@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 import functools
 
+from . import misc
+
 """
 This module implements some modular arithmetic functions for circular data. For
 circular stats, use pycircstat or pycircular.
@@ -71,7 +73,7 @@ def circ_add(a, b, period=2*np.pi):
     """
     return _circ_operator(a + b, period=period)
 
-
+@misc.wrapper_flexible_args(['dim', 'axis'])
 def circ_diff(arr, period=2*np.pi, axis=-1, prepend=None, append=None, n=1):
     """
     Modular derivative (like np.diff) of an array. \n 
@@ -166,3 +168,46 @@ def moduloCounter_to_linearCounter(trace, modulus, modulus_value=None, diff_thre
         plt.plot(trace_times)
     
     return trace_times
+
+
+@misc.wrapper_flexible_args(['dim', 'axis'])
+def circ_mean(arr, high=2*np.pi, low=0, dim=-1):
+    """
+    Circular mean of an array. \n 
+    Calculates the circular mean of an array along a given axis. \n 
+    Period is assumed to be 2*pi. \n
+    RH 2024
+
+    Args:
+        arr (np.ndarray or torch.Tensor):
+            Input array
+        high (float):
+            High end of the period
+        low (float):
+            Low end of the period
+        dim (int):
+            Axis along which to compute the mean
+
+    Returns:
+        output (float or np.ndarray or torch.Tensor):
+            Circular mean
+    """
+    if isinstance(arr, np.ndarray):
+        arctan2, sin, cos, pi = np.arctan2, np.sin, np.cos, np.pi
+        sum = functools.partial(np.sum, axis=dim)
+    elif isinstance(arr, torch.Tensor):
+        arctan2, sin, cos, pi = torch.atan2, torch.sin, torch.cos, torch.pi
+        sum = functools.partial(torch.sum, dim=dim)
+    else:
+        raise TypeError("arr must be either np.ndarray or torch.Tensor")
+    
+    scale = (high - low) / (2*pi)
+    arr_scaled = (arr - low) / scale
+
+    res = arctan2(sum(sin(arr_scaled)), sum(cos(arr_scaled)))
+    if res.ndim == 0:
+        res = res + 2*pi if res < 0 else res
+    else:
+        res[res < 0] += 2*pi
+    res = res[()]
+    return (res * scale) + low
