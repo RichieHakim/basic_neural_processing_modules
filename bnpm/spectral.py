@@ -1,9 +1,13 @@
+import functools
+
 import scipy.signal
+import scipy.stats
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from . import math_functions, indexing
-from tqdm import tqdm
+
+from . import circular
+from . import misc
 
 
 def design_butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
@@ -79,6 +83,7 @@ def design_fir_bandpass(lowcut, highcut, num_taps=30001, fs=30, window='hamming'
     designs a FIR bandpass filter.
     Makes a lowpass filter if lowcut is 0.
     Makes a highpass filter if highcut is fs/2.
+    Apply filter with: `scipy.signal.lfilter(b, 1, data, axis=axis)`
     RH 2021
 
         Args:
@@ -233,7 +238,6 @@ def mtaper_specgram(
     return f, t, sxx
 
 
-
 def simple_cwt(
     X,
     freqs_toUse=None, 
@@ -312,7 +316,8 @@ def simple_cwt(
     return coeff, freq
 
 
-def torch_hilbert(x, N=None, dim=0):
+@misc.wrapper_flexible_args(['dim', 'axis'])
+def torch_hilbert(x, N=None, dim=-1):
     """
     Computes the analytic signal using the Hilbert transform.
     Based on scipy.signal.hilbert
@@ -351,3 +356,52 @@ def torch_hilbert(x, N=None, dim=0):
 
     return torch.fft.ifft(xf * m, dim=dim)
 
+
+def signal_angle_difference(x, y, center=True, window=None, axis=-1):
+    """
+    Computes the average angle difference between two signals.\n
+    Calculated as the mean of the angle difference between the Hilbert
+    transforms of the signals.\n
+    Bound to the range [-pi, pi] (i.e. -180 to 180 degrees). Negative values
+    indicate that x leads y.\n
+    RH 2024
+    
+    Args:
+        x (torch.Tensor or np.ndarray):
+            Signal data. Must be complex.
+        y (torch.Tensor or np.ndarray):
+            Signal data. Must be complex.
+        center (bool):
+            Whether or not to center the signals.
+        window (torch.Tensor or np.ndarray):
+            If not None, then the signals are multiplied by the window after the
+            Hilbert transform.
+        dim (int):
+            Dimension along which to do the transformation.
+    
+    Returns:
+        angle_diff (nd tensor):
+            Angle difference between x and y along dim
+    """
+    if isinstance(x, torch.Tensor) and isinstance(y, torch.Tensor):
+        mean, circ_mean, hilbert = (functools.partial(fn, axis=axis) for fn in (torch.mean, circular.circ_mean, torch_hilbert))
+        angle, pi = torch.angle, torch.pi
+    elif isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
+        mean, circ_mean, hilbert = (functools.partial(fn, axis=axis) for fn in (np.mean, scipy.stats.circmean, scipy.signal.hilbert))
+        angle, pi = np.angle, np.pi
+    else:
+        raise ValueError("x and y must be torch tensors or numpy arrays")
+    
+    fn_win = lambda x: x * window if window is not None else x
+    
+    if center:
+        x, y = x - mean(x, keepdims=True), y - mean(y, keepdims=True)
+    
+    out = circ_mean((angle(fn_win(hilbert(x))) - angle(fn_win(hilbert(y)))))
+
+    if out.ndim == 0:
+        out = out - 2*pi if out > pi else out
+    else:
+        out[out > pi] -= 2*pi
+    out = out[()]
+    return out
