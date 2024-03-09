@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import sklearn
                                      
 def make_cv_indices(
     cv, 
@@ -93,6 +94,20 @@ def group_split(n_splits, n_samples, group_size, test_size=0.5):
     cv = GroupShuffleSplit(n_splits, test_size=test_size)
     return list(cv.split(X=np.arange(n_samples), y=np.arange(n_samples), groups = np.arange(n_samples)//group_size))
 
+
+class GroupShuffleSplit_withGroups(sklearn.model_selection.GroupShuffleSplit):
+    '''
+    A GroupShuffleSplit with a groups attribute.
+    RH 2024
+    '''
+    def __init__(self, groups=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.groups = groups
+
+    def split(self, X, y=None, groups=None):
+        groups = self.groups if groups is None else groups
+        return super().split(X, y, groups=self.groups)
+    
 
 def plot_cv_indices(cv, X, y, group, ax, n_splits, lw=10):
     """
