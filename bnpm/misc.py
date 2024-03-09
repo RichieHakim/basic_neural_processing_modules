@@ -421,9 +421,53 @@ def temp_set_attr(obj, attr_name, new_value):
         setattr(obj, attr_name, original_value)
 
 
+def wrapper_flexible_args(names_kwargs: List[str]) -> Callable:
+    """
+    Make a wrapper function that allows for flexible argument names.\n
+    Useful for things like `dim` vs. `axis` or `keepdim` vs. `keepdims`.\n
+    RH 2024
+
+    Args:
+        names_kwargs (List[str]):
+            List of argument names that the wrapper function should accept.
+
+    Returns:
+        (Callable):
+            Wrapper function.
+    """
+    import inspect
+    from functools import wraps
+
+    def wrapper(func: Callable) -> Callable:
+        try:
+            sig = inspect.signature(func)
+        except ValueError:
+            raise ValueError(f'Function {func.__name__} must have a signature to use this wrapper')
+        
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            ## Check for intersection of names_kwargs with sig.parameters and kwargs
+            sp = set(sig.parameters.keys())
+            nk = set(names_kwargs)
+            k = set(kwargs.keys())
+            ix_nk_sp = nk.intersection(sp)
+            ix_nk_k = nk.intersection(k)
+            ix_nk_k_sp = ix_nk_k.intersection(sp)
+            ## Logic steps:
+            ### If none of the kwargs are in the signature, and there is at least one named_kwarg in both the kwargs and signature, then rename the kwargs
+            if (len(ix_nk_k_sp) == 0) and (len(ix_nk_k) > 0) and (len(ix_nk_sp) > 0):
+                k_toUse = ix_nk_sp.pop()
+                k_toRename = ix_nk_k.pop()
+                kwargs[k_toUse] = kwargs.pop(k_toRename)
+            return func(*args, **kwargs)
+        return wrapped
+    return wrapper
+
+
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################
+
 
 def convert_size(size, return_size='GB'):
     """
