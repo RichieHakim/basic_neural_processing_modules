@@ -8,8 +8,8 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 
-
 from . import indexing
+from . import misc
 
 
 ############################################
@@ -376,6 +376,8 @@ class BatchRandomSampler(torch.utils.data.Sampler):
 ##################################################################
 
 
+@misc.wrapper_flexible_args(['dim', 'axis'])
+@misc.wrapper_flexible_args(['keepdim', 'keepdims'])
 def nanvar(
     arr: torch.Tensor, 
     dim: Optional[int] = None, 
@@ -421,6 +423,8 @@ def nanvar(
     out = squeeze_multiple_dims(out, dims=dim) if keepdim==False else out
     return out if ret_mean==False else (out, avg)
 
+@misc.wrapper_flexible_args(['dim', 'axis'])
+@misc.wrapper_flexible_args(['keepdim', 'keepdims'])
 def nanstd(
     arr: torch.Tensor, 
     dim: Optional[int] = None, 
@@ -463,7 +467,8 @@ def nanstd(
     std = torch.sqrt(var)
     return std if ret_mean==False else (std, avg)
         
-
+@misc.wrapper_flexible_args(['dim', 'axis'])
+@misc.wrapper_flexible_args(['keepdim', 'keepdims'])
 def nanmax(
     arr: torch.Tensor, 
     dim: Optional[int] = None, 
@@ -498,9 +503,13 @@ def nanmax(
         }
     
     nan_mask = torch.isnan(arr)
-    arr_no_nan = arr.masked_fill(nan_mask, float('-inf'))
+    ## Get min value for the dtype. Use -inf if dtype is float, otherwise use min value for the dtype
+    val_min = torch.as_tensor(float('-inf'), dtype=arr.dtype, device=arr.device) if arr.dtype in [torch.float32, torch.float64] else torch.iinfo(arr.dtype).min
+    arr_no_nan = arr.masked_fill(nan_mask, val_min)
     return torch.max(arr_no_nan, **kwargs)
 
+@misc.wrapper_flexible_args(['dim', 'axis'])
+@misc.wrapper_flexible_args(['keepdim', 'keepdims'])
 def nanmin(
     arr: torch.Tensor, 
     dim: Optional[int] = None, 
@@ -535,7 +544,9 @@ def nanmin(
         }
     
     nan_mask = torch.isnan(arr)
-    arr_no_nan = arr.masked_fill(nan_mask, float('inf'))
+    ## Get max value for the dtype. Use inf if dtype is float, otherwise use max value for the dtype
+    val_max = torch.as_tensor(float('inf'), dtype=arr.dtype, device=arr.device) if arr.dtype in [torch.float32, torch.float64] else torch.iinfo(arr.dtype).max
+    arr_no_nan = arr.masked_fill(nan_mask, val_max)
     return torch.min(arr_no_nan, **kwargs)
 
 def unravel_index(
