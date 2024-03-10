@@ -1,6 +1,7 @@
 from typing import Dict, Type, Any, Union, Optional, Callable, Tuple, List
 import time
 import warnings
+import itertools
 
 import numpy as np
 import torch
@@ -257,3 +258,25 @@ class Convergence_checker_optuna:
         if self.verbose:
             print(f'Trial num: {self.num_trial}. Duration: {duration:.3f}s. Best value: {self.best:3e}. Current value:{trial.value:3e}') if self.verbose else None
         self.num_trial += 1
+
+
+def make_grid_search_dicts(search_space):
+    """
+    Makes a grid sweep over the search space.
+    RH 2024
+
+    Args:
+        search_space (dict):
+            Dictionary with keys as parameter names and values as lists of
+            parameter values.\n
+            Example: {'lr': [0.1, 0.01, 0.001], 'batch_size': [32, 64]}
+
+    Returns:
+        ss_comb_dicts (list):
+            List of dictionaries, where each dictionary is a combination of
+            parameter values from the search space.\n
+            Example: [{'lr': 0.1, 'batch_size': 32}, {'lr': 0.1, 'batch_size': 64}, ...]
+    """
+    vals_comb = list(itertools.product(*search_space.values()))
+    ss_comb_dicts = [{k: val for k, val in zip(search_space.keys(), vals)} for vals in vals_comb]
+    return ss_comb_dicts
