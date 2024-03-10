@@ -14,11 +14,8 @@ Install stable version:
 pip install bnpm[core]
 ```
 
-If installing on a server or any computer without graphics/display, after installing `bnpm`, please uninstall `opencv-contrib-python` and install `opencv-contrib-python-headless` instead. 
-```
-pip uninstall opencv-contrib-python
-pip install opencv-contrib-python-headless
-```
+If installing on a server or any computer without graphics/display, install using `core_cv2Headless`. If you accidentally installed the normal version, simply please uninstall `pip uninstall opencv-contrib-python` and install `pip install opencv-contrib-python-headless` instead. 
+
 
 Install development version:
 ```

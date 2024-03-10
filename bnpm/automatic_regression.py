@@ -303,7 +303,6 @@ class Autotuner_BaseEstimator:
             self.params_best = kwargs_model
 
         return loss
-        # return np.nan
 
     def fit(self) -> Union[sklearn.base.BaseEstimator, Optional[Dict[str, Any]]]:
         """
