@@ -35,7 +35,6 @@ My favorites:
     - Any model with a `fit` and `predict` method can be used (e.g. `sklearn` and similar)
     - Uses `optuna` for hyperparameter optimization
 
-
 Other useful functions:
 - Signal Processing:
     - `timeSeries.rolling_percentile_rq_multicore`
@@ -58,7 +57,3 @@ Other useful functions:
         - Plays and/or saves a 3D array as a video using OpenCV
     - `h5_handling.simple_save` and `h5_handling.simple_load`
         - Simple lazy loading and saving of dictionaries as nested h5 files
-    - `parallel_helpers.multiprocessing_pool_along_axis`
-        - Easy parallelization of a function along an axis
-    - `plotting_helpers.get_subplot_indices`
-        - Returns the subscript indices of the subplots in a figure
