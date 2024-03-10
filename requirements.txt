@@ -42,3 +42,6 @@ scanimage_tiff_reader
 jupyter
 PyWavelets
 mat73
+
+## For PostgreSQL
+psycopg2

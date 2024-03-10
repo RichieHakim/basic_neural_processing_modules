@@ -2,6 +2,7 @@ from typing import Dict, Type, Any, Union, Optional, Callable, Tuple, List
 import time
 import warnings
 import functools
+import datetime
 
 import numpy as np
 import torch
@@ -69,6 +70,18 @@ class Autotuner_BaseEstimator:
             If ``True``, ignore ConvergenceWarning during model fitting.
         verbose (bool):
             If ``True``, show progress bar and print running results.
+        optuna_storage_url (Optional[str]):
+            The path or URL to a SQL database. If ``None``, then the study is
+            stored in memory. See optuna documentation for details. \n
+        optuna_storage_name (Optional[str]):
+            The name of the study in the storage. Should only be ``None`` if
+            ``optuna_storage_url`` is ``None``, else it should be a string to a
+            valid study name. 
+        wandb_project (Optional[str]):
+            The name of the Weights and Biases project to log to. If ``None``,
+            then no logging is done. Assumes that a wandb.init() has already
+            been called. \n
+
 
     Example:
         .. highlight:: python
@@ -101,6 +114,9 @@ class Autotuner_BaseEstimator:
         sample_weight: Optional[Any] = None, 
         catch_convergence_warnings: bool = True,
         verbose=True,
+        optuna_storage_url: Optional[str] = None,
+        optuna_storage_name: Optional[str] = None,
+        wandb_project: Optional[str] = None,
     ):
         """
         Initializes the AutotunerRegression with the given model class, parameters, data, and settings.
@@ -132,9 +148,37 @@ class Autotuner_BaseEstimator:
         self.kwargs_convergence = kwargs_convergence
 
         self.verbose = verbose
+        self.optuna_storage_url = optuna_storage_url
+        self.optuna_storage_name = optuna_storage_name
+
+        self.wandb_project = wandb_project
 
         # Initialize a convergence checker
         self.checker = optimization.Convergence_checker_optuna(verbose=False, **self.kwargs_convergence)
+
+        # Initialize wandb callback
+        if self.wandb_project is not None:
+            import logging
+            import sys
+            optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+            config = {
+                'model_class': self.model_class.func.__name__ if hasattr(self.model_class, 'func') else 'unknown',
+                'params': self.params,
+                'n_repeats': self.n_repeats,
+                'n_startup': self.n_startup,
+                'kwargs_convergence': self.kwargs_convergence,
+                'n_jobs_optuna': self.n_jobs_optuna,
+            }
+            self.callback_wandb = optuna.integration.WeightsAndBiasesCallback(
+                metric_name="loss",
+                wandb_kwargs={
+                    'project': self.wandb_project,
+                    'config': config,
+                },
+                as_multirun=False,
+            )
+        else:
+            self.callback_wandb = None
 
         # Initialize variables to store loss and best model
         self.loss_running_train = []
@@ -277,14 +321,17 @@ class Autotuner_BaseEstimator:
             direction="minimize", 
             pruner=optuna.pruners.MedianPruner(n_startup_trials=self.n_startup), 
             sampler=optuna.samplers.TPESampler(n_startup_trials=self.n_startup),
-            study_name='Autotuner',
+            study_name='Autotuner' if self.optuna_storage_name is None else self.optuna_storage_name,
+            storage=self.optuna_storage_url,
+            load_if_exists=True,
         )
 
         # Optimize the study
+        callbacks = [self.checker.check] + ([self.callback_wandb] if self.callback_wandb is not None else [])
         self.study.optimize(
             self._objective, 
             n_jobs=self.n_jobs_optuna, 
-            callbacks=[self.checker.check], 
+            callbacks=callbacks, 
             n_trials=self.kwargs_convergence['max_trials'],
             show_progress_bar=self.verbose,
         )        
@@ -683,6 +730,17 @@ class Auto_Classifier(Autotuner_BaseEstimator):
             Only used if ``cv`` is ``None``.
         verbose (bool):
             Whether to print progress messages.
+        optuna_storage_url (Optional[str]):
+            The path or URL to a SQL database. If ``None``, then the study is
+            stored in memory. See optuna documentation for details. \n
+        optuna_storage_name (Optional[str]):
+            The name of the study in the storage. Should only be ``None`` if
+            ``optuna_storage_url`` is ``None``, else it should be a string to a
+            valid study name. 
+        wandb_project (Optional[str]):
+            The name of the Weights and Biases project to log to. If ``None``,
+            then no logging is done. Assumes that a wandb.init() has already
+            been called. \n
 
     Demo:
         .. code-block:: python
@@ -752,6 +810,9 @@ class Auto_Classifier(Autotuner_BaseEstimator):
         groups: Optional[np.ndarray] = None,
         test_size: float = 0.3,
         verbose: bool = True,
+        optuna_storage_url: Optional[str] = None,
+        optuna_storage_name: Optional[str] = None,
+        wandb_project: Optional[str] = None,
     ) -> None:
         """
         Initializes Auto_Classifier with the given parameters and data.
@@ -802,6 +863,9 @@ class Auto_Classifier(Autotuner_BaseEstimator):
             fn_loss=self.fn_loss,
             catch_convergence_warnings=True,
             verbose=verbose,
+            optuna_storage_url=optuna_storage_url,
+            optuna_storage_name=optuna_storage_name,
+            wandb_project=wandb_project,
         )
 
     def evaluate_model(
@@ -937,6 +1001,18 @@ class Auto_Regression(Autotuner_BaseEstimator):
             Only used if ``cv`` is ``None``.
         verbose (bool):
             Whether to print progress messages.
+        optuna_storage_url (Optional[str]):
+            The path or URL to a SQL database. If ``None``, then the study is
+            stored in memory. See optuna documentation for details. \n
+        optuna_storage_name (Optional[str]):
+            The name of the study in the storage. Should only be ``None`` if
+            ``optuna_storage_url`` is ``None``, else it should be a string to a
+            valid study name. 
+        wandb_project (Optional[str]):
+            The name of the Weights and Biases project to log to. If ``None``,
+            then no logging is done. Assumes that a wandb.init() has already
+            been called. \n
+
 
     Demo:
         .. code-block:: python
@@ -998,6 +1074,9 @@ class Auto_Regression(Autotuner_BaseEstimator):
         groups: Optional[np.ndarray] = None,
         test_size: float = 0.3,
         verbose: bool = True,
+        optuna_storage_url: Optional[str] = None,
+        optuna_storage_name: Optional[str] = None,
+        wandb_project: Optional[str] = None,
     ) -> None:
         """
         Initializes Auto_Regression with the given parameters and data.
@@ -1041,6 +1120,9 @@ class Auto_Regression(Autotuner_BaseEstimator):
             fn_loss=self.fn_loss,
             catch_convergence_warnings=True,
             verbose=verbose,
+            optuna_storage_url=optuna_storage_url,
+            optuna_storage_name=optuna_storage_name,
+            wandb_project=wandb_project,
         )
 
 
