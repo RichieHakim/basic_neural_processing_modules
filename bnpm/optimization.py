@@ -210,6 +210,8 @@ class Convergence_checker_optuna:
         self.max_trials = max_trials
         self.max_duration = max_duration
         self.num_trial = 0
+        self.converged = False
+        self.reason_converged = None
         self.verbose = verbose
         
     def check(
@@ -240,12 +242,15 @@ class Convergence_checker_optuna:
             
         bests_recent = np.unique(self.bests[-self.n_patience:])
         if self.num_trial > self.n_patience and ((np.abs(bests_recent.max() - bests_recent.min())/np.abs(self.best)) < self.tol_frac):
+            self.converged, self.reason_converged = True, 'tol_frac'
             print(f'Stopping. Convergence reached. Best value ({self.best*10000}) over last ({self.n_patience}) trials fractionally changed less than ({self.tol_frac})') if self.verbose else None
             study.stop()
         if self.num_trial >= self.max_trials:
+            self.converged, self.reason_converged = True, 'max_trials'
             print(f'Stopping. Trial number limit reached. num_trial={self.num_trial}, max_trials={self.max_trials}.') if self.verbose else None
             study.stop()
         if duration > self.max_duration:
+            self.converged, self.reason_converged = True, 'max_duration'
             print(f'Stopping. Duration limit reached. study.duration={duration}, max_duration={self.max_duration}.') if self.verbose else None
             study.stop()
             
