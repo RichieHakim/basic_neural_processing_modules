@@ -115,6 +115,7 @@ def pickle_save(
     zipCompress=False, 
     mkdir=False, 
     allow_overwrite=True,
+    library='pickle',
     **kwargs_zipfile,
 ):
     """
@@ -141,7 +142,15 @@ def pickle_save(
         mkdir (bool):
             If True, creates parent directory if it does not exist.
         allow_overwrite (bool):
-            If True, allows overwriting of existing file.        
+            If True, allows overwriting of existing file.  
+        library (str):
+            Library to use for pickling. Can be:\n
+                * 'pickle': Uses the built-in pickle library.\n
+                * 'dill': Uses the dill library. Useful for pickling objects
+                  that cannot be pickled with the built-in pickle library.\n
+                * 'cloudpickle': Uses the cloudpickle library. Also very
+                  flexible, but requires that the file is loaded on the same
+                  version of Python that it was saved on.
         kwargs_zipfile (dict):
             Keyword arguments that will be passed into zipfile.ZipFile.
             compression=zipfile.ZIP_DEFLATED by default.
@@ -152,6 +161,7 @@ def pickle_save(
                 12: zipfile.ZIP_BZIP2 (bzip2 compression) (usually not as good as ZIP_DEFLATED)
                 14: zipfile.ZIP_LZMA (lzma compression) (usually better than ZIP_DEFLATED but slower)
     """
+    pickle = __import__(library)
     path = prepare_filepath_for_saving(filepath, mkdir=mkdir, allow_overwrite=allow_overwrite)
 
     if len(kwargs_zipfile)==0:
@@ -169,7 +179,8 @@ def pickle_save(
 def pickle_load(
     filepath, 
     zipCompressed=False,
-    mode='rb'
+    mode='rb',
+    library='pickle',
 ):
     """
     Loads a pickle file.
@@ -185,11 +196,20 @@ def pickle_load(
              load the object from the unzipped file.
         mode (str):
             Mode to open file in.
+        library (str):
+            Library to use for pickling. Can be:\n
+                * 'pickle': Uses the built-in pickle library.\n
+                * 'dill': Uses the dill library. Useful for pickling objects
+                  that cannot be pickled with the built-in pickle library.\n
+                * 'cloudpickle': Uses the cloudpickle library. Also very
+                  flexible, but requires that the file is loaded on the same
+                  version of Python that it was saved on.
 
     Returns:
         obj (object):
             Object loaded from pickle file.
     """
+    pickle = __import__(library)
     path = prepare_filepath_for_loading(filepath, must_exist=True)
     if zipCompressed:
         with zipfile.ZipFile(path, 'r') as f:
@@ -232,13 +252,13 @@ def json_load(filepath, mode='r'):
 
     Args:
         filepath (str):
-            Path to pickle file.
+            Path to json file.
         mode (str):
             Mode to open file in.
 
     Returns:
         obj (object):
-            Object loaded from pickle file.
+            Object loaded from json file.
     """
     path = prepare_filepath_for_loading(filepath, must_exist=True)
     with open(path, mode) as f:
@@ -278,7 +298,7 @@ def yaml_load(filepath, mode='r', loader=yaml.FullLoader):
 
     Args:
         filepath (str):
-            Path to pickle file.
+            Path to yaml file.
         mode (str):
             Mode to open file in.
         loader (yaml.Loader):
@@ -291,7 +311,7 @@ def yaml_load(filepath, mode='r', loader=yaml.FullLoader):
 
     Returns:
         obj (object):
-            Object loaded from pickle file.
+            Object loaded from yaml file.
     """
     path = prepare_filepath_for_loading(filepath, must_exist=True)
     with open(path, mode) as f:
