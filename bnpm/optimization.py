@@ -8,10 +8,55 @@ import torch
 
 class Convergence_checker:
     """
-    Checks for convergence during an optimization process. Uses Ordinary Least Squares (OLS) to 
-     fit a line to the last 'window_convergence' number of iterations.
-
+    Checks for convergence during an optimization process. Uses Ordinary Least
+    Squares (OLS) to fit a line to the last 'window_convergence' number of
+    iterations.\n
     RH 2022
+    
+    Args:
+        tol_convergence (float): 
+            Tolerance for convergence.\n
+            Corresponds to the slope of the line that is fit.\n
+            If fractional==True, then tol_convergence is the fractional
+            change in loss over the window_convergence
+        fractional (bool):
+            If True, then tol_convergence is the fractional change in loss
+            over the window_convergence. ie: delta(lossWin) / mean(lossWin)
+        window_convergence (int):
+            Number of iterations to use for fitting the line.
+        mode (str):
+            Where deltaLoss = loss[current] - loss[window convergence steps ago]\n
+            For typical loss curves, deltaLoss should be negative. So common
+            modes are: 'greater' with tol_convergence = -1e-x, and 'less'
+            with tol_convergence = 1e-x.
+            Mode for how criterion is defined:\n
+                * 'less': converged = deltaLoss < tol_convergence (default)
+                * 'abs_less': converged = abs(deltaLoss) < tol_convergence
+                * 'greater': converged = deltaLoss > tol_convergence
+                * 'abs_greater': converged = abs(deltaLoss) > tol_convergence
+                * 'between': converged = tol_convergence[0] < deltaLoss < tol_convergence[1]\n
+                    (tol_convergence must be a list or tuple, if mode='between')
+        max_iter (int):
+            Maximum number of iterations to run for.\n
+            If None, then no maximum.
+        max_time (float):
+            Maximum time to run for (in seconds).\n
+            If None, then no maximum.
+        nan_policy (str):
+            Policy for handling NaNs in the loss history.\n
+                * 'omit': (default) Ignore NaNs in the loss history.
+                * 'halt': Return converged=True if NaNs are found in the loss history.
+                * 'allow': Allow NaNs in the loss history.
+                * 'raise': Raise an error if NaNs are found in the loss history.
+        explode_tolerance (float):
+            Tolerance for exploding loss. If the ratio in loss between the
+            current and previous iteration (current / previous) is greater than
+            this value, then the optimization is considered to have exploded. If
+            None, then no explosion check is done.
+        explode_patience (int):
+            Number of iterations to wait before checking for explosion. If None, then
+            no patience is used.
+
     """
     def __init__(
         self,
@@ -21,39 +66,12 @@ class Convergence_checker:
         mode='greater',
         max_iter=None,
         max_time=None,
+        nan_policy='omit',
+        explode_tolerance=None,
+        explode_patience=10,
     ):
         """
         Initialize the convergence checker.
-        
-        Args:
-            tol_convergence (float): 
-                Tolerance for convergence.
-                Corresponds to the slope of the line that is fit.
-                If fractional==True, then tol_convergence is the fractional
-                 change in loss over the window_convergence
-            fractional (bool):
-                If True, then tol_convergence is the fractional change in loss
-                 over the window_convergence. ie: delta(lossWin) / mean(lossWin)
-            window_convergence (int):
-                Number of iterations to use for fitting the line.
-            mode (str):
-                Where deltaLoss = loss[current] - loss[window convergence steps ago]
-                For typical loss curves, deltaLoss should be negative. So common
-                 modes are: 'greater' with tol_convergence = -1e-x, and 'less' with
-                 tol_convergence = 1e-x.
-                Mode for how criterion is defined.
-                'less': converged = deltaLoss < tol_convergence (default)
-                'abs_less': converged = abs(deltaLoss) < tol_convergence
-                'greater': converged = deltaLoss > tol_convergence
-                'abs_greater': converged = abs(deltaLoss) > tol_convergence
-                'between': converged = tol_convergence[0] < deltaLoss < tol_convergence[1]
-                    (tol_convergence must be a list or tuple, if mode='between')
-            max_iter (int):
-                Maximum number of iterations to run for.
-                If None, then no maximum.
-            max_time (float):
-                Maximum time to run for (in seconds).
-                If None, then no maximum.
         """
         self.window_convergence = window_convergence
         self.tol_convergence = tol_convergence
@@ -70,16 +88,18 @@ class Convergence_checker:
 
         self.max_iter = max_iter
         self.max_time = max_time
+        self.nan_policy = nan_policy
+        self.explode_tolerance = explode_tolerance
+        self.explode_patience = explode_patience
 
         self.iter = -1
 
-    def OLS(self, y):
+    def OLS(self, y, X=None):
         """
         Ordinary least squares.
-        Fits a line and bias term (stored in self.line_regressor)
-         to y input.
+        Fits a line and bias term (stored in self.line_regressor) to y input.
         """
-        X = self.line_regressor
+        X = self.line_regressor if X is None else X
         theta = torch.inverse(X.T @ X) @ X.T @ y
         y_rec = X @ theta
         bias = theta[-1]
@@ -115,10 +135,14 @@ class Convergence_checker:
                 True if the 'diff_window_convergence' is less than
                  'tol_convergence'.
         """
+        ## Initialize timer t0
         if self.iter == 0:
             self.t0 = time.time()
+        
+        ## Increment iter
         self.iter += 1
 
+        ## Parse args and prepare loss_history
         if loss_history is None:
             if not hasattr(self, 'loss_history'):
                 assert loss_single is not None, "loss_history and loss_single are both None"
@@ -126,16 +150,40 @@ class Convergence_checker:
             self.loss_history.append(loss_single)
             loss_history = self.loss_history
 
+        ## Check for explosion
+        if (self.explode_tolerance is not None) and (self.iter > self.explode_patience):
+            if abs(loss_history[-1] / loss_history[-2]) > self.explode_tolerance:
+                return torch.nan, torch.nan, True
+
+        ## Wait until window_convergence number of iterations
         if len(loss_history) < self.window_convergence:
             return torch.nan, torch.nan, False
+        
+        ## Prepare loss_window
         loss_window = torch.as_tensor(loss_history[-self.window_convergence:], device='cpu', dtype=torch.float32)
-        loss_smooth = loss_window.mean()
 
-        theta, y_rec, bias = self.OLS(y=loss_window)
+        ## Handle nan_policy, fit line, and make loss_smooth
+        if self.nan_policy=='omit':
+            loss_window = loss_window[~torch.isnan(loss_window)]
+            loss_smooth = torch.nanmean(loss_window)
+            theta, y_rec, bias = self.OLS(y=loss_window, X=self.line_regressor[~torch.isnan(loss_window)])
+        else:
+            if self.nan_policy=='halt':
+                if torch.isnan(loss_window).any():
+                    return torch.nan, torch.nan, True
+            elif self.nan_policy=='raise':
+                if torch.isnan(loss_window).any():
+                    raise ValueError("NaNs found in loss history")
+            elif self.nan_policy=='allow':
+                pass
+            loss_smooth = torch.mean(loss_window)
+            theta, y_rec, bias = self.OLS(y=loss_window)
 
+        ## Check for convergence
         delta_window_convergence = (y_rec[-1] - y_rec[0]) if not self.fractional else (y_rec[-1] - y_rec[0]) / ((y_rec[-1] + y_rec[0])/2)
         converged = self.fn_criterion(delta_window_convergence)
 
+        ## Check for max_iter and max_time
         if self.max_iter is not None:
             converged = converged or (len(loss_history) >= self.max_iter)
         if self.max_time is not None:
@@ -258,25 +306,3 @@ class Convergence_checker_optuna:
         if self.verbose:
             print(f'Trial num: {self.num_trial}. Duration: {duration:.3f}s. Best value: {self.best:3e}. Current value:{trial.value:3e}') if self.verbose else None
         self.num_trial += 1
-
-
-def make_grid_search_dicts(search_space):
-    """
-    Makes a grid sweep over the search space.
-    RH 2024
-
-    Args:
-        search_space (dict):
-            Dictionary with keys as parameter names and values as lists of
-            parameter values.\n
-            Example: {'lr': [0.1, 0.01, 0.001], 'batch_size': [32, 64]}
-
-    Returns:
-        ss_comb_dicts (list):
-            List of dictionaries, where each dictionary is a combination of
-            parameter values from the search space.\n
-            Example: [{'lr': 0.1, 'batch_size': 32}, {'lr': 0.1, 'batch_size': 64}, ...]
-    """
-    vals_comb = list(itertools.product(*search_space.values()))
-    ss_comb_dicts = [{k: val for k, val in zip(search_space.keys(), vals)} for vals in vals_comb]
-    return ss_comb_dicts
