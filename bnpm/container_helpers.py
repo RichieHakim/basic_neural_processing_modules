@@ -1,7 +1,7 @@
 import re
 import copy
 from collections.abc import MutableMapping
-from typing import Any, Optional, Union, List, Dict, Tuple, Callable, Iterable, Sequence
+from typing import Dict, Any, Optional, Union, List, Tuple, Callable, Iterable, Iterator, Type
 
 import numpy as np
 
@@ -369,6 +369,101 @@ def invert_dict(d: Dict) -> Dict:
     return {v: k for k, v in d.items()}
 
 
+def serializable_dict(
+    obj: Any,
+    allowed_libraries: Optional[List[str]] = [
+        'bnpm',
+        'builtins',
+        'collections',
+        'datetime',
+        'itertools',
+        'math',
+        'numbers',
+        'os',
+        'pathlib',
+        'string',
+        'time',
+        'numpy',
+        'scipy',
+        'sklearn',
+    ],
+) -> Dict[str, Any]:
+    """
+    Returns a serializable dictionary that can be saved to disk. This method
+    goes through all items in self.__dict__ and checks if they are
+    serializable. If they are, add them to a dictionary to be returned.
+
+    Args:
+        obj (Any):
+            Object to serialize.
+
+    Returns:
+        (Dict[str, Any]): 
+            serializable_dict (Dict[str, Any]): 
+                Dictionary containing serializable items.
+    """
+    from functools import partial
+    ## Go through all items in self.__dict__ and check if they are serializable.
+    ### If they are, add them to a dictionary to be returned.
+    import pickle
+
+    ## Define a list of libraries and classes that are allowed to be serialized.
+    # allowed_libraries = 
+    def is_library_allowed(obj):
+        try:
+            try:
+                module_name = obj.__module__.split('.')[0]
+            except:
+                success = False
+            try:
+                module_name = obj.__class__.__module__.split('.')[0]
+            except:
+                success = False
+        except:
+            success = False
+        else:
+            ## Check if the module_name is in the allowed_libraries list.
+            if module_name in allowed_libraries:
+                success = True
+            else:
+                success = False
+        return success
+
+    def make_serializable_dict(obj, depth=0, max_depth=100, name=None):
+        """
+        Recursively go through all items in self.__dict__ and check if they are serializable.
+        """
+        msd_partial = partial(make_serializable_dict, depth=depth+1, max_depth=max_depth)
+        if depth > max_depth:
+            raise Exception(f'RH ERROR: max_depth of {max_depth} reached with object: {obj}')
+
+        serializable_dict = {}
+        if hasattr(obj, '__dict__') and is_library_allowed(obj):
+            for key, val in obj.__dict__.items():
+                try:
+                    serializable_dict[key] = msd_partial(val, name=key)
+                except:
+                    pass
+
+        elif isinstance(obj, (list, tuple, set, frozenset)):
+            serializable_dict = [msd_partial(v, name=f'{name}_{ii}') for ii,v in enumerate(obj)]
+        elif isinstance(obj, dict):
+            serializable_dict = {k: msd_partial(v, name=f'{name}_{k}') for k,v in obj.items()}
+        else:
+            try:
+                assert is_library_allowed(obj), f'RH ERROR: object {obj} is not serializable'
+                pickle.dumps(obj)
+            except:
+                return {'__repr__': repr(obj)} if hasattr(obj, '__repr__') else {'__str__': str(obj)} if hasattr(obj, '__str__') else None
+
+            serializable_dict = obj
+
+        return serializable_dict
+
+    serializable_dict = make_serializable_dict(obj, depth=0, max_depth=100, name='object')
+    return serializable_dict
+
+
 ############################################################
 ################# PARAMETER DICTIONARIES ###################
 ############################################################
@@ -453,3 +548,25 @@ def prepare_params(params, defaults, verbose=True):
     fill_in_dict(params_out, defaults, verbose=verbose)
 
     return params_out
+
+
+def make_grid_search_dicts(search_space):
+    """
+    Makes a grid sweep over the search space.
+    RH 2024
+
+    Args:
+        search_space (dict):
+            Dictionary with keys as parameter names and values as lists of
+            parameter values.\n
+            Example: {'lr': [0.1, 0.01, 0.001], 'batch_size': [32, 64]}
+
+    Returns:
+        ss_comb_dicts (list):
+            List of dictionaries, where each dictionary is a combination of
+            parameter values from the search space.\n
+            Example: [{'lr': 0.1, 'batch_size': 32}, {'lr': 0.1, 'batch_size': 64}, ...]
+    """
+    vals_comb = list(itertools.product(*search_space.values()))
+    ss_comb_dicts = [{k: val for k, val in zip(search_space.keys(), vals)} for vals in vals_comb]
+    return ss_comb_dicts
