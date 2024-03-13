@@ -697,13 +697,13 @@ class sftp_interface():
 
     def search_recursive(
         self, 
-        path='.', 
-        search_pattern_re='', 
-        search_pattern_inPath_re='',
-        max_depth=6,
+        dir_outer='.', 
+        reMatch='', 
+        reMatch_in_path='',
+        depth=6,
         find_files=True,
         find_folders=True,
-        return_natsorted=True,
+        natsorted=True,
         verbose=True
     ):
         """
@@ -712,19 +712,19 @@ class sftp_interface():
         Args:
             sftp (paramiko.SFTPClient):
                 SFTPClient object.
-            path (str):
+            dir_outer (str):
                 Current working directory.
-            search_pattern_re (str):
+            reMatch (str):
                 Regular expression to search for.
-            search_pattern_inPath_re (str):
+            reMatch_in_path (str):
                 Regular expression to search for in the path.
-            max_depth (int):
+            depth (int):
                 Maximum depth (number of hierarchical subdirectories) to search.
             find_files (bool):
                 Whether or not to search for files.
             find_folders (bool):
                 Whether or not to search for folders.
-            return_natsorted (bool):
+            natsorted (bool):
                 Whether or not to return the results natsorted.
             verbose (bool):
                 Whether or not to print the paths of the files found.
@@ -738,13 +738,13 @@ class sftp_interface():
         """
         search_results = []
 
-        def _recursive_search(search_results, sftp, cwd='.', search_pattern_re='', depth=0, verbose=True):
-            if depth > max_depth:
+        def _recursive_search(search_results, sftp, cwd='.', depth_current=0, verbose=True):
+            if depth_current > depth:
                 return search_results
             contents = {name: stat.S_ISDIR(attr.st_mode)  for name, attr in zip(sftp.listdir(cwd), sftp.listdir_attr(cwd))}
             for name, isdir  in contents.items():
                 if (isdir and find_folders) or (not isdir and find_files):
-                    if re.search(search_pattern_re, name) and re.search(search_pattern_inPath_re, str(Path(cwd) / name)):
+                    if re.search(reMatch, name) and re.search(reMatch_in_path, str(Path(cwd) / name)):
                         path_found = str(Path(cwd) / name)
                         search_results.append(path_found)
                         print(path_found) if verbose else None
@@ -754,22 +754,20 @@ class sftp_interface():
                         search_results=search_results,
                         sftp=sftp, 
                         cwd=str(Path(cwd) / name), 
-                        search_pattern_re=search_pattern_re, 
-                        depth=depth+1,
+                        depth_current=depth_current+1,
                         verbose=verbose
                     )
 
-                print(f'cwd: {cwd}, name: {name}, isdir: {isdir}, depth: {depth}') if verbose > 1 else None
+                print(f'cwd: {cwd}, name: {name}, isdir: {isdir}, depth: {depth_current}') if verbose > 1 else None
             return search_results
         
-        fn_sort = natsort.natsorted if return_natsorted else lambda x: x
+        fn_sort = natsort.natsorted if natsorted else lambda x: x
         
         return fn_sort(_recursive_search(
             search_results, 
             self.sftp, 
-            cwd=path, 
-            search_pattern_re=search_pattern_re, 
-            depth=0, 
+            cwd=dir_outer, 
+            depth_current=0, 
             verbose=verbose,
         ))
         
