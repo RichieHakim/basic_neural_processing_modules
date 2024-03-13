@@ -26,14 +26,14 @@ class Autotuner_BaseEstimator:
             Must have: \n
                 * Method: ``fit(X, y)``
                 * Method: ``predict_proba(X)`` (for classifiers) or ``predict(X)`` (for continuous regressors) \n
-        params (Dict[str, Dict[str, Any]]):
-            A dictionary of hyperparameters with their names, types, and bounds.
         X (np.ndarray):
             Input data.
             Shape: *(n_samples, n_features)*
         y (np.ndarray):
             Output data.
             Shape: *(n_samples,)*
+        params (Dict[str, Dict[str, Any]]):
+            A dictionary of hyperparameters with their names, types, and bounds.
         cv (Type[sklearn.model_selection._split.BaseCrossValidator]):
             A Scikit-Learn cross-validator class.
             Must have: \n
@@ -44,6 +44,14 @@ class Autotuner_BaseEstimator:
                 * Call signature: ``loss, loss_train, loss_test =
                   fn_loss(y_train_pred, y_test_pred, y_true_train, y_true_test,
                   sample_weight_train, sample_weight_test)`` \n
+        params_linked (Dict):
+            Dictionary of parameters that are linked. \n
+            Each item in the dictionary is of the form: \n
+                * ``{'param_name': (param_name_linked, lambda x: f(x))}`` \n
+            Where ``'param_name_linked'`` matches the name of a parameter in
+            ``params_dynamic`` and ``lambda x: f(x)`` is a function that takes
+            the value of that parameter and returns the value to be used by
+            ``'param_name'``.
         groups (Optional[np.ndarray]):
             Group labels for the samples used while splitting the dataset into
             train/test set. Only used if ``cv`` is a GroupShuffleSplit.
@@ -95,11 +103,12 @@ class Autotuner_BaseEstimator:
     def __init__(
         self, 
         model_class: Type[sklearn.base.BaseEstimator], 
-        params: Dict[str, Dict[str, Any]], 
         X: Any, 
         y: Any, 
+        params: Dict[str, Dict[str, Any]], 
         cv: Any, 
         fn_loss: Callable, 
+        params_linked: Dict = {},
         groups: Optional[np.ndarray] = None,
         n_jobs_optuna: int = -1,
         n_startup: int = 15,
@@ -136,6 +145,7 @@ class Autotuner_BaseEstimator:
         ## Set optuna variables
         self.n_startup = n_startup
         self.params = params
+        self.params_linked = params_linked
         self.n_jobs_optuna = n_jobs_optuna
         self.fn_loss = fn_loss
         self.catch_convergence_warnings = catch_convergence_warnings
@@ -226,6 +236,10 @@ class Autotuner_BaseEstimator:
         kwargs_model = {}
         for name, config in self.params.items():
             kwargs_model[name] = LUT_suggest[config['type']](name, **config['kwargs'])
+        ## Add linked parameters
+        for param, (param_linked, fn) in self.params_linked.items():
+            kwargs_model[param] = fn(kwargs_model[param_linked])
+
 
         # Train the model
         loss_train_all, loss_test_all, loss_all = [], [], []
@@ -349,6 +363,11 @@ class Autotuner_BaseEstimator:
         
         # Train the model on the full data set
         self.model_best.fit(self.X, self.y)
+
+        # End wandb run
+        if self.wandb_project is not None:
+            import wandb
+            wandb.finish()
 
         return self.model_best, self.best_params
     
@@ -692,6 +711,14 @@ class Auto_Classifier(Autotuner_BaseEstimator):
                 * If False: parameter is set to linearly varying. \n
                 * If not specified: parameter is set to logaritmically varying.
                   \n
+        params_linked (Dict):
+            Dictionary of parameters that are linked. \n
+            Each item in the dictionary is of the form: \n
+                * ``{'param_name': (param_name_linked, lambda x: f(x))}`` \n
+            Where ``'param_name_linked'`` matches the name of a parameter in
+            ``params_dynamic`` and ``lambda x: f(x)`` is a function that takes
+            the value of that parameter and returns the value to be used by
+            ``'param_name'``.
         n_startup (int):
             Number of startup trials.
         kwargs_convergence (Dict[str, Union[int, float]]):
@@ -757,7 +784,8 @@ class Auto_Classifier(Autotuner_BaseEstimator):
             autoclassifier = Auto_Classifier(
                 X, 
                 y, 
-                params={
+                params_dynamic={},
+                params_static={
                     'C': 1e-14,
                     'penalty': 'l2',
                     'solver': 'lbfgs',
@@ -768,10 +796,12 @@ class Auto_Classifier(Autotuner_BaseEstimator):
             autoclassifier = Auto_Classifier(
                 X,
                 y,
-                params={
+                params_dynamic={
                     'C': [1e-14, 1e3],
                     'penalty': ['l1', 'l2', 'elasticnet'],
                     'l1_ratio': [0.0, 1.0],
+                },
+                params_static={
                     'solver': 'lbfgs',
                 },
                 params_log={
@@ -780,27 +810,25 @@ class Auto_Classifier(Autotuner_BaseEstimator):
                 },
             )
     """
-
     def __init__(
         self,
         X: np.ndarray,
         y: np.ndarray,
         Model: Callable,
-        params: Dict = {
-            'C': [1e-14, 1e3],
-            'penalty': 'l2',
+        params_dynamic: Dict = {
+            'alpha': [1e-1, 1e5],
+        },
+        params_static: Dict = {
             'fit_intercept': True,
-            'solver': 'lbfgs',
             'max_iter': 1000,
             'tol': 0.0001,
-            'n_jobs': None,
-            'l1_ratio': None,
-            'warm_start': False,
+            'solver': 'auto',
         },
         params_log: Dict = {
             'C': True,
             'max_iter': False,
         },
+        params_linked: Dict = {},
         n_startup: int = 15,
         kwargs_convergence: Dict = {
             'n_patience': 50,
@@ -845,8 +873,8 @@ class Auto_Classifier(Autotuner_BaseEstimator):
             test_size=test_size,
         ) if cv is None else cv
 
-        ## Prepare static and dynamic parameters for optuna
-        params_dynamic, params_static = _infer_params_types(params, params_log)
+        ## Prepare dynamic parameters for optuna
+        params = _infer_params_types(params_dynamic, params_log)
 
         ## Prepare the model class
         self.model_class = functools.partial(
@@ -857,9 +885,10 @@ class Auto_Classifier(Autotuner_BaseEstimator):
         ## Initialize the Autotuner superclass
         super().__init__(
             model_class=self.model_class,
-            params=params_dynamic,
             X=X,
             y=y,
+            params=params,
+            params_linked=params_linked,
             n_startup=n_startup,
             kwargs_convergence=kwargs_convergence,
             n_repeats=n_repeats,
@@ -963,6 +992,14 @@ class Auto_Regression(Autotuner_BaseEstimator):
                 * If False: parameter is set to linearly varying. \n
                 * If not specified: parameter is set to logaritmically varying.
                   \n
+        params_linked (Dict):
+            Dictionary of parameters that are linked. \n
+            Each item in the dictionary is of the form: \n
+                * ``{'param_name': (param_name_linked, lambda x: f(x))}`` \n
+            Where ``'param_name_linked'`` matches the name of a parameter in
+            ``params_dynamic`` and ``lambda x: f(x)`` is a function that takes
+            the value of that parameter and returns the value to be used by
+            ``'param_name'``.
         n_startup (int):
             Number of startup trials.
         kwargs_convergence (Dict[str, Union[int, float]]):
@@ -1030,7 +1067,8 @@ class Auto_Regression(Autotuner_BaseEstimator):
                 X,
                 y,
                 Model=sklearn.linear_model.Ridge,
-                params={
+                params_dynamic={},
+                params_static={
                     'alpha': 1e-14,
                     'solver': 'lbfgs',
                 },
@@ -1041,10 +1079,12 @@ class Auto_Regression(Autotuner_BaseEstimator):
                 X,
                 y,
                 Model=sklearn.linear_model.Ridge,
-                params={
+                params_dynamic={
                     'alpha': [1e-1, 1e3],
                     'solver': ['lbfgs', 'sag', 'saga'],
                     'positive': [True, False],
+                },
+                params_static={
                     'tol': 0.0001,
                 },
             )
@@ -1055,9 +1095,11 @@ class Auto_Regression(Autotuner_BaseEstimator):
         X: np.ndarray,
         y: np.ndarray,
         Model: Callable,
-        params: Dict = {
+        params_dynamic: Dict = {
             'alpha': [1e-1, 1e5],
-            'fit_intercept': True,
+            'fit_intercept': [True, False],
+        },
+        params_static: Dict = {
             'max_iter': 1000,
             'tol': 0.0001,
             'solver': 'auto',
@@ -1065,6 +1107,7 @@ class Auto_Regression(Autotuner_BaseEstimator):
         params_log: Dict = {
             'alpha': True,
         },
+        params_linked: Dict = {},
         n_startup: int = 15,
         kwargs_convergence: Dict = {
             'n_patience': 50,
@@ -1102,8 +1145,8 @@ class Auto_Regression(Autotuner_BaseEstimator):
             test_size=test_size,
         ) if cv is None else cv
 
-        ## Prepare static and dynamic parameters for optuna
-        params_dynamic, params_static = _infer_params_types(params, params_log)
+        ## Prepare dynamic parameters for optuna
+        params = _infer_params_types(params_dynamic, params_log)
 
         ## Prepare the model class
         self.model_class = functools.partial(
@@ -1114,9 +1157,10 @@ class Auto_Regression(Autotuner_BaseEstimator):
         ## Initialize the Autotuner superclass
         super().__init__(
             model_class=self.model_class,
-            params=params_dynamic,
             X=X,
             y=y,
+            params=params,
+            params_linked=params_linked,
             n_startup=n_startup,
             kwargs_convergence=kwargs_convergence,
             n_repeats=n_repeats,
@@ -1143,7 +1187,7 @@ def _infer_params_types(
     RH 2023
 
     Args:
-        params (Dict):
+        params_dynamic (Dict):
             Dictionary of model class initialization parameters. 
             For each item in the dictionary if item is: \n
                 * ``list``: The parameter is tuned. If the values are numbers,
@@ -1161,17 +1205,29 @@ def _infer_params_types(
                   \n
     
     Returns:
-        (tuple): tuple containing:
-            params_dynamic (Dict):
+        (Dict)
+            params_dynamic:
                 Dictionary of parameters to be tuned. \n
                 Formatted as: \n
                 .. code-block:: python
-                    
-            params_static (Dict):
-                Dictionary of parameters with their types. \n
+                    {
+                        'param1': {
+                            'type': 'categorical' or 'real' or 'int',
+                            'kwargs': {
+                                'choices': [val1, val2, ...] if categorical,
+                                'low': val1,
+                                'high': val2,
+                                'step': val3,
+                                'log': True or False,
+                            }
+                        },
+                        'param2': {
+                            ...
+                        },
+                        ...
+                    }                    
     """
     params_dynamic = {}
-    params_static = {}
     for key, val in params.items():
         ## Dynamic parameters
         if isinstance(val, list):
@@ -1196,5 +1252,5 @@ def _infer_params_types(
                 raise ValueError(f'Parameter "{key}" has type {type(val[0])}, which is not supported.')
         ## Static parameters
         else:
-            params_static[key] = val
-    return params_dynamic, params_static
+            raise ValueError(f'Parameter "{key}" must be a list. Found type {type(val)}.')
+    return params_dynamic
