@@ -147,7 +147,7 @@ def get_nums_from_str(str_in, dtype_out=np.float64):
 
 
 def write_to_log(
-    text, 
+    *text, 
     path=None, 
     mode='a', 
     start_on_new_line=True, 
