@@ -148,21 +148,22 @@ def get_nums_from_str(str_in, dtype_out=np.float64):
 
 def write_to_log(
     text, 
-    path_log, 
+    path=None, 
     mode='a', 
     start_on_new_line=True, 
     pref_print=True, 
-    pref_save=True
 ):
     """
     Writes text to a log file.
     RH 2022
 
     Args:
-        path_log (str):
-            Path to log file.
         text (str):
             Text to write to log file.
+        path (str):
+            Path to log file.\n
+            Use suffix '.log' or '.txt' for best results.\n
+            If None, text is not written to a file.
         mode (str):
             Mode to open log file in.
             'a' for append, 'w' for write.
@@ -170,16 +171,14 @@ def write_to_log(
             Whether or not to start on a new line.
         pref_print (bool):
             Whether or not to print text to console.
-        pref_save (bool):
-            Whether or not to save text to log file.
 
     Returns:
         None
     """
     if pref_print:
         print(text)
-    if pref_save:
-        with open(path_log, mode=mode) as log:
+    if path is not None:
+        with open(path, mode=mode) as log:
             if start_on_new_line==True:
                 log.write('\n')
             log.write(str(text))
