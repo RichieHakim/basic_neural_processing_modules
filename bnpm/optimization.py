@@ -155,10 +155,6 @@ class Convergence_checker:
             if abs(loss_history[-1] / loss_history[-2]) > self.explode_tolerance:
                 return torch.nan, torch.nan, True
 
-        ## Wait until window_convergence number of iterations
-        if len(loss_history) < self.window_convergence:
-            return torch.nan, torch.nan, False
-        
         ## Prepare loss_window
         loss_window = torch.as_tensor(loss_history[-self.window_convergence:], device='cpu', dtype=torch.float32)
 
@@ -179,6 +175,10 @@ class Convergence_checker:
             loss_smooth = torch.mean(loss_window)
             theta, y_rec, bias = self.OLS(y=loss_window)
 
+        ## Wait until window_convergence number of iterations
+        if len(loss_history) < self.window_convergence:
+            return torch.nan, torch.nan, False
+        
         ## Check for convergence
         delta_window_convergence = (y_rec[-1] - y_rec[0]) if not self.fractional else (y_rec[-1] - y_rec[0]) / ((y_rec[-1] + y_rec[0])/2)
         converged = self.fn_criterion(delta_window_convergence)
