@@ -162,7 +162,12 @@ class Convergence_checker:
         if self.nan_policy=='omit':
             loss_window = loss_window[~torch.isnan(loss_window)]
             loss_smooth = torch.nanmean(loss_window)
-            theta, y_rec, bias = self.OLS(y=loss_window, X=self.line_regressor[-self.window_convergence:][~torch.isnan(loss_window)])
+
+            ## Wait until window_convergence number of iterations
+            if len(loss_history) < self.window_convergence:
+                return torch.nan, loss_smooth, False
+
+            theta, y_rec, bias = self.OLS(y=loss_window, X=self.line_regressor[~torch.isnan(loss_window)])
         else:
             if self.nan_policy=='halt':
                 if torch.isnan(loss_window).any():
