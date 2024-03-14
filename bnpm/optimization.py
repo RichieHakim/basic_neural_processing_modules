@@ -172,13 +172,14 @@ class Convergence_checker:
                     raise ValueError("NaNs found in loss history")
             elif self.nan_policy=='allow':
                 pass
+
+            ## Wait until window_convergence number of iterations
+            if len(loss_history) < self.window_convergence:
+                return torch.nan, torch.nan, False
+            
             loss_smooth = torch.mean(loss_window)
             theta, y_rec, bias = self.OLS(y=loss_window)
 
-        ## Wait until window_convergence number of iterations
-        if len(loss_history) < self.window_convergence:
-            return torch.nan, torch.nan, False
-        
         ## Check for convergence
         delta_window_convergence = (y_rec[-1] - y_rec[0]) if not self.fractional else (y_rec[-1] - y_rec[0]) / ((y_rec[-1] + y_rec[0])/2)
         converged = self.fn_criterion(delta_window_convergence)
