@@ -846,7 +846,7 @@ class sftp_interface():
 
     def hierarchical_folderSizes(self, directory='.'):
         """
-        Makes a hierarchical list of lists containing the 
+        Makes a hierarchical dict of dicts containing the 
          directory tree structure and sizes of each folder.
         Args:
             sftp (paramiko.SFTPClient):
@@ -892,7 +892,7 @@ class sftp_interface():
         prefetch=False, 
         callback=None, 
         prog_bar=True,
-        ):
+    ):
         """
         Get a file from the remote host.
         Uses a fancy class to do the downloading. It doesn't slow
