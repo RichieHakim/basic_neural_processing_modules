@@ -6,6 +6,7 @@ import time
 import typing
 import sys
 import datetime
+import getpass
 
 import natsort
 
@@ -454,7 +455,8 @@ class ssh_interface():
         self.ssh.close()
         
     def __del__(self):
-        self.ssh.close()
+        if self.ssh is not None:
+            self.ssh.close()
 
             
     def o2_connect(
@@ -519,7 +521,64 @@ class ssh_interface():
             total_timeout=60,
             verbose=verbose,
         )
+
+    def fasrc_connect(
+        self,
+        hostname='login.rc.fas.harvard.edu',
+        username='rhakim',
+        password=None,
+        verbose=1,
+    ):
+        """
+        Connect to the FASRC cluster using interactive authentication. \n
+        Helper function with some hard-coded expectations.
+        Args:
+            hostname (str):
+                Hostname of the remote server.
+            username (str):
+                Username to log in with.
+            verbose (int):
+                0/False: no printing
+                1/True: will print recv outputs.
+                2: will print expect progress. (Sets logging level to DEBUG)
+                None: will default to self.verbose (1 or 2).
+        """
+        def interactive_handler(title, instructions, prompt_list):
+            responses = []
+            for prompt, echo in prompt_list:
+                if "password" in prompt.lower():
+                    if password is not None:
+                        responses.append(password)
+                    else:
+                        ## Prompt user for password
+                        responses.append(getpass.getpass(prompt))
+                elif "verification" in prompt.lower():
+                    responses.append(getpass.getpass(prompt))
+                else:
+                    print(f"Prompt not recognized: {prompt}")
+            return responses
         
+        if verbose > 1:
+            import logging
+            logging.basicConfig(level=logging.DEBUG)
+
+        ## Below try statement is needed in order to set up the client attributes. 
+        ## The easiest way is to just try to connect (and set attrs), fail and move on.
+        try:
+            self.client.connect(hostname=hostname, allow_agent=False, look_for_keys=False)
+        except:
+            pass
+        
+        transport = self.client.get_transport()
+        transport.auth_interactive(username=username, handler=interactive_handler)
+        self.ssh = self.client.invoke_shell()
+        self.expect(
+            str_success=f'{username}@',
+            partial_match=True,
+            recv_timeout=0.3,
+            total_timeout=60,
+            verbose=verbose,
+        )
 
 class sftp_interface():
     """
