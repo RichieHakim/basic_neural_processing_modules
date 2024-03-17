@@ -78,6 +78,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'torchaudio',
     'ipywidgets',
     'eva_decord',
+    'wandb',
 ]}
 
 deps_advanced = {dep: deps_all_dict[dep] for dep in [
