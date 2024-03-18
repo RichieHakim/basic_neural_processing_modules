@@ -320,6 +320,6 @@ class Convergence_checker_optuna:
             study.stop()
             
         if self.verbose:
-            best, value = (f"{val:3e}" for val in [self.best, trial.value] if val is not None)
-            print(f'Trial num: {self.num_trial}. Duration: {duration:.3f}s. Best value: {best:3e}. Current value: {value:3e}') if self.verbose else None
+            best, value = (f"{val:.3e}" if isinstance(val, float) else val for val in (self.best, trial.value))
+            print(f'Trial num: {self.num_trial}. Duration: {duration:.3f}s. Best value: {best}. Current value: {value}') if self.verbose else None
         self.num_trial += 1
