@@ -355,7 +355,11 @@ class Autotuner_BaseEstimator:
             callbacks=callbacks, 
             n_trials=self.kwargs_convergence['max_trials'],
             show_progress_bar=self.verbose,
-        )        
+        )
+
+        # Print reason for convergence
+        if self.verbose > 0:
+            print(f'Convergence reason: {self.checker.reason_converged}')
 
         # Retrieve the best parameters and the best model
         self.best_params = self.study.best_params
