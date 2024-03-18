@@ -117,6 +117,7 @@ class Autotuner_BaseEstimator:
             'tol_frac': 0.05,
             'max_trials': 350,
             'max_duration': 60*10,
+            'use_internal_timer': True,
         }, 
         n_repeats: int = 1,
         fn_reduce_repeats: Callable = np.nanmedian,
@@ -164,7 +165,7 @@ class Autotuner_BaseEstimator:
         self.wandb_project = wandb_project
 
         # Initialize a convergence checker
-        self.checker = optimization.Convergence_checker_optuna(verbose=False, **self.kwargs_convergence)
+        self.checker = optimization.Convergence_checker_optuna(verbose=verbose, **self.kwargs_convergence)
 
         # Initialize wandb callback
         if self.wandb_project is not None:
