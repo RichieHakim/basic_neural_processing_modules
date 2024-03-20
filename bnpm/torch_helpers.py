@@ -804,6 +804,35 @@ def zscore(
     return (X - mean) / std
 
 
+@misc.wrapper_flexible_args(['dim', 'axis'])
+def slice_along_dim(
+    X: torch.Tensor, 
+    dim: int, 
+    idx: int
+) -> torch.Tensor:
+    """
+    Slices a tensor along a specified dimension.
+
+    Args:
+        X (torch.Tensor): 
+            Tensor to slice.
+        dim (int): 
+            Dimension to slice along.
+        idx (int): 
+            Index to slice at.
+
+    Returns:
+        (torch.Tensor): 
+            sliced_tensor (torch.Tensor):
+                Sliced tensor.
+
+    RH 2022
+    """
+    slices = [slice(None)] * X.ndim
+    slices[dim] = idx
+    return X[tuple(slices)]
+
+
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################
