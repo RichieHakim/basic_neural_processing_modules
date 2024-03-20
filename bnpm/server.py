@@ -333,6 +333,7 @@ class ssh_interface():
         recv_timeout=0.3,
         total_timeout=60,
         sleep_time=0.1,
+        error_on_timeout=False,
         verbose=None,
     ):
         """
@@ -350,6 +351,9 @@ class ssh_interface():
             sleep_time (float):
                 Time to sleep between checks.
                 Allows for keyboard interrupts.
+            error_on_timeout (bool):
+                Whether or not to raise an error if the
+                total_timeout is reached.
             verbose (bool):
                 Whether or not to print progress.
                 0/False: no printing
@@ -387,7 +391,10 @@ class ssh_interface():
             time.sleep(sleep_time)
 
             if time.time() - t_start > total_timeout:
-                break
+                if error_on_timeout:
+                    raise TimeoutError(f'Expect timeout: {str_success} not found in {total_timeout} seconds')
+                else:
+                    break
         
         if verbose==2:
             if success:
@@ -405,6 +412,7 @@ class ssh_interface():
         recv_timeout=0.3,
         total_timeout=60,
         sleep_time=0.1,
+        error_on_timeout=False,
         verbose=None,
     ):
         """
@@ -426,6 +434,9 @@ class ssh_interface():
             sleep_time (float):
                 Time to sleep between checks.
                 Allows for keyboard interrupts.
+            error_on_timeout (bool):
+                Whether or not to raise an error if the
+                total_timeout is reached.
             verbose (bool):
                 Whether or not to print progress.
                 0/False: no printing
@@ -440,6 +451,7 @@ class ssh_interface():
             recv_timeout=recv_timeout,
             total_timeout=total_timeout,
             sleep_time = sleep_time,
+            error_on_timeout=error_on_timeout,
             verbose=verbose,
         )
         return out, success
