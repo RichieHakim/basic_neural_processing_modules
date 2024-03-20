@@ -1,3 +1,4 @@
+from typing import Union, Tuple, List, Dict, Any, Optional
 import functools
 
 import scipy.signal
@@ -8,6 +9,8 @@ import torch
 
 from . import circular
 from . import misc
+from . import torch_helpers
+from . import timeSeries
 
 
 def design_butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
@@ -78,7 +81,7 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, axis=-1, order=5, plot_pre
     return y
 
 
-def design_fir_bandpass(lowcut, highcut, num_taps=30001, fs=30, window='hamming', plot_pref=True):
+def design_fir_bandpass(lowcut, highcut, num_taps=30001, q=None, fs=30, window='hamming', plot_pref=True):
     '''
     designs a FIR bandpass filter.
     Makes a lowpass filter if lowcut is 0.
@@ -92,19 +95,29 @@ def design_fir_bandpass(lowcut, highcut, num_taps=30001, fs=30, window='hamming'
             highcut (scalar):  
                 frequency (in Hz) of high pass band
             num_taps (int): 
-                number of taps in the filter
+                number of taps in the filter. If None, then q is used.
+            q (scalar):
+                quality factor. \n
+                ``num_taps = int(fs / lowcut) * q``. \n
+                If None, then num_taps is used.
             fs (scalar): 
                 sample rate (frequency in Hz)
+            window (string):
+                window to use for the FIR filter
+                (see scipy.signal.firwin for all possible inputs)
+            plot_pref (bool):
         
         Returns:
             b (ndarray): 
-                Numerator polynomial coeffs of the IIR filter
-            a (ndarray): 
-                Denominator polynomials coeffs of the IIR filter
+                FIR filter coefficients
     '''
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
+
+    if q is not None:
+        num_taps = int((fs / lowcut) * q)
+        num_taps = num_taps + 1 if num_taps % 2 == 0 else num_taps
 
     if low <= 0:
         ## Make a lowpass filter
@@ -404,4 +417,101 @@ def signal_angle_difference(x, y, center=True, window=None, axis=-1):
     else:
         out[out > pi] -= 2*pi
     out = out[()]
+    return out
+
+
+@misc.wrapper_flexible_args(['dim', 'axis'])
+def time_domain_reversal_in_fourier_domain(xf, axis=-1):
+    """
+    Reverses the time-domain signal in the Fourier domain.\n
+    RH 2024
+
+    Args:
+        xf (torch.Tensor or np.ndarray):
+            Signal data. Must be complex.
+        axis (int):
+            Dimension along which to do the transformation.
+
+    Returns:
+        (nd tensor):
+            Time-domain signal reversed along axis
+    """
+    if isinstance(xf, torch.Tensor):
+        assert torch.is_complex(xf), "xf should be complex"
+        arange = functools.partial(torch.arange, device=xf.device, dtype=xf.dtype.to_real())
+        exp, pi, conj = torch.exp, torch.pi, torch.conj
+        resolution = lambda x: x.resolve_conj().resolve_neg()
+    elif isinstance(xf, np.ndarray):
+        arange = np.arange
+        exp, pi, conj = np.exp, np.pi, np.conj
+        resolution = lambda x: x
+    
+    ## Make the inverse shift operator
+    ### The 'iso' is one period of a complex sinuoid. 
+    ### It basically changes the ratio of real to imaginary parts in xf.
+    n = xf.shape[axis]
+    k = arange(n)
+    w = exp(-2j * pi * k / n)
+    ## Apply the inverse shift operator
+    return resolution(conj(xf * w))
+
+
+@misc.wrapper_flexible_args(['dim', 'axis'])
+def filtfilt_simple_fft(
+    x: Union[torch.Tensor, np.ndarray],
+    kernel: Union[torch.Tensor, np.ndarray],
+    fast_len: bool = True,
+    axis: int = -1,
+):
+    """
+    Applies a zero-phase filter to the input signal using the FFT method.\n
+    Calculated as ifft(fft(x) * fft(kernel) * fft(kernel_flipped)).\n
+    This implementation is very fast and is suitable for large signals.\n
+    NOTE: This is a simple implementation and does not handle edge effects.
+    scipy.signal.filtfilt is recommended if speed is not a concern.\n
+    RH 2024
+
+    Args:
+        x (torch.Tensor or np.ndarray):
+            Signal data.
+        kernel (torch.Tensor or np.ndarray):
+            Filter kernel.
+        fast_len (bool):
+            Whether to use the fast length method.
+        axis (int):
+            Dimension along which to do the transformation.
+
+    Returns:
+        (nd tensor):
+            Filtered signal
+    """
+    assert isinstance(x, torch.Tensor) or isinstance(x, np.ndarray), "x must be a torch tensor or numpy array"
+
+    if isinstance(x, torch.Tensor) and isinstance(kernel, torch.Tensor):
+        use_real = (torch.is_complex(x) == False) and (torch.is_complex(kernel) == False)
+        fft, ifft = (functools.partial(fn, dim=axis) for fn in ((torch.fft.rfft, torch.fft.irfft) if use_real else (torch.fft.fft, torch.fft.ifft)))
+        flip = functools.partial(torch.flip, dims=(axis,))
+    elif isinstance(x, np.ndarray) and isinstance(kernel, np.ndarray):
+        use_real = (np.iscomplexobj(x) == False) and (np.iscomplexobj(kernel) == False)
+        fft, ifft = (functools.partial(fn, axis=axis) for fn in ((np.fft.rfft, np.fft.irfft) if use_real else (np.fft.fft, np.fft.ifft)))
+        flip = functools.partial(np.flip, axis=axis)
+    else:
+        raise ValueError("x and kernel must be torch tensors or numpy arrays")
+    
+    f_flip = functools.partial(time_domain_reversal_in_fourier_domain, axis=axis)
+
+    n = x.shape[axis] + kernel.shape[axis] - 1
+    n = timeSeries.next_fast_len(n) if fast_len else n
+
+    out = fft(x, n=n)  ## x_fft
+    kernel_fft = fft(flip(kernel), n=n)
+    out = out * kernel_fft  ## xk_fft_1
+    out = out * f_flip(kernel_fft)  ## xk_fft_2
+    out = ifft(out, n=n)  ## xk
+    out = torch_helpers.slice_along_dim(
+        X=out,
+        dim=axis,
+        idx=slice(0, x.shape[axis]),
+    )
+    out = out.real if use_real else out
     return out
