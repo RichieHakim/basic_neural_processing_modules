@@ -1,6 +1,8 @@
+from typing import List, Tuple, Union, Optional, Dict, Any
 import functools
 import time
 import copy
+import math
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -982,3 +984,203 @@ def conv1d_numba(X, k):
     for ii in prange( k_hs , len(X)-(k_hs) ):
         y[ii] = np.dot(X[0+ii-k_hs : 1+ii+k_hs], k)
     return y
+
+##############################################################
+###################### FFT Convolution #######################
+##############################################################
+
+# @torch.jit.script
+def next_fast_len(size: int):
+    """
+    Taken from PyTorch Forecasting:
+    Returns the next largest number ``n >= size`` whose prime factors are all
+    2, 3, or 5. These sizes are efficient for fast fourier transforms.
+    Equivalent to :func:`scipy.fftpack.next_fast_len`.
+
+    Implementation from pyro
+
+    :param int size: A positive number.
+    :returns: A possibly larger number.
+    :rtype int:
+    """
+    assert isinstance(size, int) and size > 0
+    next_size = size
+    while True:
+        remaining = next_size
+        for n in (2, 3, 5):
+            while remaining % n == 0:
+                remaining = remaining // n
+        if remaining == 1:
+            return next_size
+        next_size += 1
+
+# @torch.jit.script
+def apply_padding_mode(
+    conv_result: torch.Tensor, 
+    x_length: int, 
+    y_length: int, 
+    mode: str = "valid",
+) -> torch.Tensor:
+    """
+    This is adapted from torchaudio.functional._apply_convolve_mode. \n
+    NOTE: This function has a slight change relative to torchaudio's version.
+    For mode='same', ceil rounding is used. This results in fftconv matching the
+    result of conv1d. However, this then results in it not matching the result of
+    scipy.signal.fftconvolve. This is a tradeoff. The difference is only a shift
+    in 1 sample when y_length is even. This phenomenon is a result of how conv1d
+    handles padding, and the fact that conv1d is actually cross-correlation, not
+    convolution. \n
+
+    RH 2024
+
+    Args:
+        conv_result (torch.Tensor):
+            Result of the convolution.
+            Padding applied to last dimension.
+        x_length (int):
+            Length of the first input.
+        y_length (int):
+            Length of the second input.
+        mode (str):
+            Padding mode to use.
+
+    Returns:
+        torch.Tensor:
+            Result of the convolution with the specified padding mode.
+    """
+    n = x_length + y_length - 1
+    valid_convolve_modes = ["full", "valid", "same"]
+    if mode == "full":
+        return conv_result
+    elif mode == "valid":
+        len_target = max(x_length, y_length) - min(x_length, y_length) + 1
+        idx_start = (n - len_target) // 2
+        return conv_result[..., idx_start : idx_start + len_target]
+    elif mode == "same":
+        # idx_start = (conv_result.size(-1) - x_length) // 2  ## This is the original line from torchaudio
+        idx_start = math.ceil((n - x_length) / 2)  ## This line is different from torchaudio
+        return conv_result[..., idx_start : idx_start + x_length]
+    else:
+        raise ValueError(f"Unrecognized mode value '{mode}'. Please specify one of {valid_convolve_modes}.")
+
+
+# @torch.jit.script
+def fftconvolve(
+    y: torch.Tensor, 
+    x: Optional[torch.Tensor]=None,
+    mode: str='valid',
+    n: Optional[int]=None,
+    fast_length: bool=False,
+    x_fft: Optional[torch.Tensor]=None,
+    return_real: bool=True,
+):
+    """
+    Convolution using the FFT method. \n
+    This is adapted from of torchaudio.functional.fftconvolve that handles
+    complex numbers. Code is added for handling complex inputs. \n
+    NOTE: For mode='same' and y length even, torch's conv1d convention is used,
+    which pads 1 more at the end and 1 fewer at the beginning (which is
+    different from numpy/scipy's convolve). See apply_padding_mode for more
+    details. \n
+
+    RH 2024
+
+    Args:
+        y (torch.Tensor):
+            Second input. (kernel) \n
+            Convolution performed along the last dimension.
+        x (torch.Tensor):
+            First input. (signal) \n
+            Convolution performed along the last dimension.\n
+            If None, x_fft must be provided.
+        mode (str):
+            Padding mode to use. ['full', 'valid', 'same']
+        fast_length (bool):
+            Whether to use scipy.fftpack.next_fast_len to 
+             find the next fast length for the FFT.
+            Set to False if you want to use backpropagation.
+        n (int):
+            Length of the fft domain. If None, n is computed from x and y.\n
+            If n is less than the length of x and y, then the output will be
+            truncated.
+        x_fft (torch.Tensor):
+            FFT of x. If None, x is used to compute the FFT.\n
+            If x is provided, x_fft must be None. If x_fft is provided, x must
+            be None.
+        return_real (bool):
+            Whether to return the real part of the convolution.
+            If False, the complex result is returned as well.
+
+    Returns:
+        torch.Tensor:
+            Result of the convolution.
+    """
+    ## Compute the convolution
+    n_original = x.shape[-1] + y.shape[-1] - 1
+    if x_fft is None:
+        if n is None:
+            n = n_original
+            # n = scipy.fftpack.next_fast_len(n_original) if fast_length else n_original
+            if fast_length:
+                n = next_fast_len(n_original)
+            else:
+                n = n_original
+        else:
+            n = n
+        x_fft = torch.fft.fft(x, n=n, dim=-1)            
+    else:
+        n = x_fft.shape[-1] if x_fft is not None else n
+    
+    y_fft = torch.fft.fft(torch.flip(y, dims=(-1,)), n=n, dim=-1)
+    f = x_fft * y_fft
+    fftconv_xy = torch.fft.ifft(f, n=n, dim=-1)
+    fftconv_xy = fftconv_xy.real if return_real else fftconv_xy
+    return apply_padding_mode(
+        conv_result=fftconv_xy,
+        x_length=x.shape[-1],
+        y_length=y.shape[-1],
+        mode=mode,
+    )
+
+class FFTConvolve(torch.nn.Module):
+    def __init__(
+        self, 
+        x: Optional[torch.Tensor]=None, 
+        n: Optional[int]=None, 
+        next_fast_length: bool=False,
+        use_x_fft: bool=True,
+    ):
+        super(FFTConvolve, self).__init__()
+        if x is not None:
+            self.set_x_fft(x=x, n=n, next_fast_length=next_fast_length)
+        else:
+            self.n = None
+            self.x_fft = None
+
+        self.use_x_fft = use_x_fft
+
+    def set_x_fft(self, x: torch.Tensor, n: Optional[int]=None, next_fast_length: bool=False):
+        if next_fast_length:
+            self.n = next_fast_len(size=n)
+        self.x_fft = torch.fft.fft(x, n=self.n, dim=-1).contiguous()
+
+        ## Check for any NaNs or inf or weird values in x_fft
+        if torch.any(torch.isnan(self.x_fft)):
+            raise ValueError(f"x_fft has NaNs")
+        if torch.any(torch.isinf(self.x_fft)):
+            raise ValueError(f"x_fft has infs")
+        if torch.any(torch.abs(self.x_fft) > 1e6):
+            raise ValueError(f"x_fft has values > 1e6")
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        mode: str='same',
+        n: Optional[int]=None,
+        fast_length: Union[int, bool]=False,
+        x_fft: Optional[torch.Tensor]=None,
+    ) -> torch.Tensor:
+        x_fft = self.x_fft if x_fft is None else x_fft
+        n = self.n if n is None else n
+        return fftconvolve(x=x, y=y, mode=mode, n=n, fast_length=fast_length, x_fft=x_fft if self.use_x_fft else None)
