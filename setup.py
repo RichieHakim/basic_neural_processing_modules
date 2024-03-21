@@ -81,6 +81,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'eva_decord',
     'wandb',
     'sqlalchemy',
+    'pymysql',
 ]}
 
 deps_advanced = {dep: deps_all_dict[dep] for dep in [

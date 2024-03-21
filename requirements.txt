@@ -21,6 +21,7 @@ seaborn
 sparse
 scipy
 sqlalchemy
+pymysql
 xxhash
 wandb
 torch
