@@ -342,10 +342,13 @@ class Autotuner_BaseEstimator:
             optuna.logging.set_verbosity(optuna.logging.DEBUG)
 
         # Initialize an Optuna study
-        storage = optuna.storages.RDBStorage(
-            url=self.optuna_storage_url,
-            engine_kwargs=self.optuna_engine_kwargs,
-        )
+        if self.optuna_storage_url is not None:
+            storage = optuna.storages.RDBStorage(
+                url=self.optuna_storage_url,
+                engine_kwargs=self.optuna_engine_kwargs,
+            )
+        else:
+            storage = None
         self.study = optuna.create_study(
             direction="minimize", 
             pruner=optuna.pruners.MedianPruner(n_startup_trials=self.n_startup), 
