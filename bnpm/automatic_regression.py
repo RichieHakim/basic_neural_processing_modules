@@ -320,6 +320,11 @@ class Autotuner_BaseEstimator:
             self.model_best = model
             self.params_best = kwargs_model
 
+        # Log the trial results in optuna: losses
+        trial.set_user_attr('loss', loss)
+        trial.set_user_attr('loss_train', loss_train)
+        trial.set_user_attr('loss_test', loss_test)
+
         return loss
 
     def fit(self) -> Union[sklearn.base.BaseEstimator, Optional[Dict[str, Any]]]:
@@ -334,11 +339,11 @@ class Autotuner_BaseEstimator:
                     The best parameters obtained from hyperparameter tuning.
         """
         # Set verbosity
-        if int(self.verbose) < 1:
+        if int(self.verbose) <= 1:
             optuna.logging.set_verbosity(optuna.logging.WARNING)
-        elif int(self.verbose) == 1:
+        elif int(self.verbose) == 2:
             optuna.logging.set_verbosity(optuna.logging.INFO)
-        elif int(self.verbose) > 1:
+        elif int(self.verbose) > 2:
             optuna.logging.set_verbosity(optuna.logging.DEBUG)
 
         # Initialize an Optuna study
@@ -645,7 +650,7 @@ class LossFunction_MSE_CV():
         sample_weight_test: Optional[List[float]] = None,
     ):
         """
-        Calculates the cross-entropy loss using cross-validation.
+        Calculates the mean-squared error loss using cross-validation.
 
         Args:
             y_train_pred (np.ndarray): 
@@ -667,9 +672,9 @@ class LossFunction_MSE_CV():
                 loss (float): 
                     The calculated loss after applying the penalty.
                 loss_train (float): 
-                    The cross-entropy loss of the training set.
+                    The mean-squared error loss of the training set.
                 loss_test (float): 
-                    The cross-entropy loss of the test set.
+                    The mean-squared error loss of the test set.
         """
         # Normalize the y values such that the variance of the true values is 1.
         y_train_pred = y_train_pred / y_train_true.std()
@@ -693,6 +698,114 @@ class LossFunction_MSE_CV():
             raise ValueError(f'Expected y_train_pred to be of type np.ndarray or torch.Tensor, but got type {type(y_train_pred)}.')
         
         return loss, loss_train, loss_test
+
+
+class LossFunction_EVR_CV():
+    """
+    Calculates the explained variance ratio loss of a model using
+    cross-validation. Output loss is 1 - EVR.
+    RH 2024
+
+    Args:
+        penalty_testTrainRatio (float): 
+            The amount of penalty for the test loss to the train loss. 
+            Penalty is applied with formula: 
+            ``loss = loss_test_or_train * ((loss_test / loss_train) ** penalty_testTrainRatio)``.
+        test_or_train (str): 
+            A string indicating whether to apply the penalty to the test or
+            train loss.
+            It should be either ``'test'`` or ``'train'``. 
+    """
+    def __init__(
+        self,
+        penalty_testTrainRatio: float = 1.0,
+        test_or_train: str = 'test',
+    ) -> None:
+        """
+        Initializes the class with the given penalty, and test_or_train setting.
+        """
+        self.penalty_testTrainRatio = penalty_testTrainRatio
+        ## Set the penalty function
+        if test_or_train == 'test':
+            self.fn_penalty_testTrainRatio = lambda test, train: test * ((test  / train) ** self.penalty_testTrainRatio)
+        elif test_or_train == 'train':
+            self.fn_penalty_testTrainRatio = lambda test, train: train * ((train / test) ** self.penalty_testTrainRatio)
+        else:
+            raise ValueError('test_or_train must be either "test" or "train".')
+
+    
+    def explainable_variance_ratio(self, v1, v2, sample_weight=None):
+        if isinstance(v1, torch.Tensor):
+            v1 = v1 - torch.nanmean(v1, dim=0)
+            v2 = v2 - torch.nanmean(v2, dim=0)
+
+            v1_orth = v1 - (torch.nansum(v1 * v2, dim=0) / torch.nansum(v2 * v2, dim=0) )*v2
+
+            v1_var = torch.var(v1, dim=0)
+            EVR = 1 - (torch.var(v1_orth, dim=0) / v1_var)
+            if sample_weight is not None:
+                EVR = EVR * (sample_weight / torch.mean(sample_weight))
+
+            EVR_total_weighted = torch.nansum(v1_var * EVR) / torch.sum(v1_var)
+            return EVR_total_weighted
+        elif isinstance(v1, np.ndarray):
+            v1 = v1 - np.nanmean(v1, axis=0)
+            v2 = v2 - np.nanmean(v2, axis=0)
+
+            v1_orth = v1 - (np.nansum(v1 * v2, axis=0) / np.nansum(v2 * v2, axis=0) )*v2
+
+            v1_var = np.var(v1, axis=0)
+            EVR = 1 - (np.var(v1_orth, axis=0) / v1_var)
+            if sample_weight is not None:
+                EVR = EVR * (sample_weight / np.mean(sample_weight))
+
+            EVR_total_weighted = np.nansum(v1_var * EVR) / np.sum(v1_var)
+            return EVR_total_weighted
+        else:
+            raise ValueError(f'Expected v1 to be of type np.ndarray or torch.Tensor, but got type {type(v1)}.')
+
+    def __call__(
+        self,
+        y_train_pred: np.ndarray, 
+        y_test_pred: np.ndarray,
+        y_train_true: np.ndarray,
+        y_test_true: np.ndarray,
+        sample_weight_train: Optional[List[float]] = None,
+        sample_weight_test: Optional[List[float]] = None,
+    ):
+        """
+        Calculates the explained variance ratio loss using cross-validation.
+        Args:
+            y_train_pred (np.ndarray): 
+                Predicted output data for the training set. (shape:
+                *(n_samples,)*)
+            y_test_pred (np.ndarray): 
+                Predicted output data for the test set. (shape: *(n_samples,)*)
+            y_train_true (np.ndarray): 
+                True output data for the training set. (shape: *(n_samples,)*)
+            y_test_true (np.ndarray): 
+                True output data for the test set. (shape: *(n_samples,)*)
+            sample_weight_train (Optional[List[float]]): 
+                Weights assigned to each training sample. 
+            sample_weight_test (Optional[List[float]]): 
+                Weights assigned to each test sample.
+
+        Returns:
+            (tuple): tuple containing:
+                loss (float): 
+                    The calculated loss after applying the penalty.
+                loss_train (float): 
+                    1 - explained variance ratio loss of the training set.
+                loss_test (float): 
+                    1 - explained variance ratio loss of the test set.
+        """
+        # Calculate 1 - explained variance ratio loss using cross-validation.
+        
+        loss_train = 1 - self.explainable_variance_ratio(y_train_true, y_train_pred, sample_weight_train)
+        loss_test =  1 - self.explainable_variance_ratio(y_test_true, y_test_pred, sample_weight_test)
+        loss = self.fn_penalty_testTrainRatio(loss_test, loss_train)
+        
+        return loss, loss_train, loss_test    
 
 
 class Auto_Classifier(Autotuner_BaseEstimator):
@@ -777,6 +890,9 @@ class Auto_Classifier(Autotuner_BaseEstimator):
         test_size (float):
             Test set ratio.
             Only used if ``cv`` is ``None``.
+        loss_function (Optional[Callable]):
+            A custom loss function. If ``None``, then the default loss function
+            is used (CrossEntropy_CV).
         verbose (bool):
             Whether to print progress messages.
         optuna_storage_url (Optional[str]):
@@ -861,6 +977,7 @@ class Auto_Classifier(Autotuner_BaseEstimator):
         cv: Optional[sklearn.model_selection._split.BaseCrossValidator] = None,
         groups: Optional[np.ndarray] = None,
         test_size: float = 0.3,
+        loss_function: Optional[Callable] = None,
         verbose: bool = True,
         optuna_storage_url: Optional[str] = None,
         optuna_storage_name: Optional[str] = None,
@@ -879,11 +996,14 @@ class Auto_Classifier(Autotuner_BaseEstimator):
         )
 
         ## Prepare the loss function
-        self.fn_loss = LossFunction_CrossEntropy_CV(
-            penalty_testTrainRatio=penalty_testTrainRatio,
-            labels=y,
-            test_or_train='test',
-        )
+        if loss_function is None:
+            self.fn_loss = LossFunction_CrossEntropy_CV(
+                penalty_testTrainRatio=penalty_testTrainRatio,
+                labels=y,
+                test_or_train='test',
+            )
+        else:
+            self.fn_loss = loss_function
 
         ## Prepare the cross-validation
         self.cv = sklearn.model_selection.StratifiedShuffleSplit(
@@ -1062,6 +1182,9 @@ class Auto_Regression(Autotuner_BaseEstimator):
         test_size (float):
             Test set ratio.
             Only used if ``cv`` is ``None``.
+        loss_function (Optional[Callable]):
+            A custom loss function. If ``None``, then the default loss function
+            is used (LossFunction_MSE_CV).\n
         verbose (bool):
             Whether to print progress messages.
         optuna_storage_url (Optional[str]):
@@ -1144,6 +1267,7 @@ class Auto_Regression(Autotuner_BaseEstimator):
         cv: Optional[sklearn.model_selection._split.BaseCrossValidator] = None,
         groups: Optional[np.ndarray] = None,
         test_size: float = 0.3,
+        loss_function: Optional[Callable] = None,
         verbose: bool = True,
         optuna_storage_url: Optional[str] = None,
         optuna_storage_name: Optional[str] = None,
@@ -1157,9 +1281,12 @@ class Auto_Regression(Autotuner_BaseEstimator):
         self.sample_weight = sample_weight
 
         ## Prepare the loss function
-        self.fn_loss = LossFunction_MSE_CV(
-            penalty_testTrainRatio=penalty_testTrainRatio,
-        )
+        if loss_function is None:
+            self.fn_loss = LossFunction_MSE_CV(
+                penalty_testTrainRatio=penalty_testTrainRatio,
+            )
+        else:
+            self.fn_loss = loss_function
 
         ## Prepare the cross-validation
         self.cv = sklearn.model_selection.ShuffleSplit(
