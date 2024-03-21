@@ -356,9 +356,9 @@ def create_database(
     """
     if isinstance(connection, sqlalchemy.engine.base.Connection):
         if "mysql" in str(connection.engine):
-            query = f"CREATE DATABASE {database}"
+            query = sqlalchemy.text(f"CREATE DATABASE {database}")
         elif "postgresql" in str(connection.engine):
-            query = f"CREATE DATABASE {database}"
+            query = sqlalchemy.text(f"CREATE DATABASE {database}")
         elif "sqlite" in str(connection.engine):
             raise ValueError("SQLite does not support this operation")
         else:
@@ -367,3 +367,71 @@ def create_database(
         raise TypeError("connection must be a sqlalchemy.engine.base.Connection object")
     
     connection.execute(query)
+
+
+def drop_database(
+    connection: sqlalchemy.engine.base.Connection,
+    database: str,
+) -> None:
+    """
+    Drops a database from the server.
+    RH 2024
+    
+    Args:
+        connection (sqlalchemy.engine.base.Connection):
+            SQL connection object
+        database (str):
+            Name of the database to drop
+    """
+    if isinstance(connection, sqlalchemy.engine.base.Connection):
+        if "mysql" in str(connection.engine):
+            query = f"DROP DATABASE {database}"
+        elif "postgresql" in str(connection.engine):
+            query = f"DROP DATABASE {database}"
+        elif "sqlite" in str(connection.engine):
+            raise ValueError("SQLite does not support this operation")
+        else:
+            raise ValueError("Connection type not recognized")
+    else:
+        raise TypeError("connection must be a sqlalchemy.engine.base.Connection object")
+    
+    connection.execute(sqlalchemy.text(query))
+
+
+def drop_table(
+    connection: sqlalchemy.engine.base.Connection,
+    table: str,
+    database: Optional[str] = None,
+) -> None:
+    """
+    Drops a table from the database.
+    RH 2024
+    
+    Args:
+        connection (sqlalchemy.engine.base.Connection):
+            SQL connection object
+        table (str):
+            Name of the table to drop
+        database (str):
+            Name of the database. If None, then the default database is used.
+    """
+    if isinstance(connection, sqlalchemy.engine.base.Connection):
+        if "mysql" in str(connection.engine):
+            if database is None:
+                raise ValueError("database must be specified for MySQL")
+            query = f"DROP TABLE {database}.{table}"
+        elif "postgresql" in str(connection.engine):
+            if database is None:
+                query = f"DROP TABLE {table}"
+            else:
+                query = f"DROP TABLE {database}.{table}"
+        elif "sqlite" in str(connection.engine):
+            if database is not None:
+                raise ValueError("database must be None for SQLite")
+            query = f"DROP TABLE {table}"
+        else:
+            raise ValueError("Connection type not recognized")
+    else:
+        raise TypeError("connection must be a sqlalchemy.engine.base.Connection object")
+    
+    connection.execute(sqlalchemy.text(query))
