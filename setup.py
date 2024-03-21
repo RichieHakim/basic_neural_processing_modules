@@ -66,6 +66,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'h5py',
     'opencv_contrib_python',
     'optuna',
+    'optuna_integration',
     'sparse',
     'natsort',
     'paramiko',

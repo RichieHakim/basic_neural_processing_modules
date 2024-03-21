@@ -9,6 +9,7 @@ numba
 numpy
 opencv_contrib_python
 optuna
+optuna-integration
 pandas
 paramiko
 psutil
