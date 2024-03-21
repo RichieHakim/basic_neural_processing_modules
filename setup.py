@@ -80,6 +80,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'ipywidgets',
     'eva_decord',
     'wandb',
+    'sqlalchemy',
 ]}
 
 deps_advanced = {dep: deps_all_dict[dep] for dep in [

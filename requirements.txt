@@ -20,6 +20,7 @@ tqdm
 seaborn
 sparse
 scipy
+sqlalchemy
 xxhash
 wandb
 torch

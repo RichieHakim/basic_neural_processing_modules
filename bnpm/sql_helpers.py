@@ -1,9 +1,9 @@
 from typing import Optional, Union, List, Tuple, Dict, Any, Iterable, Sequence
 
-import sqlalchemy
-import pymysql
-import pandas as pd
 import urllib
+
+import sqlalchemy
+import pandas as pd
 
 
 def format_url(
@@ -338,3 +338,32 @@ def get_table_data(
         query += f" LIMIT {limit}"
     
     return pd.read_sql(query, connection)
+
+
+def create_database(
+    connection: sqlalchemy.engine.base.Connection,
+    database: str,
+) -> None:
+    """
+    Creates a new database on the server.
+    RH 2024
+    
+    Args:
+        connection (sqlalchemy.engine.base.Connection):
+            SQL connection object
+        database (str):
+            Name of the database to create
+    """
+    if isinstance(connection, sqlalchemy.engine.base.Connection):
+        if "mysql" in str(connection.engine):
+            query = f"CREATE DATABASE {database}"
+        elif "postgresql" in str(connection.engine):
+            query = f"CREATE DATABASE {database}"
+        elif "sqlite" in str(connection.engine):
+            raise ValueError("SQLite does not support this operation")
+        else:
+            raise ValueError("Connection type not recognized")
+    else:
+        raise TypeError("connection must be a sqlalchemy.engine.base.Connection object")
+    
+    connection.execute(query)
