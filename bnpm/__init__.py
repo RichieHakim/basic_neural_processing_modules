@@ -28,6 +28,7 @@ __all__ = [
     'server',
     'similarity',
     'spectral',
+    'sql_helpers',
     'stats',
     'timeSeries',
     'torch_helpers',
@@ -79,4 +80,4 @@ if run_cv2_imshow:
 for pkg in __all__:
     exec('from . import ' + pkg)
 
-__version__ = '0.4.3'
+__version__ = '0.4.4'
