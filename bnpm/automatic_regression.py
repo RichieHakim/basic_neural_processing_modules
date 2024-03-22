@@ -202,6 +202,31 @@ class Autotuner_BaseEstimator:
         else:
             self.callback_wandb = None
 
+        # Set verbosity
+        if int(self.verbose) <= 1:
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
+        elif int(self.verbose) == 2:
+            optuna.logging.set_verbosity(optuna.logging.INFO)
+        elif int(self.verbose) > 2:
+            optuna.logging.set_verbosity(optuna.logging.DEBUG)
+
+        # Initialize an Optuna study
+        if self.optuna_storage_url is not None:
+            storage = optuna.storages.RDBStorage(
+                url=self.optuna_storage_url,
+                engine_kwargs=self.optuna_engine_kwargs,
+            )
+        else:
+            storage = None
+        self.study = optuna.create_study(
+            direction="minimize", 
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=self.n_startup), 
+            sampler=optuna.samplers.TPESampler(n_startup_trials=self.n_startup),
+            study_name='Autotuner' if self.optuna_storage_name is None else self.optuna_storage_name,
+            storage=storage,
+            load_if_exists=True,
+        )
+        
         # Initialize variables to store loss and best model
         self.loss_running_train = []
         self.loss_running_test = []
@@ -338,31 +363,6 @@ class Autotuner_BaseEstimator:
                 best_params (Optional[Dict[str, Any]]):
                     The best parameters obtained from hyperparameter tuning.
         """
-        # Set verbosity
-        if int(self.verbose) <= 1:
-            optuna.logging.set_verbosity(optuna.logging.WARNING)
-        elif int(self.verbose) == 2:
-            optuna.logging.set_verbosity(optuna.logging.INFO)
-        elif int(self.verbose) > 2:
-            optuna.logging.set_verbosity(optuna.logging.DEBUG)
-
-        # Initialize an Optuna study
-        if self.optuna_storage_url is not None:
-            storage = optuna.storages.RDBStorage(
-                url=self.optuna_storage_url,
-                engine_kwargs=self.optuna_engine_kwargs,
-            )
-        else:
-            storage = None
-        self.study = optuna.create_study(
-            direction="minimize", 
-            pruner=optuna.pruners.MedianPruner(n_startup_trials=self.n_startup), 
-            sampler=optuna.samplers.TPESampler(n_startup_trials=self.n_startup),
-            study_name='Autotuner' if self.optuna_storage_name is None else self.optuna_storage_name,
-            storage=storage,
-            load_if_exists=True,
-        )
-
         # Optimize the study
         callbacks = [self.checker.check] + ([self.callback_wandb] if self.callback_wandb is not None else [])
         self.study.optimize(
@@ -733,7 +733,6 @@ class LossFunction_EVR_CV():
         else:
             raise ValueError('test_or_train must be either "test" or "train".')
 
-    
     def explainable_variance_ratio(self, v1, v2, sample_weight=None):
         if isinstance(v1, torch.Tensor):
             v1 = v1 - torch.nanmean(v1, dim=0)
