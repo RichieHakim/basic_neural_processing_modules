@@ -819,3 +819,53 @@ def cp_to_dense(cp, weights=None):
     dense = einsum(str_einsum, *[cp[m] * weights for m in range(n_modes)])
     
     return dense
+
+
+####################################################################################################
+################################## NATIVE PYTHON OPERATIONS ########################################
+####################################################################################################
+
+def native_argsort(l):
+    """
+    Native Python argsort. Returns the indices that would sort a list.
+    RH 2024
+
+    Args:
+        l (list):
+            List to sort
+
+    Returns:
+        (list):
+            List of indices that would sort the input list.
+    """
+    return sorted(range(len(l)), key=lambda k: l[k])
+
+def native_argmax(l):
+    """
+    Native Python argmax. Returns the index of the maximum value in a list.
+    RH 2024
+
+    Args:
+        l (list):
+            List to find the argmax of
+
+    Returns:
+        (int):
+            Index of the maximum value in the list.
+    """
+    return max(range(len(l)), key=lambda k: l[k])
+
+def native_argmin(l):
+    """
+    Native Python argmin. Returns the index of the minimum value in a list.
+    RH 2024
+
+    Args:
+        l (list):
+            List to find the argmin of
+
+    Returns:
+        (int):
+            Index of the minimum value in the list.
+    """
+    return min(range(len(l)), key=lambda k: l[k])
