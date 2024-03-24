@@ -307,7 +307,7 @@ class Convergence_checker_optuna:
             else:
                 duration = 0
         elif self.duration_type == 'trials':
-            duration = sum([t.duration.total_seconds() for t in study.trials])
+            duration = sum([t.duration.total_seconds() for t in study.trials if t.duration is not None])
         else:
             raise ValueError(f"duration_type '{self.duration_type}' not recognized")
         
