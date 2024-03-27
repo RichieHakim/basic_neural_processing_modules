@@ -6,7 +6,7 @@ import sqlalchemy
 import pandas as pd
 
 
-def format_url(
+def make_url(
     sql_type: str = "mysql",
     username: str = "root",
     password: str = "password",
@@ -16,8 +16,8 @@ def format_url(
     quote_password: bool = False,
 ) -> str:
     """
-    Formats a URL for a SQL database connection.
-    Works with MySQL, PostgreSQL, and SQLite.
+    Formats a URL for a SQL database connection.\n
+    Works with MySQL, PostgreSQL, and SQLite.\n
     RH 2024
 
     Args:
@@ -67,11 +67,12 @@ def format_url(
         raise ValueError("sql_type must be 'mysql', 'postgresql', or 'sqlite'")
     
 
-def decompose_url(
+def parse_url(
     url: str
 ) -> Dict[str, str]:
     """
-    Decomposes a URL for a SQL database connection.
+    Parses / decomposes a URL for a SQL database connection into its components.
+    \n
     RH 2024
 
     Args:
