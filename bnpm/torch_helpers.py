@@ -635,6 +635,7 @@ def unravel_index(
         index = index // dim
     return tuple(out[::-1])
 
+@misc.wrapper_flexible_args(['dim', 'axis'])
 def squeeze_multiple_dims(
     arr: torch.Tensor, 
     dims: Tuple[int, int] = (0, 1)
@@ -814,12 +815,12 @@ class Diag_sparse:
         return values[self.idx]
 
 
+@misc.wrapper_flexible_args(['dim', 'axis'])
 def zscore(
     X: torch.Tensor, 
     dim: Optional[int] = None, 
     ddof: int = 0, 
     nan_policy: str = 'propagate', 
-    axis: Optional[int] = None
 ) -> torch.Tensor:
     """
     Computes the z-score of a tensor.
@@ -842,10 +843,6 @@ def zscore(
             * ``'raise'``: throws an error
             * ``'omit'``: performs the calculations ignoring nan values \n
             (Default is ``'propagate'``)
-        axis (Optional[int]): 
-            Axis or axes along which the z-score is computed. 
-            The default is to compute the z-score of the flattened array. 
-            (Default is ``None``)
 
     Returns:
         (torch.Tensor): 
@@ -853,7 +850,6 @@ def zscore(
 
     RH 2022
     """
-    dim = axis if (axis is not None) and (dim is None) else dim
     assert dim is not None, 'Must specify dimension to compute z-score over.'
 
     if nan_policy == 'omit':
