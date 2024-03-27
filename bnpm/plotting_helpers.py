@@ -748,7 +748,7 @@ class Figure_Saver:
         fig,
         path_save: str=None,
         dir_save: str=None,
-        name_file: str=None,
+        name_file: Union[str, List[str]]=None,
     ):
         """
         Save the figures.
@@ -764,9 +764,12 @@ class Figure_Saver:
             dir_save (str):
                 Directory to save the figure. If None, then the directory
                  specified in the initialization is used.
-            name_file (str):
-                Name of the file to save. If None, then the name of 
-                the figure is used.
+            name_file (Union[str, List[str]):
+                Name of the file to save.\n
+                If None, then the title of the figure is used.\n
+                Path will be dir_save / name_file.\n
+                If a list of strings, then elements [:-1] will be subdirectories
+                and the last element will be the file name.
         """
         import matplotlib.pyplot as plt
         assert isinstance(fig, plt.Figure), "RH ERROR: fig must be a matplotlib.figure.Figure"
@@ -786,11 +789,18 @@ class Figure_Saver:
             if name_file is None:
                 titles = [a.get_title() for a in fig.get_axes() if a.get_title() != '']
                 name_file = '.'.join(titles)
+            if isinstance(name_file, list):
+                assert all([isinstance(f, str) for f in name_file]), "RH ERROR: name_file must be a string or a list of strings"
+                assert len(name_file) > 1, "RH ERROR: If name_file is a list, then it must have more than one element"
+                dir_save = str(Path(dir_save) / Path(*name_file[:-1]))
+                name_file = name_file[-1]
             path_save = [str(Path(dir_save) / (name_file + '.' + f)) for f in self.format_save]
 
         ## Make directory
         if self.mkdir:
             Path(path_save[0]).parent.mkdir(parents=True, exist_ok=True)
+
+        path_save = [path_save] if not isinstance(path_save, list) else path_save
 
         ## Save figure
         for path, form in zip(path_save, self.format_save):
