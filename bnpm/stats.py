@@ -75,6 +75,7 @@ def error_interval(
     axis=0,
     error="sem",
     confidence=0.95, 
+    nan_policy="omit"
 ):
     """
     Calculate the mean and the confidence interval of the mean.
@@ -91,6 +92,11 @@ def error_interval(
             * "ci" - Confidence interval. \n
     confidence (float): 
         The confidence level for the interval. Only used if error is "ci".
+    nan_policy (str):
+        Defines how to handle nan values. \n
+            * "omit" - Ignore nan values.
+            * "propagate" - Propagate nan values.
+            * "raise" - Raise an error if nan values are present.
 
     Returns:
     tuple:
@@ -105,16 +111,25 @@ def error_interval(
     assert confidence > 0 and confidence < 1, "Confidence level must be between 0 and 1."
     assert isinstance(data, np.ndarray), "Data must be a numpy array."
 
+    ## Prepare functions for handling nan values
+    if nan_policy == "omit":
+        mean, std = np.nanmean, np.nanstd
+    elif nan_policy == "propagate":
+        mean, std = np.mean, np.std
+    elif nan_policy == "raise":
+        mean, std = np.mean, np.std
+        if np.isnan(data).any():
+            raise ValueError("Data contains nan values.")
+
     # Calculate the size along the specified axis
     n = data.shape[axis]
 
     # Compute the mean along the specified axis
-
     if error in ["std", "sem", "ci"]:
-        m = np.mean(data, axis=axis)
+        m = mean(data, axis=axis)
     
         # Compute the standard deviation along the specified axis
-        sd = np.std(data, axis=axis)
+        sd = std(data, axis=axis)
         if error in ["sem", "ci"]:
             # Compute the standard error of the mean along the specified axis
             se = sd / np.sqrt(n)
