@@ -709,6 +709,7 @@ class Figure_Saver:
         overwrite: bool=False,
         mkdir: bool=True,
         verbose: int=1,
+        enabled: bool=True,
     ):
         """
         Initializes Figure_Saver object
@@ -729,6 +730,8 @@ class Figure_Saver:
                 0: No output.
                 1: Warning.
                 2: All info.
+            enabled (bool):
+                If False, then the save() method will not save the figure.
         """
         self.dir_save = str(Path(dir_save).resolve().absolute()) if dir_save is not None else None
 
@@ -742,6 +745,7 @@ class Figure_Saver:
         self.overwrite = overwrite
         self.mkdir = mkdir
         self.verbose = verbose
+        self.enabled = enabled
 
     def save(
         self,
@@ -771,6 +775,10 @@ class Figure_Saver:
                 If a list of strings, then elements [:-1] will be subdirectories
                 and the last element will be the file name.
         """
+        if not self.enabled:
+            print('RH Warning: Figure_Saver is disabled. Not saving the figure.') if self.verbose > 1 else None
+            return None
+        
         import matplotlib.pyplot as plt
         assert isinstance(fig, plt.Figure), "RH ERROR: fig must be a matplotlib.figure.Figure"
 
