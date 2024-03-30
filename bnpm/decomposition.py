@@ -395,7 +395,7 @@ class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerM
         X = self.prepare_input(X, center=False, zscale=False)
         
         if self.whiten:
-            scaled_components = torch.sqrt(self.explained_variance_) * self.components_
+            scaled_components = torch.sqrt(self.explained_variance_)[:, None] * self.components_
         else:
             scaled_components = self.components_
         
