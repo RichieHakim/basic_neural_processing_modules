@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 import warnings
 from typing import Callable, List, Any, Dict
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 
 
 def estimate_array_size(
@@ -462,6 +462,37 @@ def wrapper_flexible_args(names_kwargs: List[str]) -> Callable:
         return wrapped
     return wrapper
 
+
+class MultiContextManager:
+    """
+    A context manager that allows multiple context managers to be used at once.
+    RH 2024
+
+    Args:
+        *managers (context managers):
+            Multiple context managers to be used at once.
+
+    Demo:
+        .. code-block:: python
+
+            with MultiContextManager(
+                torch.no_grad(), 
+                temp_set_attr(obj, attr, new_val), 
+                open('file.txt', 'w') as f,
+            ):
+                # do something
+    """
+    def __init__(self, *managers):
+        self.managers = managers
+        self.stack = ExitStack()
+
+    def __enter__(self):
+        for manager in self.managers:
+            self.stack.enter_context(manager)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stack.__exit__(exc_type, exc_value, traceback)
+        
 
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
