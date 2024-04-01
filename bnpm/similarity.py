@@ -476,7 +476,12 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
     '''
 
     methods = ['cov', 'pearson', 'R', 'cosine_similarity']
-    assert np.isin(method, methods), f'RH Error: method must be one of: {methods}'
+    assert method in methods, f'RH Error: method must be one of: {methods}'
+
+    if isinstance(v1, np.ndarray):
+        mean, sum, sqrt, norm = np.mean, np.sum, np.sqrt, np.linalg.norm
+    elif isinstance(v1, torch.Tensor):
+        mean, sum, sqrt, norm = torch.mean, torch.sum, torch.sqrt, torch.linalg.norm
 
     if v2 is None:
         v2 = v1
@@ -487,8 +492,8 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         v2 = v2[:,None]
 
     if method=='cov':
-        v1_ms = v1 - np.mean(v1, axis=0) # 'mean subtracted'
-        v2_ms = v2 - np.mean(v2, axis=0)
+        v1_ms = v1 - mean(v1, axis=0) # 'mean subtracted'
+        v2_ms = v2 - mean(v2, axis=0)
         output = (v1_ms.T @ v2_ms) / (v1.shape[0] - ddof)
     if method in ['pearson', 'R']: 
         # Below method should be as fast as numpy.corrcoef . 
@@ -498,11 +503,11 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         # Note: Pearson's R-value can be different than sqrt(EV) 
         # calculated below if the residuals are not orthogonal to the 
         # prediction. Best to use EV for R^2 if unsure
-        v1_ms = v1 - np.mean(v1, axis=0) # 'mean subtracted'
-        v2_ms = v2 - np.mean(v2, axis=0)
-        output = (v1_ms.T @ v2_ms) / np.sqrt(np.sum(v1_ms**2, axis=0, keepdims=True).T * np.sum(v2_ms**2, axis=0, keepdims=True))
+        v1_ms = v1 - mean(v1, axis=0) # 'mean subtracted'
+        v2_ms = v2 - mean(v2, axis=0)
+        output = (v1_ms.T @ v2_ms) / sqrt(sum(v1_ms**2, axis=0, keepdims=True).T * sum(v2_ms**2, axis=0, keepdims=True))
     if method=='cosine_similarity':    
-        output = (v1 / (np.linalg.norm(v1 , axis=0, keepdims=True))).T  @ (v2  / np.linalg.norm(v2 , axis=0, keepdims=True))
+        output = (v1 / (norm(v1 , axis=0, keepdims=True))).T  @ (v2  / norm(v2 , axis=0, keepdims=True))
     return output
 
 
@@ -635,7 +640,7 @@ def similarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
     return d + eps
     
 
-def cp_reconstruction_EV(tensor_dense, tensor_CP):
+def cp_reconstruction_EVR(tensor_dense, tensor_CP):
     """
     Explained variance of a reconstructed tensor using
     by a CP tensor (similar to kruskal tensor).
@@ -669,7 +674,43 @@ def cp_reconstruction_EV(tensor_dense, tensor_CP):
         var = np.var
     ev = 1 - (var(tensor_dense - tensor_rec) / var(tensor_dense))
     return ev
+
+
+def order_cp_factors_by_EVR(
+    tensor_dense,
+    tensor_CP,
+):
+    """
+    Get the sorting order of the CP factors by their
+    explained variance ratio.
+    RH 2024
+
+    Args:
+        tensor_dense (np.ndarray or torch.Tensor):
+            Dense tensor to be reconstructed. shape (n_samples, n_features)
+        tensor_CP (tensorly CPTensor or list of np.ndarray/torch.Tensor):
+            CP tensor.
+            If a list of factors, then each factor should be a 2D array of shape
+            (n_samples, rank).
+            Can also be a tensorly CPTensor object.
+    """
+    if isinstance(tensor_CP, list):
+        factors = tensor_CP
+    elif isinstance(tensor_CP, tl.cp_tensor.CPTensor):
+        import tensorly as tl
+        factors = tensor_CP.factors
+    else:
+        raise ValueError('tensor_CP must be a list of factors or a tensorly CPTensor object')
     
+    rank = factors[0].shape[1]
+    evrs = []
+    for ii in range(rank):
+        f = [f[:, ii][:, None] for f in factors]
+        evr = cp_reconstruction_EVR(tensor_dense, f)
+        evrs.append(evr)
+    order = np.argsort(evrs)[::-1]
+    return order, np.array(evrs)[order]
+
 
 ##########################################    
 ########### Linear Assignment ############
