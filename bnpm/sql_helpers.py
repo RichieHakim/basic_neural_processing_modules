@@ -386,11 +386,11 @@ def drop_database(
             Additional keyword arguments to be passed to sqlalchemy.create_engine
     """
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
-    if "mysql" in str(connection.engine):
+    if "mysql" in str(engine):
         query = f"DROP DATABASE {database}"
-    elif "postgresql" in str(connection.engine):
+    elif "postgresql" in str(engine):
         query = f"DROP DATABASE {database}"
-    elif "sqlite" in str(connection.engine):
+    elif "sqlite" in str(engine):
         raise ValueError("SQLite does not support this operation")
     else:
         raise ValueError("Connection type not recognized")
@@ -421,16 +421,16 @@ def drop_table(
    """
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if isinstance(connection, sqlalchemy.engine.base.Connection):
-        if "mysql" in str(connection.engine):
+        if "mysql" in str(engine):
             if database is None:
                 raise ValueError("database must be specified for MySQL")
             query = f"DROP TABLE {database}.{table}"
-        elif "postgresql" in str(connection.engine):
+        elif "postgresql" in str(engine):
             if database is None:
                 query = f"DROP TABLE {table}"
             else:
                 query = f"DROP TABLE {database}.{table}"
-        elif "sqlite" in str(connection.engine):
+        elif "sqlite" in str(engine):
             if database is not None:
                 raise ValueError("database must be None for SQLite")
             query = f"DROP TABLE {table}"
