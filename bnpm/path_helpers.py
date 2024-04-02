@@ -386,7 +386,7 @@ def check_files_openable(dir_outer, time_limit_per_file=1, verbose=False):
             print(f"File {file_path} can be opened.") if verbose > 1 else None
             return True
         except Exception as e:
-            print(f"File {file_path} could not be opened: {e}") if verbose > 0 else None
+            print(f"FAILURE: File {file_path} could not be opened: {e}") if verbose > 0 else None
             return False
         
     def check_with_timeout(file_path, time_limit):
@@ -395,7 +395,7 @@ def check_files_openable(dir_outer, time_limit_per_file=1, verbose=False):
             try:
                 return future.result(timeout=time_limit)
             except TimeoutError:
-                print(f"File {file_path} took too long to open.") if verbose > 0 else None
+                print(f"FAILURE: File {file_path} took too long to open.") if verbose > 0 else None
                 return False
         
     def walk_files(dir_outer):
