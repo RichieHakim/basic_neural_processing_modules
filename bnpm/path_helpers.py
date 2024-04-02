@@ -180,6 +180,8 @@ def find_paths(
                     if fn_match(path, reMatch, reMatch_in_path):
                         print(f'Found folder: {path}') if verbose > 0 else None
                         paths.append(path)
+                    else:
+                        print(f'Not matched: {path}') if verbose > 1 else None
                 if depth < depth_end:
                     print(f'Entering folder: {path}') if verbose > 1 else None
                     paths += get_paths_recursive_inner(path, depth_end, depth=depth+1)
@@ -188,6 +190,8 @@ def find_paths(
                     if fn_match(path, reMatch, reMatch_in_path):
                         print(f'Found file: {path}') if verbose > 0 else None
                         paths.append(path)
+                    else:
+                        print(f'Not matched: {path}') if verbose > 1 else None
         return paths
 
     def fn_check_pathLike(obj):
