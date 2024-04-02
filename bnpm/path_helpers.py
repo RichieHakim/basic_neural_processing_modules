@@ -372,35 +372,31 @@ def check_files_openable(dir_outer, depth=2, time_limit_per_file=1, verbose=Fals
             indicating whether the file can be opened.
     """
     import os
-    from threading import Timer
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
     from contextlib import contextmanager
-
-    class TimeoutException(Exception): pass
-
-    @contextmanager
-    def time_limit(seconds):
-        timer = Timer(seconds, lambda: TimeoutException())
-        timer.start()
-        yield
-        timer.cancel()
 
     def check_file_openable(file_path):
         """
         Check if a file can be opened.
         """
         try:
-            with time_limit(time_limit_per_file):
-                with open(file_path, 'rb') as f:
-                    ## Read a maximum of 1024 bytes. If file is smaller, read the whole file.
-                    f.read(1024)
+            with open(file_path, 'rb') as f:
+                ## Read a maximum of 1024 bytes. If file is smaller, read the whole file.
+                f.read(1024)
             print(f"File {file_path} can be opened.") if verbose > 1 else None
             return True
-        except TimeoutException:
-            print(f"File {file_path} took too long to open.") if verbose > 1 else None
-            return False
         except Exception as e:
             print(f"File {file_path} could not be opened: {e}") if verbose > 0 else None
             return False
+        
+    def check_with_timeout(file_path, time_limit):
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(check_file_openable, file_path)
+            try:
+                return future.result(timeout=time_limit)
+            except TimeoutError:
+                print(f"File {file_path} took too long to open.") if verbose > 0 else None
+                return False
         
     def walk_files(dir_outer, depth):
         """
@@ -416,6 +412,6 @@ def check_files_openable(dir_outer, depth=2, time_limit_per_file=1, verbose=Fals
         return files
     
     files = walk_files(dir_outer, depth)
-    file_openable = {file: check_file_openable(file) for file in files}
+    file_openable = {file: check_with_timeout(file, time_limit=time_limit_per_file) for file in files}
     return file_openable
     
