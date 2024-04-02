@@ -350,40 +350,55 @@ def find_date_in_path(
 
 def check_files_openable(dir_outer, depth=2, time_limit_per_file=1, verbose=False):
     """
-    Check if files within an outer directory are able to be opened. \n
-    RH 2024
-
-    Args:
-        dir_outer (str):
-            Path to the outer directory
-        depth (int):
-            Maximum depth of subdirectories to search. \n
-            Depth=0 means only the outer directory. \n
-            Default is 2.
-        time_limit_per_file (int):
-            Time limit in seconds for checking if a file can be opened.
-        verbose (bool):
-            Whether to print the files that can't be opened. \n
-            Default is False.
-
-    Returns:
-        (dict):
-            Dictionary with keys as the file paths and values as booleans
-            indicating whether the file can be opened.
+    Check if files within an outer directory are able to be opened, using a subprocess-based approach for better isolation.
+    This version creates the checking script on the fly and writes it to a temporary file for execution.
     """
     import os
-    from multiprocessing import Pool, TimeoutError
-    from contextlib import contextmanager
-        
+    import subprocess
+    import tempfile
+
+    # Define the script to check if a file can be opened
+    check_script_content = r"""
+import sys
+
+def check_file_openable(file_path):
+    try:
+        with open(file_path, 'rb') as f:
+            f.read(1024)
+        print(f"File {file_path} can be opened.")
+        return True
+    except Exception as e:
+        print(f"File {file_path} could not be opened: {{e}}", file=sys.stderr)
+        return False
+
+if __name__ == "__main__":
+    file_path = sys.argv[1]
+    check_file_openable(file_path)
+"""
+
+    # Write the script to a temporary file
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as tmp_script:
+        tmp_script_path = tmp_script.name
+        tmp_script.write(check_script_content)
+
     def check_with_timeout(file_path, time_limit):
-        with Pool(processes=1) as executor:
-            result = executor.apply_async(_check_file_openable, (file_path, verbose,))
-            try:
-                return result.get(timeout=time_limit)
-            except TimeoutError:
-                print(f"File {file_path} took too long to open.") if verbose > 0 else None
+        try:
+            # Execute the temporary script with subprocess.run and a timeout
+            completed_process = subprocess.run(['python', tmp_script_path, file_path],
+                                               capture_output=True, text=True, timeout=time_limit)
+            if completed_process.returncode == 0:
+                if verbose > 1:
+                    print(completed_process.stdout.strip())
+                return True
+            else:
+                if verbose > 0:
+                    print(completed_process.stderr.strip())
                 return False
-        
+        except subprocess.TimeoutExpired:
+            if verbose > 0:
+                print(f"File {file_path} took too long to open.")
+            return False
+
     def walk_files(dir_outer, depth):
         """
         Walk through files in a directory.
@@ -396,20 +411,12 @@ def check_files_openable(dir_outer, depth=2, time_limit_per_file=1, verbose=Fals
                 files.append(os.path.join(root, filename))
             depth -= 1
         return files
-    
-    files = walk_files(dir_outer, depth)
-    file_openable = {file: check_with_timeout(file, time_limit=time_limit_per_file) for file in files}
-    return file_openable
-def _check_file_openable(file_path, verbose=False):
-    """
-    Check if a file can be opened.
-    """
+
     try:
-        with open(file_path, 'rb') as f:
-            ## Read a maximum of 1024 bytes. If file is smaller, read the whole file.
-            f.read(1024)
-        print(f"File {file_path} can be opened.") if verbose > 1 else None
-        return True
-    except Exception as e:
-        print(f"File {file_path} could not be opened: {e}") if verbose > 0 else None
-        return False
+        files = walk_files(dir_outer, depth)
+        file_openable = {file: check_with_timeout(file, time_limit_per_file) for file in files}
+    finally:
+        # Clean up the temporary script
+        os.remove(tmp_script_path)
+    
+    return file_openable
