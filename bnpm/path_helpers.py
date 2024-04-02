@@ -368,7 +368,7 @@ def check_file_openable(file_path):
         print(f"File {file_path} can be opened.")
         return True
     except Exception as e:
-        print(f"File {file_path} could not be opened: {{e}}", file=sys.stderr)
+        print(f"FAILURE: File {file_path} could not be opened: {{e}}", file=sys.stderr)
         return False
 
 if __name__ == "__main__":
@@ -396,7 +396,7 @@ if __name__ == "__main__":
                 return False
         except subprocess.TimeoutExpired:
             if verbose > 0:
-                print(f"File {file_path} took too long to open.")
+                print(f"FAILURE: File {file_path} took too long to open.")
             return False
 
     def walk_files(dir_outer, depth=2, depth_current=0):
