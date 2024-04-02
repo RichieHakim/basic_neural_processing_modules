@@ -399,21 +399,22 @@ if __name__ == "__main__":
                 print(f"File {file_path} took too long to open.")
             return False
 
-    def walk_files(dir_outer, depth):
+    def walk_files(dir_outer, depth=2, depth_current=0):
         """
-        Walk through files in a directory.
+        Returns a generator that yields all the files within a directory and its subdirectories.
+        Depth is the maximum number of subdirectories to traverse.
         """
-        files = []
-        for root, dirs, filenames in os.walk(dir_outer):
-            if depth < 0:
-                break
-            for filename in filenames:
-                files.append(os.path.join(root, filename))
-            depth -= 1
-        return files
+        if depth_current > depth:
+            return
+        for path in os.listdir(dir_outer):
+            path_full = os.path.join(dir_outer, path)
+            if os.path.isdir(path_full):
+                yield from walk_files(path_full, depth, depth_current + 1)
+            else:
+                yield path_full
 
     try:
-        files = walk_files(dir_outer, depth)
+        files = walk_files(dir_outer, depth=depth)
         file_openable = {file: check_with_timeout(file, time_limit_per_file) for file in files}
     finally:
         # Clean up the temporary script
