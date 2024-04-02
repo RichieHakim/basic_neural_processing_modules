@@ -372,19 +372,30 @@ def check_files_openable(dir_outer, depth=2, time_limit_per_file=1, verbose=Fals
             indicating whether the file can be opened.
     """
     import os
+    from threading import Timer
+    from contextlib import contextmanager
+
+    class TimeoutException(Exception): pass
+
+    @contextmanager
+    def time_limit(seconds):
+        timer = Timer(seconds, lambda: TimeoutException())
+        timer.start()
+        yield
+        timer.cancel()
 
     def check_file_openable(file_path):
         """
         Check if a file can be opened.
         """
         try:
-            with misc.time_limit(time_limit_per_file):
+            with time_limit(time_limit_per_file):
                 with open(file_path, 'rb') as f:
                     ## Read a maximum of 1024 bytes. If file is smaller, read the whole file.
                     f.read(1024)
             print(f"File {file_path} can be opened.") if verbose > 1 else None
             return True
-        except misc.TimeoutException:
+        except TimeoutException:
             print(f"File {file_path} took too long to open.") if verbose > 1 else None
             return False
         except Exception as e:
