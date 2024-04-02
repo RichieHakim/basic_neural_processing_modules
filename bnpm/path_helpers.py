@@ -145,8 +145,11 @@ def find_paths(
             https://natsort.readthedocs.io/en/4.0.4/ns_class.html/ for options.
             Default is PATH. Other commons are INT, FLOAT, VERSION. (Default is
             ``None``)
-        verbose (bool):
-            Whether to print the paths found. (Default is ``False``)
+        verbose (Union[bool, int]):
+            Whether to print the paths found. (Default is ``False``) \n
+                * If False/0, then no printout.
+                * If True/1, then printout.
+                * If 2, then printout with additional details.
 
     Returns:
         (List[str]): 
@@ -171,17 +174,19 @@ def find_paths(
         paths = []
         for path in os.listdir(dir_inner):
             path = os.path.join(dir_inner, path)
+            print(f'Checking path: {path}') if verbose > 1 else None
             if os.path.isdir(path):
                 if find_folders:
                     if fn_match(path, reMatch, reMatch_in_path):
-                        print(f'Found folder: {path}') if verbose else None
+                        print(f'Found folder: {path}') if verbose > 0 else None
                         paths.append(path)
                 if depth < depth_end:
+                    print(f'Entering folder: {path}') if verbose > 1 else None
                     paths += get_paths_recursive_inner(path, depth_end, depth=depth+1)
             else:
                 if find_files:
                     if fn_match(path, reMatch, reMatch_in_path):
-                        print(f'Found file: {path}') if verbose else None
+                        print(f'Found file: {path}') if verbose > 0 else None
                         paths.append(path)
         return paths
 
