@@ -493,6 +493,25 @@ class MultiContextManager:
     def __exit__(self, exc_type, exc_value, traceback):
         self.stack.__exit__(exc_type, exc_value, traceback)
         
+        
+class TimeoutException(Exception):
+    pass
+@contextmanager
+def time_limit(seconds):
+    """
+    Wrapper to set a time limit for a block of code, after which a
+    TimeoutException is raised.
+    """
+    import signal
+    def signal_handler(signum, frame):
+        raise TimeoutException("Timed out")
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+
 
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
