@@ -225,8 +225,7 @@ def initialize_torch_settings(
     deterministic_cudnn: Optional[bool] = None,
     deterministic_torch: Optional[bool] = None,
     set_global_device: Optional[Union[str, torch.device]] = None,
-    init_linalg: bool = True,
-    init_linalg_device: Union[str, torch.device] = 'cuda:0',
+    init_linalg_device: Optional[Union[str, torch.device]] = None,
 ) -> None:
     """
     Initalizes some CUDA libraries and sets some environment variables. \n
@@ -250,13 +249,11 @@ def initialize_torch_settings(
         set_global_device (bool):
             If ``False``, does not set the global device. If a string or torch.device,
             sets the global device to the specified device.
-        init_linalg (bool):
-            If ``True``, initializes the linalg library. This is necessary to
-            avoid a bug. Often solves the error: "RuntimeError: lazy wrapper
-            should be called at most once". (Default is ``True``)
         init_linalg_device (str):
             The device to use for initializing the linalg library. Either a
-            string or a torch.device. (Default is ``'cuda:0'``)
+            string or a torch.device. This is necessary to avoid a bug. Often
+            solves the error: "RuntimeError: lazy wrapper should be called at
+            most once". (Default is ``None``)
     """
     if benchmark is not None:
         torch.backends.cudnn.benchmark = benchmark
@@ -271,9 +268,9 @@ def initialize_torch_settings(
     
     ## Initialize linalg libarary
     ## https://github.com/pytorch/pytorch/issues/90613
-    if type(init_linalg_device) is str:
-        init_linalg_device = torch.device(init_linalg_device)
-    if init_linalg:
+    if init_linalg_device is not None:
+        if type(init_linalg_device) is str:
+            init_linalg_device = torch.device(init_linalg_device)
         torch.inverse(torch.ones((1, 1), device=init_linalg_device))
         torch.linalg.qr(torch.as_tensor([[1.0, 2.0], [3.0, 4.0]], device=init_linalg_device))
 
