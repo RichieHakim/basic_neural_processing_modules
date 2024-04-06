@@ -321,7 +321,7 @@ class Convergence_checker_optuna:
             self.converged, self.reason_converged = True, 'tol_frac'
             print(f'Stopping. Convergence reached. Best value ({self.best*10000}) over last ({self.n_patience}) trials fractionally changed less than ({self.tol_frac})') if self.verbose else None
             study.stop()
-        elif self.num_trial >= self.max_trials:
+        elif self.num_trial >= self.max_trials - 1:
             self.converged, self.reason_converged = True, 'max_trials'
             print(f'Stopping. Trial number limit reached. num_trial={self.num_trial}, max_trials={self.max_trials}.') if self.verbose else None
             study.stop()
