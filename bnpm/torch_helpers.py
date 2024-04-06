@@ -224,7 +224,7 @@ def initialize_torch_settings(
     enable_cudnn: Optional[bool] = None,
     deterministic_cudnn: Optional[bool] = None,
     deterministic_torch: Optional[bool] = None,
-    set_global_device: Union[str, torch.device, bool] = False,
+    set_global_device: Optional[str, torch.device] = None,
     init_linalg: bool = True,
     init_linalg_device: Union[str, torch.device] = 'cuda:0',
 ) -> None:
@@ -266,7 +266,7 @@ def initialize_torch_settings(
         torch.backends.cudnn.deterministic = False
     if deterministic_torch:
         torch.set_deterministic(False)
-    if set_global_device is not False:
+    if set_global_device is not None:
         torch.cuda.set_device(set_global_device)
     
     ## Initialize linalg libarary
