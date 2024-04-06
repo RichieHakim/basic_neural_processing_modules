@@ -224,7 +224,7 @@ def initialize_torch_settings(
     enable_cudnn: Optional[bool] = None,
     deterministic_cudnn: Optional[bool] = None,
     deterministic_torch: Optional[bool] = None,
-    set_global_device: Optional[str, torch.device] = None,
+    set_global_device: Optional[Union[str, torch.device]] = None,
     init_linalg: bool = True,
     init_linalg_device: Union[str, torch.device] = 'cuda:0',
 ) -> None:
