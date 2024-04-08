@@ -620,13 +620,14 @@ class sftp_interface():
             self.transport = paramiko.Transport((hostname, port))  ## open a transport object
         else:
             if isinstance(ssh_client, ssh_interface):
-                client = ssh_client.client
-                self.sftp = client.open_sftp()
+                self.client = ssh_client
+                self.sftp = self.client.open_sftp()
             elif isinstance(ssh_client, paramiko.SSHClient):
-                client = ssh_client
-                self.sftp = client.open_sftp()
+                self.client = ssh_client
+                self.sftp = self.client.open_sftp()
             elif isinstance(ssh_client, paramiko.Channel):
-                self.sftp = paramiko.SFTPClient.from_transport(ssh_client.get_transport())
+                self.transport = ssh_client.get_transport()
+                self.sftp = paramiko.SFTPClient.from_transport(self.transport)
         
     def connect(
         self,
@@ -642,8 +643,13 @@ class sftp_interface():
                 Password to log in with.
                 Is not stored.
         """
-        self.transport.connect(None, username, password)  ## authorization
-        self.sftp = paramiko.SFTPClient.from_transport(self.transport)  ## open sftp
+        if hasattr(self, 'transport'):
+            self.transport.connect(None, username, password)  ## authorization
+            self.sftp = paramiko.SFTPClient.from_transport(self.transport)  ## open sftp
+        elif hasattr(self, 'client'):
+            self.sftp = self.client.open_sftp()
+        else:
+            raise ValueError('No valid connection method found')
     
     def put_dir(self, source, target, mkdir=True, verbose=True):
         '''
@@ -1003,9 +1009,15 @@ class sftp_interface():
                 ).download()
 
     def close(self):
-        self.sftp.close()
-        self.transport.close()
+        if hasattr(self, 'transport'):
+            self.transport.close()
+        elif hasattr(self, 'client'):
+            self.client.close()
+        elif hasattr(self, 'sftp'):
+            self.sftp.close()
 
+    def refresh_connection(self):
+        self.connect()
 
 def make_rsync_command(
     source, 
