@@ -701,6 +701,98 @@ class Convolver_1d():
     def __repr__(self) -> str:
         return f"Convolver_1d(kernel shape={self.kernel.shape}, pad_mode={self.pad_mode})"
     
+
+@njit(parallel=False, fastmath=True, nogil=True)
+def _helper_dampening_filter_numba(X: np.ndarray, X_diff: np.ndarray, dampening_factor: float):
+    """
+    Numba helper function for dampening_filter_numba.
+    """
+    Y = np.zeros_like(X)
+    for i in range(1, len(X)):
+        Y[i] = Y[i-1]*dampening_factor + X_diff[i-1]
+    return Y
+def dampening_filter(X: np.ndarray, dampening_factor: float = 0.9):
+    """
+    Dampening filter. Applies a recursive dampening filter that pulls values
+    back towards zero.
+    function: y[t] = y[t-1]*d + (x[t] - x[t-1])
+    numba implementation appears to be faster than torch
+
+    RH 2024
+
+    Args:
+        X (np.ndarray):
+            Input array. Dampening will be performed
+            along the first dimension (columns).
+        dampening_factor (float):
+            Dampening factor. Should typically be between 0 and 1.
+
+    Returns:
+        Y (np.ndarray):
+            Dampened array.
+    """
+    X_diff = np.diff(X, axis=0)
+    Y = _helper_dampening_filter_numba(X, X_diff, dampening_factor)
+    return Y
+
+
+## Import jax if available
+try:
+    import jax
+    import jax.numpy as jnp
+
+    def dampening_step(carry, x_curr):
+        """
+        Perform a single step of the dampening process.
+        
+        Args:
+            carry: A tuple containing the previous output y (y_prev), the previous input x (x_prev),
+                and the dampening factor.
+            x_curr: Current value of x.
+        
+        Returns:
+            Updated carry and the current y value.
+        """
+        y_prev, x_prev, dampening_factor = carry
+        
+        # # Handle division by zero safely. Ensure x_prev is not zero before dividing.
+        # # This avoids the ambiguous truth value error by not using arrays in conditions.
+        # division_result = 0 if x_prev == 0 else y_prev / x_prev
+        
+        # Calculate the current y value using the given formula.
+        y_curr = y_prev * dampening_factor + (x_curr - x_prev) * 1
+        
+        # Update the carry for the next iteration.
+        carry = (y_curr, x_curr, dampening_factor)
+        return carry, y_curr
+
+    @jax.jit
+    def dampening_filter_jax(X, dampening_factor=0.9):
+        """
+        Applies a recursive dampening filter on a series of data points using JAX.
+        Utilizes `lax.scan` for efficiently applying the dampening step function across the input series.
+        
+        Args:
+            X (jnp.ndarray): Input series on which the dampening filter is applied.
+            dampening_factor (float): Factor used in the dampening calculation.
+        
+        Returns:
+            jnp.ndarray: The series after applying the dampening filter.
+        """
+        # Initial conditions: y is zero and x is the first element of the series.
+        # The carry contains the initial y, initial x, and the dampening factor.
+        initial_carry = (jnp.zeros_like(X[0]), X[0], dampening_factor)
+        
+        # Apply the dampening step across the series. Skip the first element since it's part of the initial conditions.
+        _, Y = jax.lax.scan(dampening_step, initial_carry, X[1:])
+        
+        # Include the initial y value at the start of the series.
+        Y = jnp.concatenate([jnp.zeros_like(X[:1]), Y])
+        
+        return Y
+
+except ImportError:
+    pass
         
 ####################################
 ######## PYTORCH algorithms ########
