@@ -7,6 +7,7 @@ import os
 import numpy as np
 from pathlib import Path
 import re
+import warnings
 
 from . import misc
 
@@ -411,4 +412,90 @@ def check_files_openable(dir_outer, time_limit_per_file=1, verbose=False):
     files = walk_files(dir_outer)
     file_openable = {file: check_with_timeout(file, time_limit=time_limit_per_file) for file in files}
     return file_openable
-    
+
+
+def touch_path(
+    path: Union[str, Path],
+    recursive: bool = False,
+    dt: Optional[datetime] = None,
+    files: bool = True,
+    directories: bool = True,
+    verbose: Union[bool, int] = False,
+) -> None:
+    """
+    Update the last modified datetime of specified files and/or directories
+    without creating new ones. Symbolic links are skipped. \n
+    RH 2024
+
+    Args:
+        path (Union[str, Path]): 
+            The directory or file path to modify.
+        recursive (bool): 
+            Whether to recursively apply changes to all subfiles and subfolders.
+        dt (Optional[datetime]): 
+            The datetime to set as the last modified time. If not specified, the
+            current datetime is used.
+        files (bool): 
+            If True, update modification times of files.
+        directories (bool): 
+            If True, update modification times of directories.
+        verbose (Union[bool, int]):
+            Whether to print the paths that are modified / Level of verbosity.
+            \n
+                * If False/0, then no printout.
+                * If True/1, then print changed paths.
+                * If 2, also print skipped paths.
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If the path does not exist or would be created by the touch command.
+
+    Demo:
+        .. code-block:: python
+            touch_path('/tmp/example.txt', dt=datetime(2024, 4, 8, 23, 30), files=True, directories=False)
+    """
+    if dt:
+        timestamp = dt.timestamp()
+    else:
+        timestamp = datetime.now().timestamp()
+
+    def update_mod_time(target_path: Path) -> None:
+        """Updates the modification time of a file or directory."""
+        try:
+            t_pre = datetime.fromtimestamp(target_path.stat().st_mtime)
+        except Exception as e:
+            t_pre = None
+            warnings.warn(f"Could not get the modification time of {target_path}: {e}")
+
+        os.utime(target_path, (timestamp, timestamp))
+        print(f"Modified: {target_path} from {t_pre} to {datetime.fromtimestamp(timestamp)}") if verbose > 0 else None
+
+    path = Path(path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"The path {path} does not exist.")
+
+    if path.is_file():
+        if files:
+            update_mod_time(path)
+        else:
+            print(f"Skipping: {path}") if verbose > 1 else None
+    elif path.is_dir():
+        if directories:
+            update_mod_time(path)
+        else:
+            print(f"Skipping: {path}") if verbose > 1 else None
+        if recursive:
+            for sub_path in path.rglob('*'):
+                if sub_path.is_file() and files:
+                    update_mod_time(sub_path)
+                elif sub_path.is_dir() and directories:
+                    update_mod_time(sub_path)
+                else:
+                    print(f"Skipping: {sub_path}") if verbose > 1 else None
+    elif path.is_symlink():
+        print(f"Skipping: {path} (symlink)") if verbose > 1 else None
+    else:
+        raise FileNotFoundError(f"The path {path} returned neither .is_file() nor .is_dir(). It may be a symlink, missing, or otherwise inaccessible.")
