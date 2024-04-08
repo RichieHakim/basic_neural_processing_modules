@@ -305,3 +305,55 @@ def rand_log(low=1, high=100, size=(1,)):
     if isinstance(size, int):
         size = (size,)
     return low*10**(np.random.rand(*size)*(np.log(high/low) / np.log(10)))
+
+
+def make_odd(n, mode='up'):
+    """
+    Make a number odd.
+    RH 2023
+
+    Args:
+        n (int):
+            Number to make odd
+        mode (str):
+            'up' or 'down'
+            Whether to round up or down to the nearest odd number
+
+    Returns:
+        output (int):
+            Odd number
+    """
+    if n % 2 == 0:
+        if mode == 'up':
+            return n + 1
+        elif mode == 'down':
+            return n - 1
+        else:
+            raise ValueError("mode must be 'up' or 'down'")
+    else:
+        return n
+def make_even(n, mode='up'):
+    """
+    Make a number even.
+    RH 2023
+
+    Args:
+        n (int):
+            Number to make even
+        mode (str):
+            'up' or 'down'
+            Whether to round up or down to the nearest even number
+
+    Returns:
+        output (int):
+            Even number
+    """
+    if n % 2 != 0:
+        if mode == 'up':
+            return n + 1
+        elif mode == 'down':
+            return n - 1
+        else:
+            raise ValueError("mode must be 'up' or 'down'")
+    else:
+        return n
