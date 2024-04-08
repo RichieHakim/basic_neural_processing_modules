@@ -456,30 +456,29 @@ def time_domain_reversal_in_fourier_domain(xf, axis=-1):
     return resolution(conj(xf * w))
 
 
-@misc.wrapper_flexible_args(['dim', 'axis'])
 def filtfilt_simple_fft(
     x: Union[torch.Tensor, np.ndarray],
     kernel: Union[torch.Tensor, np.ndarray],
     fast_len: bool = True,
-    axis: int = -1,
 ):
     """
-    Applies a zero-phase filter to the input signal using the FFT method.\n
-    Calculated as ifft(fft(x) * fft(kernel) * fft(kernel_flipped)).\n
-    This implementation is very fast and is suitable for large signals.\n
+    Applies a zero-phase filter to the input signal using the FFT method along
+    the last dimension.\n
+    Calculated as ``ifft(fft(x) * fft(kernel) * fft(kernel_flipped))``.\n
+    This implementation is very fast and is suitable when using long kernels.\n
     NOTE: This is a simple implementation and does not handle edge effects.
-    scipy.signal.filtfilt is recommended if speed is not a concern.\n
+    scipy.signal.filtfilt is recommended if speed is not a concern and/or if
+    kernel length is similar in length to x.\n
     RH 2024
 
     Args:
         x (torch.Tensor or np.ndarray):
-            Signal data.
+            Signal data. Convolution is done along the last dimension.
         kernel (torch.Tensor or np.ndarray):
-            Filter kernel.
+            Filter kernel. Convolution is done along the last dimension. \n
+            If not 1D, then shape should be broadcastable with x.
         fast_len (bool):
             Whether to use the fast length method.
-        axis (int):
-            Dimension along which to do the transformation.
 
     Returns:
         (nd tensor):
@@ -489,18 +488,18 @@ def filtfilt_simple_fft(
 
     if isinstance(x, torch.Tensor) and isinstance(kernel, torch.Tensor):
         use_real = (torch.is_complex(x) == False) and (torch.is_complex(kernel) == False)
-        fft, ifft = (functools.partial(fn, dim=axis) for fn in ((torch.fft.rfft, torch.fft.irfft) if use_real else (torch.fft.fft, torch.fft.ifft)))
-        flip = functools.partial(torch.flip, dims=(axis,))
+        fft, ifft = (functools.partial(fn, dim=-1) for fn in ((torch.fft.rfft, torch.fft.irfft) if use_real else (torch.fft.fft, torch.fft.ifft)))
+        flip = functools.partial(torch.flip, dims=(-1,))
     elif isinstance(x, np.ndarray) and isinstance(kernel, np.ndarray):
         use_real = (np.iscomplexobj(x) == False) and (np.iscomplexobj(kernel) == False)
-        fft, ifft = (functools.partial(fn, axis=axis) for fn in ((np.fft.rfft, np.fft.irfft) if use_real else (np.fft.fft, np.fft.ifft)))
-        flip = functools.partial(np.flip, axis=axis)
+        fft, ifft = (functools.partial(fn, axis=-1) for fn in ((np.fft.rfft, np.fft.irfft) if use_real else (np.fft.fft, np.fft.ifft)))
+        flip = functools.partial(np.flip, axis=-1)
     else:
         raise ValueError("x and kernel must be torch tensors or numpy arrays")
     
-    f_flip = functools.partial(time_domain_reversal_in_fourier_domain, axis=axis)
+    f_flip = functools.partial(time_domain_reversal_in_fourier_domain, axis=-1)
 
-    n = x.shape[axis] + kernel.shape[axis] - 1
+    n = x.shape[-1] + kernel.shape[-1] - 1
     n = timeSeries.next_fast_len(n) if fast_len else n
 
     out = fft(x, n=n)  ## x_fft
@@ -510,8 +509,8 @@ def filtfilt_simple_fft(
     out = ifft(out, n=n)  ## xk
     out = torch_helpers.slice_along_dim(
         X=out,
-        dim=axis,
-        idx=slice(0, x.shape[axis]),
+        dim=-1,
+        idx=slice(0, x.shape[-1]),
     )
     out = out.real if use_real else out
     return out
