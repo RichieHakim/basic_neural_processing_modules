@@ -8,6 +8,7 @@ import numpy as np
 from pathlib import Path
 import re
 import warnings
+import datetime
 
 from . import misc
 
@@ -459,18 +460,18 @@ def touch_path(
     if dt:
         timestamp = dt.timestamp()
     else:
-        timestamp = datetime.now().timestamp()
+        timestamp = datetime.datetime.now().timestamp()
 
     def update_mod_time(target_path: Path) -> None:
         """Updates the modification time of a file or directory."""
         try:
-            t_pre = datetime.fromtimestamp(target_path.stat().st_mtime)
+            t_pre = datetime.datetime.fromtimestamp(target_path.stat().st_mtime)
         except Exception as e:
             t_pre = None
             warnings.warn(f"Could not get the modification time of {target_path}: {e}")
 
         os.utime(target_path, (timestamp, timestamp))
-        print(f"Modified: {target_path} from {t_pre} to {datetime.fromtimestamp(timestamp)}") if verbose > 0 else None
+        print(f"Modified: {target_path} from {t_pre} to {datetime.datetime.fromtimestamp(timestamp)}") if verbose > 0 else None
 
     path = Path(path)
 
