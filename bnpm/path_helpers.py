@@ -475,7 +475,7 @@ def touch_path(
         ## Update the modification time.
         ### utime inputs are (path, (atime, mtime)). atime: access time, mtime: modification time.
         os.utime(target_path, (timestamp, timestamp))
-        print(f"Modified: {target_path} from {t_pre} to {datetime.datetime.fromtimestamp(timestamp)}") if verbose > 0 else None
+        print(f"Modified: {target_path}       from {t_pre} to {datetime.datetime.fromtimestamp(timestamp)}") if verbose > 0 else None
 
     ## Convert the path to a Path object.
     path = Path(path)
