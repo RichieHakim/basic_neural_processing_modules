@@ -457,6 +457,7 @@ def touch_path(
         .. code-block:: python
             touch_path('/tmp/example.txt', dt=datetime(2024, 4, 8, 23, 30), files=True, directories=False)
     """
+    ## Get the timestamp.
     if dt:
         timestamp = dt.timestamp()
     else:
@@ -464,20 +465,26 @@ def touch_path(
 
     def update_mod_time(target_path: Path) -> None:
         """Updates the modification time of a file or directory."""
+        ## Pre-modification time.
         try:
             t_pre = datetime.datetime.fromtimestamp(target_path.stat().st_mtime)
         except Exception as e:
             t_pre = None
             warnings.warn(f"Could not get the modification time of {target_path}: {e}")
 
+        ## Update the modification time.
+        ### utime inputs are (path, (atime, mtime)). atime: access time, mtime: modification time.
         os.utime(target_path, (timestamp, timestamp))
         print(f"Modified: {target_path} from {t_pre} to {datetime.datetime.fromtimestamp(timestamp)}") if verbose > 0 else None
 
+    ## Convert the path to a Path object.
     path = Path(path)
 
+    ## Check if the path exists.
     if not path.exists():
         raise FileNotFoundError(f"The path {path} does not exist.")
 
+    ## Update the modification time of the path.
     if path.is_file():
         if files:
             update_mod_time(path)
@@ -489,14 +496,14 @@ def touch_path(
         else:
             print(f"Skipping: {path}") if verbose > 1 else None
         if recursive:
-            for sub_path in path.rglob('*'):
+            for sub_path in path.rglob('*'):  ## rglob('*') fetches all files and directories recursively.
                 if sub_path.is_file() and files:
                     update_mod_time(sub_path)
                 elif sub_path.is_dir() and directories:
                     update_mod_time(sub_path)
                 else:
                     print(f"Skipping: {sub_path}") if verbose > 1 else None
-    elif path.is_symlink():
+    elif path.is_symlink():  ## Skip symbolic links.
         print(f"Skipping: {path} (symlink)") if verbose > 1 else None
     else:
         raise FileNotFoundError(f"The path {path} returned neither .is_file() nor .is_dir(). It may be a symlink, missing, or otherwise inaccessible.")
