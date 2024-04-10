@@ -1241,6 +1241,7 @@ class FFTConvolve(torch.nn.Module):
         n: Optional[int]=None, 
         next_fast_length: bool=False,
         use_x_fft: bool=True,
+        return_real: bool=True,
     ):
         super(FFTConvolve, self).__init__()
         if x is not None:
@@ -1250,6 +1251,7 @@ class FFTConvolve(torch.nn.Module):
             self.x_fft = None
 
         self.use_x_fft = use_x_fft
+        self.return_real = return_real
 
     def set_x_fft(self, x: torch.Tensor, n: Optional[int]=None, next_fast_length: bool=False):
         if next_fast_length:
@@ -1272,7 +1274,17 @@ class FFTConvolve(torch.nn.Module):
         n: Optional[int]=None,
         fast_length: Union[int, bool]=False,
         x_fft: Optional[torch.Tensor]=None,
+        return_real: bool=None,
     ) -> torch.Tensor:
         x_fft = self.x_fft if x_fft is None else x_fft
+        return_real = self.return_real if return_real is None else return_real
         n = self.n if n is None else n
-        return fftconvolve(x=x, y=y, mode=mode, n=n, fast_length=fast_length, x_fft=x_fft if self.use_x_fft else None)
+        return fftconvolve(
+            x=x, 
+            y=y, 
+            mode=mode, 
+            n=n, 
+            fast_length=fast_length, 
+            x_fft=x_fft if self.use_x_fft else None,
+            return_real=return_real,
+        )
