@@ -391,6 +391,27 @@ def array_hasher():
     return partial(xxhash.xxh64_hexdigest, seed=0)
 
 
+def reset_warnings():
+    """
+    Resets warnings to default settings.
+    """
+    import warnings
+    warnings.simplefilter('default')
+
+def reset_numpy_warnings():
+    """
+    Resets numpy warnings to default settings.
+    """
+    import numpy as np
+    np.seterr(all='warn')
+    
+
+
+#####################################################################
+################# CONTEXT MANAGERS AND DECORATORS ###################
+#####################################################################
+
+
 @contextmanager
 def temp_set_attr(obj, attr_name, new_value):
     """
