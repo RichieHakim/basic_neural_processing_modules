@@ -4,8 +4,6 @@ import urllib
 
 import sqlalchemy
 import pandas as pd
-import sqlalchemy
-import pandas as pd
 
 
 def make_url(
