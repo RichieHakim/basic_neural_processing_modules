@@ -16,39 +16,21 @@ from . import misc
 ############ VARIABLE HELPERS ##############
 ############################################
 
-def show_all_tensors(
-    globals: dict,
-    sort_by_size_pref: bool = False,
-    data_unit: str = 'GB',
-) -> None:
+def show_all_tensors() -> None:
     """
     Displays all tensors present in the provided dictionary.
-    RH 2021
-
-    Args:
-        globals (dict):
-            Dictionary of global variables. Use the built-in function
-            ``globals()`` to obtain this dictionary.
-        sort_by_size_pref (bool):
-            If ``True``, the displayed tensors will be sorted according to their
-            size.
-        data_unit (str):
-            The unit in which to display the size of tensors. Options are Bytes
-            ('B'), Kilobytes ('KB'), Megabytes ('MB'), and Gigabytes ('GB').
+    From: https://discuss.pytorch.org/t/how-to-debug-causes-of-gpu-memory-leaks/6741
+    RH 2024
     """
-    size = []
-    strings = []
-    for var in globals:
-        if (type(globals[var]) is torch.Tensor):
-            size.append(_convert_size(globals[var].element_size() * globals[var].nelement(), return_size=data_unit))
-            strings.append(f'var: {var},   device:{globals[var].device},   shape: {globals[var].shape},   size: {size[-1]} {data_unit},   requires_grad: {globals[var].requires_grad}')
-
-    if sort_by_size_pref:
-        i_sort = np.argsort(size)[::-1]
-        strings = [strings[ii] for ii in i_sort]
-
-    for string in strings:
-        print(string)
+    # prints currently alive Tensors and Variables
+    import torch
+    import gc
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                print(type(obj), obj.size())
+        except:
+            pass
 
 
 
