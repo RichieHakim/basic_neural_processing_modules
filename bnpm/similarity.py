@@ -266,7 +266,7 @@ def orthogonalize_matrix_nearest(X: Union[np.ndarray, torch.Tensor], center=True
 
     Q = qr(X)[0]
     w, scale = op(Q, X)
-    return w @ scale
+    return Q @ w
 
 
 @njit
