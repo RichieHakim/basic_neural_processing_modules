@@ -243,8 +243,10 @@ def orthogonalize_matrix_nearest(X: Union[np.ndarray, torch.Tensor], center=True
     matrix. \n
     X_orth = argmin ||X - X_orth||_F
 
-    Note: The solution to this problem is generally equivalent to the ZCA
-    whitening of PCA(X).
+    RH 2024
+
+    Note: The solution to this problem is generally very similar or equivalent
+    to the ZCA whitening of PCA(X).
 
     Args:
         X (ndarray):
