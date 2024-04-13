@@ -895,6 +895,57 @@ def slice_along_dim(
     return X[tuple(slices)]
 
 
+def orthogonal_procrustes(
+    A: torch.Tensor,
+    B: torch.Tensor,
+    check_finite: bool = True,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Port of the scipy.linalg.orthogonal_procrustes function:
+    https://github.com/scipy/scipy/blob/v1.13.0/scipy/linalg/_procrustes.py
+
+    Computes the matrix solution of the orthogonal Procrustes problem.
+    Given two matrices, A and B, find the orthogonal matrix that most closely
+    maps A to B using the algorithm in [1].
+
+    Args:
+        A (torch.Tensor): 
+            The input matrix.
+        B (torch.Tensor): 
+            The target matrix.
+        check_finite (bool): 
+            Whether to check that the input matrices contain only finite
+            numbers. Disabling may give a performance gain, but may result in
+            problems (crashes, non-termination) if the inputs do contain infinities
+            or NaNs. (Default is ``True``)
+
+    Returns:
+        (Tuple[torch.Tensor, torch.Tensor]): 
+            (R, scale):
+                R (torch.Tensor):
+                    The matrix solution of the orthogonal Procrustes problem.
+                    Minimizes the Frobenius norm of ``(A @ R) - B``, subject to
+                    ``R.T @ R = I``.
+                scale (torch.Tensor):
+                    Sum of the singular values of ``A.T @ B``.
+
+    References:
+        [1] Peter H. Schonemann, "A generalized solution of the orthogonal
+        Procrustes problem", Psychometrica -- Vol. 31, No. 1, March, 1966.
+        :doi:`10.1007/BF02289451`
+    """
+    if check_finite:
+        if not torch.isfinite(A).all() or not torch.isfinite(B).all():
+            raise ValueError("Input contains non-finite values.")
+    assert A.shape == B.shape, 'Input matrices must have the same shape.'
+    assert A.ndim == 2, 'Input matrices must be 2D.'
+
+    U, S, V = torch.linalg.svd((B.T @ A).T, full_matrices=False)
+    R = U @ V
+    scale = S.sum()
+    return R, scale
+
+
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################

@@ -1,30 +1,15 @@
-'''
-Table of Contents
+import copy
+import time
+from functools import partial
 
-Functions and Interdependencies:
-    proj
-    orthogonalize
-        - proj
-    OLS
-    EV
-    pairwise_similarity
-    best_permutation
-        - pairwise_similarity
-    self_similarity_pairwise
-        - best_permutation
-'''
 import numpy as np
 import scipy.optimize
-# import sklearn.decomposition
 from numba import njit, prange, jit
 import torch
 from tqdm import tqdm
 
-from . import indexing
+from . import indexing, torch_helpers
 
-import copy
-import time
-from functools import partial
 
 def proj(v1, v2):
     '''
@@ -247,6 +232,35 @@ def orthogonalize(v1, v2, method='OLS', device='cpu', thresh_EVR_PCA=1e-15):
                     pca_dict[key] = pca_dict[key].cpu().numpy()
 
     return v1_orth, EVR, EVR_total, pca_dict
+
+
+def orthogonalize_matrix_nearest(X: Union[np.ndarray, torch.Tensor]):
+    """
+    Orthogonalizes a matrix by finding the nearest orthogonal matrix. Nearest is
+    defined as solving the Procrustes problem via minimizing the Frobenius norm
+    of the difference between the original input matrix and the orthogonal
+    matrix. \n
+    X_orth = argmin ||X - X_orth||_F
+
+    Note: The solution to this problem is generally equivalent to the ZCA
+    whitening of PCA(X).
+
+    Args:
+        X (ndarray):
+            Matrix to orthogonalize. shape: (n_samples, n_features)
+
+    Returns:
+        (ndarray):
+            X_orth: orthogonalized matrix. shape: (n_samples, n_features)
+    """
+    if isinstance(X, np.ndarray):
+        op, qr = scipy.linalg.orthogonal_procrustes, np.linalg.qr
+    elif isinstance(X, torch.Tensor):
+        op, qr = torch_helpers.orthogonal_procrustes, torch.linalg.qr
+
+    Q = qr(X)[0]
+    w, scale = op(Q, X)
+    return w @ scale
 
 
 @njit

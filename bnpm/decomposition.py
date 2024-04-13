@@ -1,23 +1,20 @@
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 import math
+import gc
+import copy
 
 import sklearn.decomposition
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
-
 import torch
 from torch.utils.data import Dataset, DataLoader
-
-import copy
+from tqdm.notebook import tqdm
 
 # import cuml
 # import cuml.decomposition
 # import cupy
 
-import gc
-
-from tqdm.notebook import tqdm
 
 ###########################
 ########## PCA ############
@@ -595,6 +592,66 @@ def dimensionality_pca(
     EVR_cumsum = np.cumsum(np.concatenate([[0], EVR]))
     interp = scipy.interpolate.interp1d(x=EVR_cumsum, y=np.arange(0, len(EVR_cumsum)), kind='linear')
     return interp(ev)
+
+
+def ZCA_whiten(
+    X: Union[np.ndarray, torch.Tensor],
+    V: Union[np.ndarray, torch.Tensor],
+    S: Union[np.ndarray, torch.Tensor],
+    eps: float = 1e-5,
+):
+    """
+    ZCA whitening of data.
+    See: https://jermwatt.github.io/control-notes/posts/zca_sphereing/ZCA_Sphereing.html
+    RH 2024
+
+    Args:
+        X (np.ndarray or torch.Tensor):
+            Data to be whitened. \n
+            Shape (n_samples, n_features).
+        V (np.ndarray or torch.Tensor):
+            The principal components / eigenvectors. \n
+            You can use PCA.components_ from sklearn.decomposition.PCA or
+            PCA.components_ above. \n
+            Shape (n_features, n_components).
+        S (np.ndarray or torch.Tensor):
+            The singular values / eigenvalues. \n
+            You can use PCA.singular_values_ from sklearn.decomposition.PCA or
+            PCA.singular_values_ above. \n
+            Shape (n_components,).
+        eps (float):
+            Small value to prevent division by zero.
+
+    Returns:
+        X_zca (np.ndarray or torch.Tensor):
+            The ZCA whitened data. \n
+            Shape (n_samples, n_features).
+
+    Demo:
+        ..code-block:: python
+        
+            X = np.random.randn(100, 10)
+            pca = PCA(n_components=5)
+            pca.fit(X)
+            X_zca = ZCA_whiten(
+                X=X,
+                V=pca.components_,
+                S=pca.singular_values_,
+                eps=1e-5,
+            )
+    """
+    if isinstance(X, np.ndarray):
+        mean, sqrt, diag = np.mean, np.sqrt, np.diag
+    elif isinstance(X, torch.Tensor):
+        mean, sqrt, diag = torch.mean, torch.sqrt, torch.diag
+
+    X = X - mean(X, axis=0, keepdims=True)
+
+    D_inv = diag(1.0 / (S + eps))
+    W_zca = V.T @ D_inv @ V
+    X_zca = X @ W_zca
+
+    return X_zca
 
 
 #######################################
