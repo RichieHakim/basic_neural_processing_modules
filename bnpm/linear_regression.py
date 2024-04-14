@@ -148,7 +148,7 @@ class LinearRegression_sk(sklearn.base.BaseEstimator, sklearn.base.RegressorMixi
             ns['zeros'] = functools.partial(np.zeros, dtype=dtype)
             ns['cat'] = np.concatenate
         elif backend == 'torch':
-            ns['inv'] = torch.inverse
+            ns['inv'] = torch.linalg.inv
             ns['eye'] = functools.partial(torch.eye, device=device, dtype=dtype)
             ns['ones'] = functools.partial(torch.ones, device=device, dtype=dtype)
             ns['zeros'] = functools.partial(torch.zeros, device=device, dtype=dtype)
@@ -245,12 +245,7 @@ class Ridge(LinearRegression_sk):
         cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
         if self.fit_intercept:
             X = cat((X, ones((X.shape[0], 1))), axis=1)
-        
-        ## There is a bug in torch's inverse function that causes it to fail. This is a workaround that should be removed once the bug is fixed.
-        if isinstance(X, torch.Tensor):
-            if X.device.type != 'cpu':
-                inv(torch.ones((1,1), device=X.device)) ## This line is a hack to force the GPU to initialize the CUDA context. Otherwise, the next line will fail.
-        
+                
         inv_XT_X_plus_alpha_eye_XT = inv(X.T @ X + self.alpha*eye(X.shape[1])) @ X.T
         return inv_XT_X_plus_alpha_eye_XT
 
@@ -283,35 +278,50 @@ class OLS(LinearRegression_sk):
         fit_intercept (bool):
             If True, add a column of ones to X.
             Theta will not contain the bias term.
+        X_precompute (ndarray):
+            X array to precompute inv(X.T @ X) @ X.T
     """
 
     def __init__(
         self,
         fit_intercept=False,
+        X_precompute=None,
         **kwargs,
     ):
         self.fit_intercept = fit_intercept
+
+        self.X_precompute = True if X_precompute is not None else False
+
+        if X_precompute is not None:
+            self.iXTXXT = self.prefit(X_precompute)
+        else:
+            self.iXTXXT = None
+
+    def prefit(self, X):
+        ns = self.get_backend_namespace(X=X)
+        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+        if self.fit_intercept:
+            X = cat((X, ones((X.shape[0], 1))), axis=1)
+                
+        inv_XT_X_XT = inv(X.T @ X) @ X.T
+        return inv_XT_X_XT
 
     def fit(self, X, y):
         self.n_features_in_ = X.shape[1]
 
         ns = self.get_backend_namespace(X=X, y=y)
-        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+        zeros = ns['zeros']
 
         ## Regression algorithm
-        ### Append bias terms
-        if self.fit_intercept:
-            X = cat((X, ones((X.shape[0], 1))), axis=1)
-
-        ### OLS
-        theta = inv(X.T @ X) @ X.T @ y
+        inv_XT_X_XT = self.prefit(X) if self.iXTXXT is None else self.iXTXXT
+        theta = inv_XT_X_XT @ y
 
         ### Extract bias terms
         if self.fit_intercept:
             self.intercept_ = theta[-1]
             self.coef_ = theta[:-1]
         else:
-            self.intercept_ = zeros((y.shape[1],))
+            self.intercept_ = zeros((y.shape[1],)) if y.ndim == 2 else 0
             self.coef_ = theta
 
         return self
