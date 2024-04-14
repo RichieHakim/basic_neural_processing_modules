@@ -73,6 +73,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'pandas',
     'psutil',
     'pytest',
+    'hypothesis',
     'PyYAML',
     'torch',
     'torchvision',
