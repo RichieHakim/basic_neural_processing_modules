@@ -15,6 +15,7 @@ paramiko
 psutil
 PyYAML
 pytest
+hypothesis
 scikit_learn
 tqdm
 seaborn
