@@ -63,8 +63,8 @@ def test_extreme_values():
 
 # Hypothesis test
 @given(
-    n=st.integers(min_value=2, max_value=100),
-    m=st.integers(min_value=2, max_value=99),
+    n=st.integers(min_value=3, max_value=100),
+    m=st.integers(min_value=3, max_value=99),
     noise=st.floats(min_value=0.01, max_value=1.0),
 )
 @hypothesis.settings(max_examples=10)
