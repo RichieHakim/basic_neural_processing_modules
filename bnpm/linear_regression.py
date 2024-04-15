@@ -176,12 +176,16 @@ class LinearRegression_sk(sklearn.base.BaseEstimator, sklearn.base.RegressorMixi
             ns['ones'] = functools.partial(np.ones, dtype=dtype)
             ns['zeros'] = functools.partial(np.zeros, dtype=dtype)
             ns['cat'] = np.concatenate
+            ns['svd'] = np.linalg.svd
+            ns['eigh'] = np.linalg.eigh
         elif backend == 'torch':
             ns['inv'] = torch.linalg.inv
             ns['eye'] = functools.partial(torch.eye, device=device, dtype=dtype)
             ns['ones'] = functools.partial(torch.ones, device=device, dtype=dtype)
             ns['zeros'] = functools.partial(torch.zeros, device=device, dtype=dtype)
             ns['cat'] = torch.cat
+            ns['svd'] = torch.linalg.svd
+            ns['eigh'] = torch.linalg.eigh
         else:
             raise NotImplementedError
         
@@ -344,7 +348,7 @@ class Ridge(LinearRegression_sk):
                 Precomputed inverse of \(X^T X + \alpha I\) times \(X^T\).
         """
         ns = self.get_backend_namespace(X=X)
-        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+        cat, eye, inv, ones = (ns[key] for key in ['cat', 'eye', 'inv', 'ones'])
         if self.fit_intercept:
             X = cat((X, ones((X.shape[0], 1))), axis=1)
                 
@@ -451,7 +455,7 @@ class OLS(LinearRegression_sk):
                 Precomputed result of \(inv(X^T X) @ X^T\).
         """
         ns = self.get_backend_namespace(X=X)
-        cat, eye, inv, ones, zeros = (ns[key] for key in ['cat', 'eye', 'inv', 'ones', 'zeros'])
+        cat, inv, ones = (ns[key] for key in ['cat', 'inv', 'ones'])
         if self.fit_intercept:
             X = cat((X, ones((X.shape[0], 1))), axis=1)
         
@@ -495,7 +499,140 @@ class OLS(LinearRegression_sk):
             self.coef_ = theta
 
         return self
+
+
+class ReducedRankRidgeRegression(LinearRegression_sk):
+    """
+    Implements a Reduced Rank Ridge Regression model using a closed-form
+    solution based on doing SVD on the coefficients of the Ridge regression Beta
+    matrix. This model reduces the rank of the coefficient matrix to address
+    multicollinearity and reduce model complexity. \n
+    NOTE: self.coef_ is stored as the dense beta coefficients, not as a Kruskal
+    tensor. \n
+
+    RH 2024
     
+    Args:
+        rank (int):
+            The target rank for the reduced rank regression model. It determines
+            the number of singular values to retain in the model. (Default is 3)
+        alpha (float):
+            The regularization strength which must be a positive float.
+            Regularizes the estimate to prevent overfitting by constraining the
+            size of the coefficients. Usually ~1e5. (Default is 1)
+        fit_intercept (bool):
+            Specifies whether to calculate the intercept for this model. If set
+            to ``True``, a column of ones is added to the feature matrix \(X\).
+            (Default is ``True``)
+        X_precompute (Optional[np.ndarray]):
+            Optionally, the precomputed result of \(inv(X^T X) @ X^T\) can be
+            provided to speed up the calculations. (Default is ``None``)
+
+    Attributes:
+        rank (int):
+            The rank specified for reducing the regression model.
+        X_precompute (bool):
+            Indicates if \(inv(X^T X) @ X^T\) is precomputed.
+        iXTXXT (Optional[np.ndarray]):
+            Stores the precomputed result of \(inv(X^T X) @ X^T\) if provided,
+            otherwise ``None``.
+    """
+
+    def __init__(
+        self, 
+        rank=3, 
+        alpha=1,
+        fit_intercept=True,
+        X_precompute=None,
+        **kwargs,
+    ):
+        """
+        Initializes the Reduced Rank Regression model with the specified rank
+        and an optional X_precompute matrix.
+        """
+        self.fit_intercept = fit_intercept
+        self.rank = rank
+        self.alpha = alpha
+
+        self.X_precompute = True if X_precompute is not None else False
+
+        if X_precompute is not None:
+            self.iXTXXT = self.prefit(X_precompute)
+        else:
+            self.iXTXXT = None
+
+        if X_precompute is not None:
+            self.iXTXaeXT = self.prefit(X_precompute)
+        else:
+            self.iXTXaeXT = None
+
+    def prefit(self, X):
+        """
+        Precomputes the \(X^T X + \alpha I\) inverse times \(X^T\) to be used in
+        the `fit` method.
+
+        Args:
+            X (np.ndarray): 
+                The input features matrix.
+
+        Returns:
+            np.ndarray: 
+                Precomputed inverse of \(X^T X + \alpha I\) times \(X^T\).
+        """
+        ns = self.get_backend_namespace(X=X)
+        cat, eye, inv, ones = (ns[key] for key in ['cat', 'eye', 'inv', 'ones'])
+        if self.fit_intercept:
+            X = cat((X, ones((X.shape[0], 1))), axis=1)
+                
+        inv_XT_X_plus_alpha_eye_XT = inv(X.T @ X + self.alpha*eye(X.shape[1])) @ X.T
+        return inv_XT_X_plus_alpha_eye_XT
+
+    def fit(self, X, y, rank=None):
+        """
+        Fits the Reduced Rank Regression model to the data, applying a rank
+        reduction on the OLS regression coefficients.
+
+        Args:
+            X (np.ndarray): 
+                Training data features.
+            y (np.ndarray): 
+                Target values.
+            rank (Optional[int]):
+                The target rank for the reduced rank regression model. It
+                determines the number of singular values to retain in the model.
+                (Default is ``None``)
+
+        Returns:
+            ReducedRankRegression: 
+                The instance of this Reduced Rank Regression model.
+        """
+        self.rank = self.rank if rank is None else rank
+        self.n_features_in_ = X.shape[1]
+
+        ns = self.get_backend_namespace(X=X, y=y)
+        svd, zeros = (ns[key] for key in ['svd', 'zeros'])
+
+        ## Calculate OLS solution
+        inv_XT_X_plus_alpha_eye_XT = self.prefit(X) if self.iXTXXT is None else self.iXTXXT
+        B_r = inv_XT_X_plus_alpha_eye_XT @ y
+
+        ## Calculate SVD of B_r
+        U, S, Vt = svd(B_r, full_matrices=False)
+        
+        ## Truncate to rank
+        Vt = Vt[:self.rank]
+        B_rrr = B_r @ Vt.T @ Vt
+
+        ### Extract bias terms
+        if self.fit_intercept:
+            self.intercept_ = B_rrr[-1]
+            self.coef_ = B_rrr[:-1]
+        else:
+            self.intercept_ = zeros((y.shape[1],)) if y.ndim == 2 else 0
+            self.coef_ = B_rrr
+
+        return self
+
         
 def LinearRegression_sweep(X_in,
                             y_in,
