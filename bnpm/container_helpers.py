@@ -3,8 +3,6 @@ import copy
 from collections.abc import MutableMapping
 from typing import Dict, Any, Optional, Union, List, Tuple, Callable, Iterable, Iterator, Type
 
-import numpy as np
-
 """
 This module is intended to have minimal dependencies.
 It is called by server.py which is intended to run
@@ -247,6 +245,8 @@ def find_differences_across_dictionaries(dicts):
             List of dictionary items that are 
              different in at least one dictionary.
     """
+    import numpy as np
+
     def get_binary_search_combos(n):
         combos = list(np.arange(n))
         if len(combos)%2 == 1:
@@ -567,6 +567,7 @@ def make_grid_search_dicts(search_space):
             parameter values from the search space.\n
             Example: [{'lr': 0.1, 'batch_size': 32}, {'lr': 0.1, 'batch_size': 64}, ...]
     """
+    import itertools
     vals_comb = list(itertools.product(*search_space.values()))
     ss_comb_dicts = [{k: val for k, val in zip(search_space.keys(), vals)} for vals in vals_comb]
     return ss_comb_dicts
