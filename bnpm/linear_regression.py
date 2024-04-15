@@ -289,7 +289,7 @@ class Ridge(LinearRegression_sk):
         alpha (float):
             The regularization strength which must be a positive float.
             Regularizes the estimate to prevent overfitting by constraining the
-            size of the coefficients. Usually ~1e-5. (Default is 1)
+            size of the coefficients. Usually ~1e5. (Default is 1)
         fit_intercept (bool):
             Whether to calculate the intercept for this model. If set to
             ``False``, no intercept will be used in calculations (i.e., data is
