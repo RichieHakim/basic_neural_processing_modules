@@ -442,7 +442,6 @@ def trace_quality_metrics(
         v1=F.T,
         v2=Fneu.T,
         center=True,
-        device=device,
     )
 
     # F_baseline = torch.quantile(F, percentile_baseline/100, dim=1, keepdim=True)
