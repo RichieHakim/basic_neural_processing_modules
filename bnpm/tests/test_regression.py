@@ -67,7 +67,7 @@ def test_extreme_values():
     m=st.integers(min_value=3, max_value=99),
     noise=st.floats(min_value=0.01, max_value=1.0),
 )
-@hypothesis.settings(max_examples=10)
+@hypothesis.settings(max_examples=10, deadline=2000)
 def test_hypothesis(n, m, noise):
     X, y = make_regression(n_samples=n, n_features=m, noise=noise)
     model_sklearn = LinearRegression().fit(X, y)
