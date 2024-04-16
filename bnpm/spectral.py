@@ -1,5 +1,6 @@
 from typing import Union, Tuple, List, Dict, Any, Optional
 import functools
+import math
 
 import scipy.signal
 import scipy.stats
@@ -514,3 +515,167 @@ def filtfilt_simple_fft(
     )
     out = out.real if use_real else out
     return out
+
+
+def torch_coherence(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    fs: float = 1.0,
+    window: str = 'hann',
+    nperseg: Optional[int] = None,
+    noverlap: Optional[int] = None,
+    nfft: Optional[int] = None,
+    detrend: str = 'constant',
+    axis: int = -1,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Computes the magnitude-squared coherence between two signals using a PyTorch
+    implementation. This function gives identical results to the
+    scipy.signal.coherence. \n
+    
+    The primary difference in implementation between this and scipy's coherence
+    is that this uses an accumulation method for Welch's method, while scipy
+    just makes a large array with all the overlapping windows. Therefore, this
+    method uses less memory and is faster for large windows but is slower for
+    small windows and there is a very small amount of numerical error due to the
+    accumulation. \n
+    
+    RH 2024
+    
+    Args:
+        x (torch.Tensor): 
+            First input signal.
+        y (torch.Tensor): 
+            Second input signal.
+        fs (float): 
+            Sampling frequency of the input signal. (Default is 1.0)
+        window (str): 
+            Type of window to apply. Supported window types are the same as
+            `scipy.signal.get_window`. (Default is 'hann')
+        nperseg (Optional[int]): 
+            Length of each segment. (Default is ``None``, which uses ``len(x) //
+            8``)
+        noverlap (Optional[int]): 
+            Number of points to overlap between segments. (Default is ``None``,
+            which uses ``nperseg // 2``)
+        nfft (Optional[int]): 
+            Number of points in the FFT used for each segment. (Default is
+            ``None``, which sets it equal to `nperseg`)
+        detrend (str): 
+            Specifies how to detrend each segment. Supported values are
+            'constant' or 'linear'. (Default is 'constant')
+        axis (int): 
+            Axis along which the coherence is calculated. (Default is -1)
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor]: 
+            - freqs (torch.Tensor): Frequencies for which the coherence is computed.
+            - coherence (torch.Tensor): Magnitude-squared coherence values.
+
+    Example:
+        .. highlight:: python
+        .. code-block:: python
+
+            x = torch.randn(1024)
+            y = torch.randn(1024)
+            freqs, coherence = torch_coherence(x, y, fs=256)
+    """
+    ## Convert axis to positive
+    axis = axis % len(x.shape)
+
+    ## Check dimensions
+    ### They should either be the same or one of them should be 1
+    if not (x.shape == y.shape):
+        assert all([x.shape[ii] in [1, y.shape[ii]] for ii in range(len(x.shape))]), f"x and y should have the same shape or one of them should have shape 1 at each dimension. Found x.shape={x.shape} and y.shape={y.shape}"
+
+    if nperseg is None:
+        nperseg = len(x) // 8
+
+    if noverlap is None:
+        noverlap = nperseg // 2
+
+    if nfft is None:
+        nfft = nperseg
+
+    if window is not None:
+        window = scipy.signal.get_window(window, nperseg)
+        window = torch.tensor(window, dtype=x.dtype, device=x.device)
+
+    ## Detrend the signals
+    def detrend_constant(y, axis):
+        y = y - torch.mean(y, axis=axis, keepdim=True)
+        return y
+    def detrend_linear(y, axis):
+        """
+        Uses least squares approach to remove linear trend.
+        """
+        ## Move axis to end
+        y_dims_to = [ii for ii in range(len(y.shape)) if ii != axis] + [axis]
+        y = y.permute(*y_dims_to)
+        n = y.shape[-1]
+        ## Prepare the design matrix
+        X = torch.ones(n, 2, dtype=y.dtype, device=y.device)
+        X[:, 1] = torch.arange(n, dtype=y.dtype, device=y.device)
+        ## Compute the coefficients
+        beta = torch.linalg.lstsq(X, y)[0]
+        ## Remove the trend
+        y = y - X @ beta
+        ## Move axis back to original position (argsort y_dims_to)
+        y_dims_from = [y_dims_to.index(ii) for ii in range(len(y.shape))]
+        y = y.permute(*y_dims_from)
+        return y
+
+    if detrend == 'constant':
+        fn_detrend = detrend_constant
+    elif detrend == 'linear':
+        fn_detrend = detrend_linear
+    else:
+        raise ValueError(f"detrend must be 'constant' or 'linear'. Found {detrend}")
+    
+    ## Initialize the coherence arrays
+    ### Get broadcasted dimensions: max(x, y) at each dimension, and nfft at axis
+    x_shape = list(x.shape)
+    y_shape = list(y.shape)
+    out_shape = [max(x_shape[i], y_shape[i]) for i in range(len(x_shape))]
+    out_shape[axis] = nfft // 2 + 1  ## rfft returns only non-negative frequencies (0 to fs/2 inclusive )
+    
+    ## Initialize sums for Welch's method
+    ### Prepare complex dtype
+    dtype_complex = x.dtype.to_complex()
+    f_cross_sum = torch.zeros(out_shape, dtype=dtype_complex, device=x.device)
+    psd1_sum = torch.zeros(out_shape, dtype=dtype_complex, device=x.device)
+    psd2_sum = torch.zeros(out_shape, dtype=dtype_complex, device=x.device)
+
+    ## Perform Welch's averaging of FFT segments
+    num_segments = (x.shape[axis] - nperseg) // (nperseg - noverlap) + 1
+    ### Pad window with [None] dims to match x and y
+    window = window[(None,) * axis + (slice(None),) + (None,) * (len(x.shape) - axis - 1)]
+    for ii in range(num_segments):
+        start = ii * (nperseg - noverlap)
+        end = start + nperseg
+        fn_get_segment = lambda x, axis, start, end: torch.fft.rfft(fn_detrend(torch_helpers.slice_along_dim(x, axis, slice(start, end)), axis=axis) * window, n=nfft, dim=axis)
+        segment1 = fn_get_segment(x, axis, start, end)
+        segment2 = fn_get_segment(y, axis, start, end)
+        f_cross_sum += torch.conj(segment1) * segment2
+        psd1_sum += torch.conj(segment1) * segment1
+        psd2_sum += torch.conj(segment2) * segment2
+
+    ## Averaging the sums
+    f_cross = f_cross_sum / num_segments
+    psd1 = psd1_sum.real / num_segments
+    psd2 = psd2_sum.real / num_segments
+
+    ## Compute coherence
+    coherence = torch.abs(f_cross) ** 2 / (psd1 * psd2)
+
+    ## Generate frequency axis
+    freqs = np.fft.rfftfreq(nfft, d=1 / fs)
+
+    ## Take the positive part of the frequency spectrum
+    ### NOTE: This is not necessary as the coherence is symmetric (always odd and real)
+    # pos_mask = freqs >= 0
+    # ### slice along axis
+    # freqs = freqs[pos_mask]
+    # coherence = torch_helpers.slice_along_dim(coherence, axis=axis, idx=pos_mask)
+    
+    return freqs, coherence
