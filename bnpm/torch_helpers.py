@@ -871,7 +871,7 @@ def zscore(
 def slice_along_dim(
     X: torch.Tensor, 
     dim: int, 
-    idx: int
+    idx: Union[int, slice, List[int], torch.Tensor]
 ) -> torch.Tensor:
     """
     Slices a tensor along a specified dimension.
@@ -882,8 +882,8 @@ def slice_along_dim(
             Tensor to slice.
         dim (int): 
             Dimension to slice along.
-        idx (int): 
-            Index to slice at.
+        idx Union[int, slice, List[int], torch.Tensor]:
+            Index / slice / list of indices / tensor of indices to slice with.
 
     Returns:
         (torch.Tensor): 
