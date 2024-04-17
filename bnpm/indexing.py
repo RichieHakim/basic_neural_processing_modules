@@ -464,6 +464,49 @@ def off_diagonal(x):
     return x.reshape(-1)[:-1].reshape(n - 1, n + 1)[:, 1:].reshape(-1)
 
 
+def batched_unfold(tensor, dimension, size, step, batch_size):
+    """
+    Generates batches of overlapping windows of indices from a tensor, mimicking
+    the behavior of torch.Tensor.unfold but in a batched manner. Using
+    ``torch.cat(list(batched_unfold(tensor, dimension, size, step, batch_size)),
+    dim=dimension)`` should be equivalent to ``tensor.unfold(dimension, size, step)``.
+
+    RH 2023
+
+    Args:
+        tensor (torch.Tensor): 
+            The input tensor to be unfolded.
+        dimension (int): 
+            The dimension along which to unfold the tensor.
+        size (int): 
+            The size of each slice that is unfolded.
+        step (int): 
+            The step between slices.
+        batch_size (int): 
+            Number of windows per batch.
+
+    Yields:
+        torch.Tensor: 
+            A batch of unfolded tensors.
+    """
+    total_windows = (tensor.size(dimension) - size) // step + 1
+    
+    for i in range(0, total_windows, batch_size):
+        # Calculate the start of the slice to ensure correct overlap
+        start = i * step
+        # Adjust end index to get a full batch, while not exceeding tensor size
+        end = min(start + (batch_size - 1) * step + size, tensor.size(dimension))
+        
+        # Check if the slice size is smaller than needed for a full unfold
+        if (end - start) < size:
+            continue
+        
+        # Slice the tensor to get the current batch and then unfold
+        batch_slice = tensor.narrow(dimension, start, end - start)
+        unfolded_batch = batch_slice.unfold(dimension, size, step)
+        yield unfolded_batch
+
+
 #######################################
 ############ SPARSE STUFF #############
 #######################################
