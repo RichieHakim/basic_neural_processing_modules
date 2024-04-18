@@ -622,8 +622,8 @@ def torch_coherence(
         return y
 
     if detrend == 'linear':
-        X_linearDetrendPrep = torch.ones(nfft, 2, dtype=y.dtype, device=y.device)
-        X_linearDetrendPrep[:, 1] = torch.arange(nfft, dtype=y.dtype, device=y.device)
+        X_linearDetrendPrep = torch.ones(nperseg, 2, dtype=y.dtype, device=y.device)
+        X_linearDetrendPrep[:, 1] = torch.arange(nperseg, dtype=y.dtype, device=y.device)
     def detrend_linear(y, axis):
         """
         Uses least squares approach to remove linear trend.
