@@ -8,6 +8,7 @@ natsort
 numba
 numpy
 opencv_contrib_python
+opt_einsum
 optuna
 optuna_integration
 pandas
@@ -31,7 +32,6 @@ torchaudio
 
 ## Optional / Advanced
 tables
-opt_einsum
 # rolling_quantiles
 pulp
 spconv

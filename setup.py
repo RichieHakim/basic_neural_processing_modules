@@ -65,6 +65,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'tqdm',
     'h5py',
     'opencv_contrib_python',
+    'opt_einsum',
     'optuna',
     'optuna_integration',
     'sparse',
@@ -87,7 +88,6 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
 
 deps_advanced = {dep: deps_all_dict[dep] for dep in [
     'tables',
-    'opt_einsum',
     # 'rolling_quantiles',
     'pulp',
     'spconv',
