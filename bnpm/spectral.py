@@ -530,11 +530,12 @@ def torch_coherence(
     detrend: str = 'constant',
     axis: int = -1,
     batch_size: Optional[int] = None,
+    pad_last_segment: Optional[float] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Computes the magnitude-squared coherence between two signals using a PyTorch
     implementation. This function gives identical results to the
-    scipy.signal.coherence. \n
+    scipy.signal.coherence, but much faster.\n
 
     Speed: The 'linear' detrending method is not fast on GPU, despite the
     implementation being similar. 'constant' is roughly 3x as fast as 'linear'
@@ -571,6 +572,9 @@ def torch_coherence(
             If None, then all segments are processed at once. Note that
             ``num_segments = (x.shape[axis] - nperseg) // (nperseg - noverlap) +
             1``. (Default is None)
+        pad_last_segment (bool):
+            Whether to pad the last segment with a value defined by this
+            argument. If None, then no padding is done. (Default is None)
 
     Returns:
         Tuple[torch.Tensor, torch.Tensor]: 
@@ -588,8 +592,11 @@ def torch_coherence(
     ## Convert axis to positive
     axis = axis % len(x.shape)
 
-    ## Check dimensions
-    ### They should either be the same or one of them should be 1
+    ## Checks
+    ### Tensor checks
+    assert isinstance(x, torch.Tensor), "x should be a torch tensor"
+    assert isinstance(y, torch.Tensor), "y should be a torch tensor"
+    ### Dims should either be the same or one of them should be 1
     if not (x.shape == y.shape):
         assert all([(x.shape[ii] == y.shape[ii]) or (1 in [x.shape[ii], y.shape[ii]]) for ii in range(len(x.shape))]), f"x and y should have the same shape or one of them should have shape 1 at each dimension. Found x.shape={x.shape} and y.shape={y.shape}"
 
@@ -605,6 +612,9 @@ def torch_coherence(
     if window is not None:
         window = scipy.signal.get_window(window, nperseg)
         window = torch.tensor(window, dtype=x.dtype, device=x.device)
+
+    ## args should be greater than nfft
+    assert all([arg.shape[axis] >= nfft for arg in (x, y)]), f"Signal length along axis should be greater than nfft. Found x.shape={x.shape} and y.shape={y.shape} and nfft={nfft}"
 
     ## Detrend the signals
     def detrend_constant(y, axis):
@@ -656,13 +666,14 @@ def torch_coherence(
 
     ## Prepare batch generator
     num_segments = (x.shape[axis] - nperseg) // (nperseg - noverlap) + 1
-    batch_size = num_segments if batch_size is None else batch_size
+    batch_size = max(num_segments, 1) if batch_size is None else batch_size
     x_batches, y_batches = (indexing.batched_unfold(
         var, 
         dimension=axis, 
         size=nperseg, 
         step=nperseg - noverlap, 
         batch_size=batch_size,
+        pad_value=pad_last_segment,
     ) for var in (x, y))
     
     ## Perform Welch's averaging of FFT segments

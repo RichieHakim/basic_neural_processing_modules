@@ -1,3 +1,4 @@
+from typing import Optional, Union, Iterator
 import math
 
 import numpy as np
@@ -252,7 +253,11 @@ def make_batches(
 
     ## Make slices
     offset = np.random.randint(0, batch_size) if randomize_batch_indices else 0
-    idx_slices = [slice(s, min(e, l), None) for s, e in (zip(np.arange(idx_start + offset, l, batch_size), np.arange(idx_start + batch_size + offset, l + batch_size + offset, batch_size)))]
+    idx_slices = [
+        slice(s, min(e, l), None) for s, e in (zip(
+            np.arange(idx_start + offset, l, batch_size), 
+            np.arange(idx_start + batch_size + offset, l + batch_size + offset, batch_size)
+        ))]
     if offset > 0:
         idx_slices = [slice(0, offset, None)] + idx_slices
 
@@ -464,47 +469,96 @@ def off_diagonal(x):
     return x.reshape(-1)[:-1].reshape(n - 1, n + 1)[:, 1:].reshape(-1)
 
 
-def batched_unfold(tensor, dimension, size, step, batch_size):
+def batched_unfold(
+    tensor: torch.Tensor, 
+    dimension: int,
+    size: int,
+    step: int, 
+    batch_size: int = 10, 
+    pad_value: Optional[Union[int, float]] = None,
+) -> Iterator[torch.Tensor]:
     """
-    Generates batches of overlapping windows of indices from a tensor, mimicking
-    the behavior of torch.Tensor.unfold but in a batched manner. Using
-    ``torch.cat(list(batched_unfold(tensor, dimension, size, step, batch_size)),
-    dim=dimension)`` should be equivalent to ``tensor.unfold(dimension, size, step)``.
+    Generates batches of overlapping windows from a tensor in a batched manner.
+    This function mimics the behavior of `torch.Tensor.unfold` but allows for
+    processing in smaller, more manageable batches. Using
+    `torch.cat(list(batched_unfold(...)), dim=dimension)` should reproduce the
+    result of `tensor.unfold(dimension, size, step)`. Note: The last batch may
+    be smaller than the specified batch size due to the remainder of the
+    division.
 
-    RH 2023
+    RH 2024
 
     Args:
         tensor (torch.Tensor): 
-            The input tensor to be unfolded.
+            The input tensor from which to generate unfolded windows.
         dimension (int): 
             The dimension along which to unfold the tensor.
         size (int): 
-            The size of each slice that is unfolded.
+            The size of each window to unfold.
         step (int): 
-            The step between slices.
+            The step size between the starts of each window.
         batch_size (int): 
-            Number of windows per batch.
+            The number of windows to include in each batch. (Default is 10)
+        pad_value (Optional[Union[int, float]]):
+            The value to use for padding the last batch if it is smaller than
+            the specified batch size. If None, the last batch will not be
+            padded. (Default is None)
+
 
     Yields:
         torch.Tensor: 
-            A batch of unfolded tensors.
+            A batch of unfolded windows from the tensor.
     """
-    total_windows = (tensor.size(dimension) - size) // step + 1
-    
-    for i in range(0, total_windows, batch_size):
-        # Calculate the start of the slice to ensure correct overlap
-        start = i * step
-        # Adjust end index to get a full batch, while not exceeding tensor size
-        end = min(start + (batch_size - 1) * step + size, tensor.size(dimension))
-        
-        # Check if the slice size is smaller than needed for a full unfold
-        if (end - start) < size:
-            continue
-        
-        # Slice the tensor to get the current batch and then unfold
-        batch_slice = tensor.narrow(dimension, start, end - start)
-        unfolded_batch = batch_slice.unfold(dimension, size, step)
-        yield unfolded_batch
+    n_samples = tensor.shape[dimension]
+    if step >= n_samples:
+        raise ValueError("Step size must be less than the tensor size along the specified dimension.")
+    if size > n_samples:
+        raise ValueError("Window size must be less than or equal to the tensor size along the specified dimension.")
+
+    # Calculate end points
+    idx_start_last = ((n_samples - size) // step) * step
+    # idx_last_start = max(idx_last_start, 0)
+    # idx_last_end = idx_last_start + size - 1  ## Inclusive
+
+    idx_starts_all = range(0, idx_start_last + 1, step)
+    # idx_ends_all = list((idx + size for idx in idx_starts_all))  ## Exclusive
+
+    ## Generate batches
+    for i_batch, idx_start in enumerate(idx_starts_all[::batch_size]):
+        idx_end = idx_start + (step * (batch_size - 1)) + size
+        n_samples_pad = 0
+        if idx_end > n_samples:
+            if pad_value is None:
+                idx_end = n_samples
+            else:
+                n_samples_batch = n_samples - idx_start
+                idx_start_last_batch = int((math.ceil((n_samples_batch - size) / step)) * step)
+                idx_end = idx_start + idx_start_last_batch + size
+                idx_end = min(idx_end, n_samples + size)
+                n_samples_pad = idx_end - n_samples
+            
+        len_batch = idx_end - idx_start
+
+        if n_samples_pad > 0:
+            shape_pad = list(tensor.shape)
+            shape_pad[dimension] = n_samples_pad
+            x_batch = torch.cat((
+                tensor.narrow(
+                    dim=dimension, 
+                    start=idx_start, 
+                    length=n_samples - idx_start,
+                ), 
+                torch.full(
+                    size=shape_pad,
+                    fill_value=pad_value,
+                    dtype=tensor.dtype,
+                    device=tensor.device,
+                )
+            ))
+        else:
+            x_batch = tensor.narrow(dimension, idx_start, len_batch)
+
+        yield x_batch.unfold(dimension, size, step)
 
 
 #######################################
