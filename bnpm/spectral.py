@@ -578,8 +578,12 @@ def torch_coherence(
 
     Returns:
         Tuple[torch.Tensor, torch.Tensor]: 
-            - freqs (torch.Tensor): Frequencies for which the coherence is computed.
-            - coherence (torch.Tensor): Magnitude-squared coherence values.
+            freqs (torch.Tensor): 
+                Frequencies for which the coherence is computed. Shape is
+                ``nfft // 2 + 1``.
+            coherence (torch.Tensor): 
+                Magnitude-squared coherence values. Shape is x broadcasted with
+                y and the specified axis set to ``nfft // 2 + 1``.
 
     Example:
         .. highlight:: python
@@ -694,7 +698,7 @@ def torch_coherence(
     coherence = torch.abs(f_cross) ** 2 / (psd1 * psd2)
 
     ## Generate frequency axis
-    freqs = np.fft.rfftfreq(nfft, d=1 / fs)
+    freqs = torch.fft.rfftfreq(nfft, d=1 / fs)
 
     ## Take the positive part of the frequency spectrum
     ### NOTE: This is not necessary as the coherence is symmetric (always odd and real)
