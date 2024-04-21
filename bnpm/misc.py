@@ -340,24 +340,31 @@ def system_info(verbose: bool = False,) -> Dict:
     print(f'== GCC Version ==: {gcc_version}') if verbose else None
     
     ## PyTorch
-    import torch
-    torch_version = str(torch.__version__)
-    print(f'== PyTorch Version ==: {torch_version}') if verbose else None
-    ## CUDA
-    if torch.cuda.is_available():
-        cuda_version = torch.version.cuda
-        cudnn_version = torch.backends.cudnn.version()
-        torch_devices = [f'device {i}: Name={torch.cuda.get_device_name(i)}, Memory={torch.cuda.get_device_properties(i).total_memory / 1e9} GB' for i in range(torch.cuda.device_count())]
-        print(f"== CUDA Version ==: {cuda_version}, CUDNN Version: {cudnn_version}, Number of Devices: {torch.cuda.device_count()}, Devices: {torch_devices}, ") if verbose else None
-    else:
-        cuda_version = None
-        cudnn_version = None
-        torch_devices = None
-        print('== CUDA is not available ==') if verbose else None
+    try:
+        import torch
+        torch_version = str(torch.__version__)
+        print(f'== PyTorch Version ==: {torch_version}') if verbose else None
+        ## CUDA
+        if torch.cuda.is_available():
+            cuda_version = torch.version.cuda
+            cudnn_version = torch.backends.cudnn.version()
+            torch_devices = [f'device {i}: Name={torch.cuda.get_device_name(i)}, Memory={torch.cuda.get_device_properties(i).total_memory / 1e9} GB' for i in range(torch.cuda.device_count())]
+            print(f"== CUDA Version ==: {cuda_version}, CUDNN Version: {cudnn_version}, Number of Devices: {torch.cuda.device_count()}, Devices: {torch_devices}, ") if verbose else None
+        else:
+            cuda_version = 'cuda not available'
+            cudnn_version = 'cuda not available'
+            torch_devices = 'cuda not available'
+            print('== CUDA is not available ==') if verbose else None
+    except Exception as e:
+        warnings.warn(f'RH WARNING: unable to get torch info. Got error: {e}')
+        torch_version = 'torch not found'
+        cuda_version = 'torch not found'
+        cudnn_version = 'torch not found'
+        torch_devices = 'torch not found'
 
     ## all packages in environment
-    import pkg_resources
-    pkgs_dict = {i.key: i.version for i in pkg_resources.working_set}
+    import importlib.metadata
+    pkgs_dict = {dist.metadata['Name']: dist.metadata['Version'] for dist in importlib.metadata.distributions()}
 
     ## get datetime
     from datetime import datetime
