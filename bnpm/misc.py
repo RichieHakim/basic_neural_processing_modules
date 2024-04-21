@@ -1,11 +1,12 @@
-import numpy as np
+from typing import Callable, List, Any, Dict, Union
 import sys
 import re
 import hashlib
 from pathlib import Path
 import warnings
-from typing import Callable, List, Any, Dict
 from contextlib import contextmanager, ExitStack
+
+import numpy as np
 
 
 def estimate_array_size(
