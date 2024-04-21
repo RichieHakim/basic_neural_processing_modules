@@ -155,6 +155,44 @@ def clear_cuda_cache() -> None:
     torch.cuda.empty_cache()
 
 
+def wrap_clear_cuda_cache(func: Callable, before=True, after=True) -> Callable:
+    """
+    Wraps a function with a call to clear the CUDA cache before and/or after the
+    function call.
+
+    Args:
+        func (Callable):
+            The function to wrap.
+        before (bool):
+            If ``True``, clears the CUDA cache before calling the function.
+            (Default is ``True``)
+        after (bool):
+            If ``True``, clears the CUDA cache after calling the function.
+            (Default is ``True``)
+
+    Returns:
+        (Callable):
+            The wrapped function.
+
+    Demo:
+        .. code-block:: python
+            
+                @wrap_clear_cuda_cache
+                def my_function():
+                    pass
+    """
+    import functools
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if before:
+            clear_cuda_cache()
+        result = func(*args, **kwargs)
+        if after:
+            clear_cuda_cache()
+        return result
+    return wrapper
+
+
 def set_device(
     use_GPU: bool = True, 
     device_num: int = 0, 
