@@ -373,6 +373,50 @@ def torch_hilbert(x, N=None, dim=-1):
     return torch.fft.ifft(xf * m, dim=dim)
 
 
+def hilbert_fourier_domain(xf, axis=-1):
+    """
+    Computes the Fourier-transform of the analytic signal using the
+    Fourier-transformed signal. Input is ``xf`` and output is ``xhf``. Uses the
+    approach used in scipy.signal.hilbert.\n
+    RH 2024
+    
+    Args:
+        xf (torch.Tensor or np.ndarray):
+            Fourier-transformed signal data. Should be complex and have negative
+            frequencies. Generally, the output of torch.fft.fft or np.fft.fft.
+        axis (int):
+            Dimension along which to do the transformation.
+
+    Returns:
+        (nd tensor):
+            Fourier-transformed analytic signal along axis.
+    """
+    if isinstance(xf, torch.Tensor):
+        is_complex = torch.is_complex
+        zeros = functools.partial(torch.zeros, device=xf.device)
+    if isinstance(xf, np.ndarray):
+        zeros, is_complex = np.zeros, np.iscomplexobj
+    
+    assert is_complex(xf), "xf should be complex"
+
+    n = xf.shape[axis]
+
+    m = zeros(n, dtype=xf.dtype)
+    if n % 2 == 0: ## then even
+        m[0] = m[n//2] = 1
+        m[1:n//2] = 2
+    else:
+        m[0] = 1 ## then odd
+        m[1:(n+1)//2] = 2
+
+    if xf.ndim > 1:
+        ind = [np.newaxis] * xf.ndim
+        ind[axis] = slice(None)
+        m = m[tuple(ind)]
+
+    return xf * m        
+        
+
 def signal_angle_difference(x, y, center=True, window=None, axis=-1):
     """
     Computes the average angle difference between two signals.\n
@@ -708,3 +752,50 @@ def torch_coherence(
     # coherence = torch_helpers.slice_along_dim(coherence, axis=axis, idx=pos_mask)
     
     return freqs, coherence
+
+
+def spectrogram_magnitude_normalization(S: torch.Tensor, k: float = 0.05):
+    """
+    Normalize spectrogram by dividing by the total power across all frequencies
+    at each time point. ``mag = mag / ((k * mean_mag_at_each_time) + (1-k))``.
+    This formula differs slightly from the forumla often used in audio
+    engineering in that it is a linear scaling, and does not apply only to data
+    above a certain threshold.
+
+    Args:
+        spectrogram (torch.Tensor):
+            A single spectrogram
+            Spectrogram should be of shape: (n_points, n_freq_bins, n_samples)  
+        k (float):
+            Weighting factor for the normalization. 0 means no normalization. 1
+            means every time point has the same power when summed across all
+            frequencies.
+
+    Returns:
+        spectrogram (tuple or torch.Tensor):
+            A single normalized spectrogram of same shape as input.
+    """
+    if k == 0:
+        return S
+    
+    ## Check inputs
+    if isinstance(S, torch.Tensor):
+        mean, sum, polar, is_complex, abs, angle  = torch.mean, torch.sum, torch.polar, torch.is_complex, torch.abs, torch.angle
+    elif isinstance(S, np.ndarray):
+        mean, sum, is_complex, abs, angle = np.mean, np.sum, np.iscomplexobj, np.abs, np.angle
+        polar = lambda mag, phase: mag * np.exp(1j * phase)
+
+    assert S.ndim == 3, "Spectrogram should be of shape: (n_points, n_freq_bins, n_samples)"
+
+    if is_complex(S) == False:
+        s_mean = mean(sum(S, dim=1, keepdims=True) , dim=0, keepdims=True)  ## Mean of the summed power across all frequencies and points. Shape (n_samples,)
+        s_norm =  S / ((k * s_mean) + (1-k))  ## Normalize the spectrogram by the mean power across all frequencies and points. Shape (n_points, n_freq_bins, n_samples)
+    
+    elif is_complex(S) == True:
+        s_mag = abs(S)
+        s_phase = angle(S)
+        s_mean = mean(sum(s_mag, dim=1, keepdims=True), dim=0, keepdims=True)  ## Mean of the summed power across all frequencies and points. Shape (n_samples,)
+        s_mag = s_mag / ((k * s_mean) + (1-k))  ## Normalize the spectrogram by the mean power across all frequencies and points. Shape (n_points, n_freq_bins, n_samples)
+        s_norm = polar(s_mag, s_phase)
+    
+    return s_norm
