@@ -1,12 +1,14 @@
 import sys
 import gc
 import copy
-from typing import Union, List, Tuple, Dict, Callable, Optional, Any
+from typing import Union, List, Tuple, Dict, Callable, Optional, Any, Iterable, Iterator, Generator
 from contextlib import contextmanager
+import warnings
 
 import torch
 from torch.utils.data import Dataset
 import numpy as np
+from tqdm import tqdm
 
 from . import indexing
 from . import misc
@@ -297,24 +299,37 @@ def initialize_torch_settings(
 
 def profiler_simple(
     path_save: str = 'trace.json',
+    activities: List[str] = ['CPU', 'CUDA'],
+    with_stack: bool = False,
+    record_shapes: bool = True,
+    profile_memory: bool = True,
+    with_flops: bool = False,
+    with_modules: bool = False,
 ):
     """
     Simple profiler for PyTorch. \n
     Makes a context manager that can be used to profile code. \n
     Upon exit, will save the trace to the specified path. \n
+    Use Chrome's chrome://tracing/ to view the trace. \n
     """
     from torch.profiler import profile, record_function, ProfilerActivity
     from contextlib import contextmanager
     
+    activities_dict = {
+        'CPU': ProfilerActivity.CPU,
+        'CUDA': ProfilerActivity.CUDA,
+    }
+    activities = [activities_dict[act] for act in activities]
+
     @contextmanager
     def simple_profiler(path_save: str = 'trace.json'):
         with profile(
-            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], 
-            record_shapes=True,
-            profile_memory=True,
-            with_stack=True,
-            # with_flops=True,
-            # with_modules=True,
+            activities=activities,
+            record_shapes=record_shapes,
+            profile_memory=profile_memory,
+            with_stack=with_stack,
+            with_flops=with_flops,
+            with_modules=with_modules,
         ) as p:
             with record_function("model_inference"):
                 yield
@@ -474,6 +489,132 @@ class BatchRandomSampler(torch.utils.data.Sampler):
         Returns the number of samples in the dataset.
         """
         return self.len_dataset
+
+
+def process_batches_cuda(
+    batches: Union[Iterable, Iterator, Generator],
+    func: Callable,
+    device_func: str = 'cuda:0',
+    device_return: str = 'cpu',
+    pin_memory: bool = False,
+    non_blocking: bool = True,
+    progress_bar: bool = False,
+    len_batches: Optional[int] = None,
+    verbose: bool = False,
+):
+    """
+    Run batches through func on a specified device using CUDA streams.
+    RH 2024
+
+    Args:
+        batches (Union[Iterable, Iterator, Generator]):
+            The batches to process. Each batch can either be a single tensor, a
+            tuple containing tensors, or other.
+        func (Callable):
+            The function to run on the batches. The function must accept the
+            items in the batches as arguments.
+        device_func (str):
+            The device to run the function on. Should typically be a CUDA device
+            (e.g., 'cuda:0'). Can also be 'cpu' or other, but this will not
+            utilize CUDA streams, memory pinning, or non-blocking transfers.
+            (Default is 'cuda:0')
+        device_return (str):
+            The device to return the results on. For this function, it will
+            typically be 'cpu'. (Default is 'cpu')
+        pin_memory (bool):
+            If ``True``, the function will pin the memory for the input tensors.
+            Ideally, the original, non-batched, tensors should be pinned.
+            However, this option will pin the memory for each batch. (Default is
+            ``False``)
+        non_blocking (bool):
+            If ``True``, the function will use non-blocking transfers to and
+            from the device. (Default is ``True``)
+        progress_bar (bool):
+            If ``True``, displays a progress bar. (Default is ``False``)
+        len_batches Optional[int]:
+            The length of the batches to be used as the total length of the
+            progress bar. If not provided, will attempt to find len(batches).
+            (Default is ``None``)
+        verbose (bool):
+            If ``True``, displays warnings. (Default is ``False``)
+
+    Returns:
+        (List):
+            results (List):
+                The results of the function run on the batches.
+
+    Example:
+        .. highlight:: python
+        .. code-block:: python
+
+            def func(x, y):
+                a, b = model.forward(x, y)
+                return a, b
+            
+            batches = ((x_i, y_i) for x_i, y_i in zip(X.pin_memory(), Y.pin_memory()))
+        
+            results = process_batches_cuda(
+                batches,
+                func,
+                device_func='cuda:0',
+                device_return='cpu',
+                pin_memory=False,
+                non_blocking=True,
+                progress_bar=True,
+                len_batches=int(math.ceil(len(X)/batch_size),
+                verbose=False,
+            )
+    """
+    results = []
+    device_func = torch.device(device_func)
+
+    assert device_func.type in ['cuda', 'cpu'], 'device must be either "cuda" or "cpu" type.'
+
+    if len_batches is None:
+        len_batches = len(batches) if hasattr(batches, '__len__') else None
+    
+    def send_to_device(batch, device, non_blocking, pin_memory):
+        """
+        Send a batch (either a single tensor, tuple containing tensors, or other) to a device.
+        """
+        if isinstance(batch, torch.Tensor):
+            if pin_memory and batch.device.type != 'cuda':
+                batch = batch.pin_memory()
+
+            if non_blocking:
+                batch = batch.to(device, non_blocking=non_blocking)
+            else:
+                batch = batch.to(device)
+
+        elif isinstance(batch, tuple):
+            batch = tuple([send_to_device(b, device, non_blocking, pin_memory) for b in batch])
+        
+        return batch
+
+    if device_func.type == 'cuda':
+        stream = torch.cuda.Stream(device=device_func)
+        for ii, batch in tqdm(enumerate(batches), total=len_batches, disable=not progress_bar):
+            ## Make batch a tuple
+            if not isinstance(batch, tuple):
+                batch = (batch,)
+            with torch.cuda.stream(stream):
+                batch = send_to_device(batch=batch, device=device_func, non_blocking=non_blocking, pin_memory=pin_memory)
+                outs = func(*batch)  ## run func on batch
+                outs = send_to_device(batch=outs, device=device_return, non_blocking=non_blocking, pin_memory=False)
+                results.append(outs)  ## append to results
+        torch.cuda.synchronize()  ## wait for all streams to finish
+    else:
+        warnings.warn('device_func is not cuda. No streams will be used.') if verbose else None
+        for ii, batch in tqdm(enumerate(batches), total=len_batches, disable=not progress_bar):
+            ## Make batch a tuple
+            if not isinstance(batch, tuple):
+                batch = (batch,)
+            batch = send_to_device(batch=batch, device=device_func, non_blocking=non_blocking, pin_memory=pin_memory)
+            outs = func(*batch)
+            outs = send_to_device(batch=outs, device=device_return, non_blocking=non_blocking, pin_memory=False)
+            results.append(outs)
+
+    return results
 
 
 ##################################################################
