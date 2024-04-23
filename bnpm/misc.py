@@ -542,6 +542,14 @@ def time_limit(seconds):
         signal.alarm(0)
 
 
+@contextmanager
+def nullcontext():
+    """
+    A context manager that does nothing.
+    """
+    yield
+
+
 #########################################################
 ############ INTRA-MODULE HELPER FUNCTIONS ##############
 #########################################################
