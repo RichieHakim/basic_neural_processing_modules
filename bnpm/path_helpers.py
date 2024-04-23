@@ -10,7 +10,6 @@ import re
 import warnings
 import datetime
 
-from . import misc
 
 def mkdir(directory, parents=True, exist_ok=True):
     '''
@@ -418,7 +417,7 @@ def check_files_openable(dir_outer, time_limit_per_file=1, verbose=False):
 def touch_path(
     path: Union[str, Path],
     recursive: bool = False,
-    dt: Optional[datetime] = None,
+    dt: Optional[datetime.datetime] = None,
     files: bool = True,
     directories: bool = True,
     verbose: Union[bool, int] = False,
