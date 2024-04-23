@@ -32,7 +32,8 @@ def map_parallel(
     prog_bar: bool = True
 ) -> List[Any]:
     """
-    Maps a function to a list of arguments in parallel.
+    Maps a function to a list of arguments in parallel. Includes a progress bar
+    and error handling that points to the job that failed.
     RH 2022
 
     Args:
