@@ -579,12 +579,8 @@ def torch_coherence(
     """
     Computes the magnitude-squared coherence between two signals using a PyTorch
     implementation. This function gives identical results to the
-    scipy.signal.coherence, but much faster.\n
-
-    Speed: The 'linear' detrending method is not fast on GPU, despite the
-    implementation being similar. 'constant' is roughly 3x as fast as 'linear'
-    on CPU. \n
-    
+    scipy.signal.coherence, but its much faster. A ``batch_size`` option allows
+    for large arrays to be processed on GPU.\n    
     RH 2024
     
     Args:
