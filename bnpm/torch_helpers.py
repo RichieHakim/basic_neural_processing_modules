@@ -496,14 +496,18 @@ def process_batches_cuda(
     func: Callable,
     device_func: str = 'cuda:0',
     device_return: str = 'cpu',
-    pin_memory: bool = False,
+    pin_memory: bool = True,
     non_blocking: bool = True,
     progress_bar: bool = False,
     len_batches: Optional[int] = None,
     verbose: bool = False,
 ):
     """
-    Run batches through func on a specified device using CUDA streams.
+    Run batches through a user specified function on a cuda device using CUDA
+    streams. This function is useful for running batches through a model in
+    serial, but with asynchronous data transfers. This is similar to
+    torch.utils.data.DataLoader, but is simpler and doesn't implement
+    multiprocessing.
     RH 2024
 
     Args:
@@ -575,7 +579,8 @@ def process_batches_cuda(
     
     def send_to_device(batch, device, non_blocking, pin_memory):
         """
-        Send a batch (either a single tensor, tuple containing tensors, or other) to a device.
+        Send a batch (either a single tensor, tuple containing tensors, or
+        other) to a device.
         """
         if isinstance(batch, torch.Tensor):
             if pin_memory and batch.device.type != 'cuda':
@@ -592,12 +597,11 @@ def process_batches_cuda(
         return batch
 
     if device_func.type == 'cuda':
-        stream = torch.cuda.Stream(device=device_func)
+        stream = torch.cuda.Stream(device=device_func)  ## create a stream
         for ii, batch in tqdm(enumerate(batches), total=len_batches, disable=not progress_bar):
-            ## Make batch a tuple
-            if not isinstance(batch, tuple):
+            if not isinstance(batch, tuple):  ## Make batch a tuple
                 batch = (batch,)
-            with torch.cuda.stream(stream):
+            with torch.cuda.stream(stream):  ## run on new stream
                 batch = send_to_device(batch=batch, device=device_func, non_blocking=non_blocking, pin_memory=pin_memory)
                 outs = func(*batch)  ## run func on batch
                 outs = send_to_device(batch=outs, device=device_return, non_blocking=non_blocking, pin_memory=False)
