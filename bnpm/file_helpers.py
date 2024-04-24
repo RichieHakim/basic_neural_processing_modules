@@ -6,6 +6,8 @@ import zipfile
 
 from tqdm import tqdm
 
+from . import path_helpers
+
 
 def prepare_path(path, mkdir=False, exist_ok=True):
     """
