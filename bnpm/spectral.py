@@ -703,10 +703,10 @@ def torch_coherence(
     
     ## Initialize sums for Welch's method
     ### Prepare complex dtype
-    dtype_complex = x.dtype.to_complex()
-    f_cross_sum = torch.zeros(out_shape, dtype=dtype_complex, device=x.device)
-    psd1_sum = torch.zeros(out_shape, dtype=x.dtype, device=x.device)
-    psd2_sum = torch.zeros(out_shape, dtype=x.dtype, device=x.device)
+    dtype_complex = torch_helpers.dtype_to_complex(x.dtype)
+    f_cross = torch.zeros(out_shape, dtype=dtype_complex, device=x.device)
+    psd1 = torch.zeros(out_shape, dtype=x.dtype, device=x.device)
+    psd2 = torch.zeros(out_shape, dtype=x.dtype, device=x.device)
 
     ## Prepare batch generator
     num_segments = (x.shape[axis] - nperseg) // (nperseg - noverlap) + 1
@@ -725,14 +725,9 @@ def torch_coherence(
         process_segment = lambda x: torch.fft.rfft(fn_detrend(x, axis=-1) * window, n=nfft, dim=-1)  ## Note the broadcasting of 1-D window with last dimension of x
         segs_x = process_segment(segs_x)
         segs_y = process_segment(segs_y)
-        f_cross_sum += torch.sum(torch.conj(segs_x) * segs_y, dim=axis).moveaxis(-1, axis)
-        psd1_sum += torch.sum((torch.conj(segs_x) * segs_x).real, dim=axis).moveaxis(-1, axis)
-        psd2_sum += torch.sum((torch.conj(segs_y) * segs_y).real, dim=axis).moveaxis(-1, axis)
-
-    ## Averaging the sums
-    f_cross = f_cross_sum / num_segments
-    psd1 = psd1_sum / num_segments
-    psd2 = psd2_sum / num_segments
+        f_cross += (torch.sum(torch.conj(segs_x) * segs_y, dim=axis).moveaxis(-1, axis)) / num_segments
+        psd1 += (torch.sum((torch.conj(segs_x) * segs_x).real, dim=axis).moveaxis(-1, axis)) / num_segments
+        psd2 += (torch.sum((torch.conj(segs_y) * segs_y).real, dim=axis).moveaxis(-1, axis)) / num_segments
 
     ## Compute coherence
     coherence = torch.abs(f_cross) ** 2 / (psd1 * psd2)

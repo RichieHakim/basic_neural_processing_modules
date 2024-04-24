@@ -491,7 +491,7 @@ class BatchRandomSampler(torch.utils.data.Sampler):
         return self.len_dataset
 
 
-def process_batches_cuda(
+def map_batches_cuda(
     batches: Union[Iterable, Iterator, Generator],
     func: Callable,
     device_func: str = 'cuda:0',
@@ -528,11 +528,13 @@ def process_batches_cuda(
         pin_memory (bool):
             If ``True``, the function will pin the memory for the input tensors.
             Ideally, the original, non-batched, tensors should be pinned.
-            However, this option will pin the memory for each batch. (Default is
-            ``False``)
+            However, this option will pin the memory for each batch. Warning,
+            pinning memory can cause excess and persistent memory usage.
+            (Default is ``True``)
         non_blocking (bool):
             If ``True``, the function will use non-blocking transfers to and
-            from the device. (Default is ``True``)
+            from the device. Warning, pinning memory can cause excess and
+            persistent memory usage. (Default is ``True``)
         progress_bar (bool):
             If ``True``, displays a progress bar. (Default is ``False``)
         len_batches Optional[int]:
@@ -586,10 +588,11 @@ def process_batches_cuda(
             if pin_memory and batch.device.type != 'cuda':
                 batch = batch.pin_memory()
 
-            if non_blocking:
-                batch = batch.to(device, non_blocking=non_blocking)
-            else:
-                batch = batch.to(device)
+            if batch.device != device:
+                if non_blocking:
+                    batch = batch.to(device, non_blocking=non_blocking)
+                else:
+                    batch = batch.to(device)
 
         elif isinstance(batch, tuple):
             batch = tuple([send_to_device(b, device, non_blocking, pin_memory) for b in batch])
@@ -1127,6 +1130,56 @@ def orthogonal_procrustes(
     R = U @ V
     scale = S.sum()
     return R, scale
+
+
+def dtype_to_complex(dtype: torch.dtype) -> torch.dtype:
+    """
+    Converts a real torch dtype to a complex dtype. \n
+    Pytorch 2.2 has this, but it crashes after calling it ~100 times. \n
+    RH 2024
+
+    Args:
+        dtype (torch.dtype): 
+            Real dtype to convert to complex dtype.
+
+    Returns:
+        (torch.dtype): 
+            complex_dtype (torch.dtype):
+                Complex dtype.
+    """
+    map = {
+        torch.float16: torch.complex32,
+        torch.bfloat16: torch.complex64,
+        torch.float32: torch.complex64,
+        torch.float64: torch.complex128,
+    }
+    if dtype not in map:
+        raise ValueError(f'{dtype} does not have a complex equivalent in map.')
+    return map[dtype]
+def dtype_to_real(dtype: torch.dtype) -> torch.dtype:
+    """
+    Converts a complex torch dtype to a real dtype. \n
+    Pytorch 2.2 has this, but it crashes after calling it ~100 times. \n
+    RH 2024
+
+    Args:
+        dtype (torch.dtype): 
+            Complex dtype to convert to real dtype.
+
+    Returns:
+        (torch.dtype): 
+            real_dtype (torch.dtype):
+                Real dtype.
+    """
+    map = {
+        torch.complex32: torch.float16,
+        torch.complex64: torch.float32,
+        torch.complex128: torch.float64,
+    }
+    if dtype not in map:
+        raise ValueError(f'{dtype} does not have a real equivalent in map.')
+    return map[dtype]
+
 
 
 #########################################################
