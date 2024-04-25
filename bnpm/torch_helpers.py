@@ -311,6 +311,38 @@ def profiler_simple(
     Makes a context manager that can be used to profile code. \n
     Upon exit, will save the trace to the specified path. \n
     Use Chrome's chrome://tracing/ to view the trace. \n
+    RH 2024
+
+    Args:
+        path_save (str):
+            The path to save the trace.
+        activities (List[str]):
+            The activities to profile. Options are ``'CPU'`` and ``'CUDA'``.
+        with_stack (bool):
+            If ``True``, records the stack, which are all the functions that
+            were called. 
+        record_shapes (bool):
+            If ``True``, records shapes of the tensors.
+        profile_memory (bool):
+            If ``True``, profiles memory usage of the tensors.
+        with_flops (bool):
+            If ``True``, records flops (floating point operations).
+        with_modules (bool):
+            If ``True``, records modules that were called.
+
+    Returns:
+        (contextmanager):
+            A context manager that can be used to profile code.
+
+    Demo:
+        .. highlight:: python
+        .. code-block:: python
+
+            with profiler_simple():
+                y = model(x)
+
+            >> Then open google chrome and go to the url chrome://tracing/ and
+            load the trace file.
     """
     from torch.profiler import profile, record_function, ProfilerActivity
     from contextlib import contextmanager
@@ -319,7 +351,7 @@ def profiler_simple(
         'CPU': ProfilerActivity.CPU,
         'CUDA': ProfilerActivity.CUDA,
     }
-    activities = [activities_dict[act] for act in activities]
+    activities = [activities_dict[act.upper()] for act in activities]
 
     @contextmanager
     def simple_profiler(path_save: str = 'trace.json'):
@@ -1179,55 +1211,3 @@ def dtype_to_real(dtype: torch.dtype) -> torch.dtype:
     if dtype not in map:
         raise ValueError(f'{dtype} does not have a real equivalent in map.')
     return map[dtype]
-
-
-
-#########################################################
-############ INTRA-MODULE HELPER FUNCTIONS ##############
-#########################################################
-
-def _convert_size(
-    size: Union[int, float], 
-    return_size: str = 'GB'
-) -> float:
-    """
-    Converts the size in bytes to another unit (TB, GB, MB, KB, or B).
-    RH 2021
-
-    Args:
-        size (Union[int, float]): 
-            Size in bytes.
-        return_size (str): 
-            Unit to which the size should be converted. Either \n
-            * ``'TB'``: Terabytes
-            * ``'GB'``: Gigabytes
-            * ``'MB'``: Megabytes
-            * ``'KB'``: Kilobytes
-            * ``'B'``: Bytes \n
-            (Default is ``'GB'``)
-
-    Returns:
-        (float): 
-            out_size (float):
-                Size converted to the specified unit.
-
-    Example:
-        .. highlight:: python
-        .. code-block:: python
-
-            size_in_gb = _convert_size(1000000000, 'GB')
-    """
-
-    if return_size == 'TB':
-        out_size = size / 1000000000000
-    elif return_size == 'GB':
-        out_size = size / 1000000000
-    elif return_size == 'MB':
-        out_size = size / 1000000
-    elif return_size == 'KB':
-        out_size = size / 1000
-    elif return_size == 'B':
-        out_size = size / 1
-
-    return out_size
-
