@@ -675,7 +675,7 @@ def torch_coherence(
         ## Move axis to end
         y = y.moveaxis(axis, -1)[..., None]
         ## Prepare the design matrix
-        X = X_linearDetrendPrep[*([None] * (len(y.shape) - 2))]
+        X = X_linearDetrendPrep[([None] * (len(y.shape) - 2))]
         ## Compute the coefficients
         # beta = torch.linalg.lstsq(X, y)[0] 
         ### Use closed form solution for least squares
