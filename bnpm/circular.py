@@ -170,44 +170,170 @@ def moduloCounter_to_linearCounter(trace, modulus, modulus_value=None, diff_thre
     return trace_times
 
 
-@misc.wrapper_flexible_args(['dim', 'axis'])
-def circ_mean(arr, high=2*np.pi, low=0, dim=-1):
+def _circfuncs_common(samples, high, low):
     """
-    Circular mean of an array. \n 
-    Calculates the circular mean of an array along a given axis. \n 
-    Period is assumed to be 2*pi. \n
+    Helper function for circular statistics. \n 
+    This function is used to ensure that the output of a circular operation is
+    always within the range [low, high). \n 
     RH 2024
 
     Args:
-        arr (np.ndarray or torch.Tensor):
-            Input array
-        high (float):
-            High end of the period
-        low (float):
-            Low end of the period
-        dim (int):
-            Axis along which to compute the mean
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
 
     Returns:
-        output (float or np.ndarray or torch.Tensor):
-            Circular mean
+        output (np.ndarray or torch.Tensor):
+            Output values
     """
-    if isinstance(arr, np.ndarray):
-        arctan2, sin, cos, pi = np.arctan2, np.sin, np.cos, np.pi
-        sum = functools.partial(np.sum, axis=dim)
-    elif isinstance(arr, torch.Tensor):
-        arctan2, sin, cos, pi = torch.atan2, torch.sin, torch.cos, torch.pi
-        sum = functools.partial(torch.sum, dim=dim)
+    if isinstance(samples, torch.Tensor):
+        nan, pi = (torch.tensor(v, dtype=samples.dtype, device=samples.device) for v in [torch.nan, np.pi])
+        sin, cos = torch.sin, torch.cos
     else:
-        raise TypeError("arr must be either np.ndarray or torch.Tensor")
-    
-    scale = (high - low) / (2*pi)
-    arr_scaled = (arr - low) / scale
+        nan, pi = (np.array(v, dtype=samples.dtype) for v in [np.nan, np.pi])
+        sin, cos = np.sin, np.cos, 
 
-    res = arctan2(sum(sin(arr_scaled)), sum(cos(arr_scaled)))
-    if res.ndim == 0:
-        res = res + 2*pi if res < 0 else res
+    if samples.size == 0:
+        return nan, nan
+    
+    ## sin and cos
+    samples = (samples - low) * 2.0 * pi / (high - low)
+    sin_samp = sin(samples)
+    cos_samp = cos(samples)
+
+    return sin_samp, cos_samp
+
+
+def circmean(samples, high=2*np.pi, low=0, axis=None, nan_policy='propagate'):
+    """
+    Circular mean of samples. Equivalent results to scipy.stats.circmean. \n
+    RH 2024
+
+    Args:
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
+        axis (int):
+            Axis along which to take the mean
+        nan_policy (str):
+            Policy for handling NaN values. Can only be 'propagate' for now.
+
+    Returns:
+        mean (np.ndarray or torch.Tensor):
+            Mean values
+    """
+
+    if nan_policy != 'propagate':
+        raise NotImplementedError("Only 'propagate' nan_policy is supported")
+    
+    if isinstance(samples, torch.Tensor):
+        pi = torch.tensor(np.pi, dtype=samples.dtype, device=samples.device)
+        arctan2 = torch.atan2
     else:
-        res[res < 0] += 2*pi
+        pi = np.array(np.pi, dtype=samples.dtype)
+        arctan2 = np.arctan2
+    
+    sin_samp, cos_samp = _circfuncs_common(samples, high, low)
+    sin_sum = sin_samp.sum(axis)
+    cos_sum = cos_samp.sum(axis)
+    res = arctan2(sin_sum, cos_sum)
+
+    res[res < 0] += 2*pi
     res = res[()]
-    return (res * scale) + low
+
+    return res*(high - low)/2.0/pi + low
+
+
+def cirvar(samples, high=2*np.pi, low=0, axis=None, nan_policy='propagate'):
+    """
+    Circular variance of samples. Equivalent results to scipy.stats.circvar. \n
+    RH 2024
+
+    Args:
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
+        axis (int):
+            Axis along which to take the variance
+        nan_policy (str):
+            Policy for handling NaN values. Can only be 'propagate' for now.
+
+    Returns:
+        variance (np.ndarray or torch.Tensor):
+            Variance values
+    """
+
+    if nan_policy != 'propagate':
+        raise NotImplementedError("Only 'propagate' nan_policy is supported")
+    
+    if isinstance(samples, torch.Tensor):
+        sqrt = torch.sqrt
+    else:
+        sqrt = np.sqrt
+    
+    sin_samp, cos_samp = _circfuncs_common(samples, high, low)
+    sin_mean = sin_samp.mean(axis)
+    cos_mean = cos_samp.mean(axis)
+    
+    R = sqrt(sin_mean**2 + cos_mean**2)
+
+    return 1 - R
+
+
+def circstd(samples, high=2*np.pi, low=0, axis=None, nan_policy='propagate', normalize=False):
+    """
+    Circular standard deviation of samples. Equivalent results to
+    scipy.stats.circstd. \n 
+    RH 2024
+
+    Args:
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
+        axis (int):
+            Axis along which to take the standard deviation
+        nan_policy (str):
+            Policy for handling NaN values. Can only be 'propagate' for now.
+        normalize (bool):
+            Whether to normalize the standard deviation. If True, the result is
+            equal to ``sqrt(-2*log(R))`` and does not depend on the variable
+            units. If False (default), the returned value is scaled by
+            ``((high-low)/(2*pi))``.
+
+
+    Returns:
+        std (np.ndarray or torch.Tensor):
+            Standard deviation values
+    """
+
+    if nan_policy != 'propagate':
+        raise NotImplementedError("Only 'propagate' nan_policy is supported")
+    
+    if isinstance(samples, torch.Tensor):
+        pi = torch.tensor(np.pi, dtype=samples.dtype, device=samples.device)
+        sqrt, log = torch.sqrt, torch.log
+    else:
+        pi = np.array(np.pi, dtype=samples.dtype)
+        sqrt, log = np.sqrt, np.log
+
+    sin_samp, cos_samp = _circfuncs_common(samples, high, low)
+    sin_mean = sin_samp.mean(axis)
+    cos_mean = cos_samp.mean(axis)
+    R = sqrt(sin_mean**2 + cos_mean**2)
+
+    res = sqrt(-2*log(R))
+    if not normalize:
+        res *= (high-low)/(2.*pi)
+    return res
