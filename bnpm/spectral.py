@@ -444,10 +444,10 @@ def signal_angle_difference(x, y, center=True, window=None, axis=-1):
             Angle difference between x and y along dim
     """
     if isinstance(x, torch.Tensor) and isinstance(y, torch.Tensor):
-        mean, circ_mean, hilbert = (functools.partial(fn, axis=axis) for fn in (torch.mean, circular.circ_mean, torch_hilbert))
+        mean, circmean, hilbert = (functools.partial(fn, axis=axis) for fn in (torch.mean, circular.circmean, torch_hilbert))
         angle, pi = torch.angle, torch.pi
     elif isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
-        mean, circ_mean, hilbert = (functools.partial(fn, axis=axis) for fn in (np.mean, scipy.stats.circmean, scipy.signal.hilbert))
+        mean, circmean, hilbert = (functools.partial(fn, axis=axis) for fn in (np.mean, scipy.stats.circmean, scipy.signal.hilbert))
         angle, pi = np.angle, np.pi
     else:
         raise ValueError("x and y must be torch tensors or numpy arrays")
@@ -457,7 +457,7 @@ def signal_angle_difference(x, y, center=True, window=None, axis=-1):
     if center:
         x, y = x - mean(x, keepdims=True), y - mean(y, keepdims=True)
     
-    out = circ_mean((angle(fn_win(hilbert(x))) - angle(fn_win(hilbert(y)))))
+    out = circmean((angle(fn_win(hilbert(x))) - angle(fn_win(hilbert(y)))))
 
     if out.ndim == 0:
         out = out - 2*pi if out > pi else out
@@ -470,12 +470,15 @@ def signal_angle_difference(x, y, center=True, window=None, axis=-1):
 @misc.wrapper_flexible_args(['dim', 'axis'])
 def time_domain_reversal_in_fourier_domain(xf, axis=-1):
     """
-    Reverses the time-domain signal in the Fourier domain.\n
+    Reverses the Fourier-transformed input signal by effectively applying a
+    time-domain reversal while remaining in the Fourier domain. This is done by
+    applying the inverse shift operator. \n
     RH 2024
 
     Args:
         xf (torch.Tensor or np.ndarray):
-            Signal data. Must be complex.
+            Fourier-transformed signal data. Should be complex and have negative
+            frequencies. Generally, the output of torch.fft.fft or np.fft.fft.
         axis (int):
             Dimension along which to do the transformation.
 
@@ -485,7 +488,7 @@ def time_domain_reversal_in_fourier_domain(xf, axis=-1):
     """
     if isinstance(xf, torch.Tensor):
         assert torch.is_complex(xf), "xf should be complex"
-        arange = functools.partial(torch.arange, device=xf.device, dtype=xf.dtype.to_real())
+        arange = functools.partial(torch.arange, device=xf.device, dtype=torch_helpers.dtype_to_real(xf.dtype))
         exp, pi, conj = torch.exp, torch.pi, torch.conj
         resolution = lambda x: x.resolve_conj().resolve_neg()
     elif isinstance(xf, np.ndarray):
