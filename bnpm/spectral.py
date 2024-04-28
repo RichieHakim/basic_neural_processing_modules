@@ -806,7 +806,7 @@ def ppc(phases, axis=None):
 
     Args:
         phases (np.ndarray): 
-            Vector of phases in radians.
+            Vector of phases in radians. Bound to the range [-pi, pi].
 
     Returns:
         float: 
