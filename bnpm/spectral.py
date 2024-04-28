@@ -813,9 +813,9 @@ def ppc(phases, axis=None):
             Pairwise phase consistency of the phases.
     """
     if isinstance(phases, torch.Tensor):
-        sin, cos, abs = torch.sin, torch.cos, torch.abs
+        sin, cos, abs, sum = torch.sin, torch.cos, torch.abs, torch.sum
     elif isinstance(phases, np.ndarray):
-        sin, cos, abs = np.sin, np.cos, np.abs
+        sin, cos, abs, sum = np.sin, np.cos, np.abs, np.sum
 
     N = phases.shape[0]
     if N < 2:
