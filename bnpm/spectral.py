@@ -782,7 +782,7 @@ def spectrogram_magnitude_normalization(S: torch.Tensor, k: float = 0.05):
     assert S.ndim == 3, "Spectrogram should be of shape: (n_points, n_freq_bins, n_samples)"
 
     if is_complex(S) == False:
-        s_mean = mean(sum(S, dim=1, keepdims=True) , dim=0, keepdims=True)  ## Mean of the summed power across all frequencies and points. Shape (n_samples,)
+        s_mean = mean(sum(S, dim=1, keepdims=True), dim=0, keepdims=True)  ## Mean of the summed power across all frequencies and points. Shape (n_samples,)
         s_norm =  S / ((k * s_mean) + (1-k))  ## Normalize the spectrogram by the mean power across all frequencies and points. Shape (n_points, n_freq_bins, n_samples)
     
     elif is_complex(S) == True:
@@ -793,3 +793,35 @@ def spectrogram_magnitude_normalization(S: torch.Tensor, k: float = 0.05):
         s_norm = polar(s_mag, s_phase)
     
     return s_norm
+
+
+
+def ppc(phases, axis=None):
+    """
+    Computes the pairwise phase consistency (PPC0) for a (set of) vector of
+    phases. Based on Vinck et al. 2010, and the implementation in the FieldTrip
+    toolbox:
+    https://github.com/fieldtrip/fieldtrip/blob/d7403c6a6e8765b679ba8accc69f69a282fce6cf/contrib/spike/ft_spiketriggeredspectrum_stat.m#L442
+    RH 2024
+
+    Args:
+        phases (np.ndarray): 
+            Vector of phases in radians.
+
+    Returns:
+        float: 
+            Pairwise phase consistency of the phases.
+    """
+    if isinstance(phases, torch.Tensor):
+        sin, cos, abs = torch.sin, torch.cos, torch.abs
+    elif isinstance(phases, np.ndarray):
+        sin, cos, abs = np.sin, np.cos, np.abs
+
+    N = phases.shape[0]
+    if N < 2:
+        raise ValueError("The input vector must contain at least two phase values.")
+
+    # Compute pairwise phase consistency
+    sinSum = abs(sum(sin(phases), axis=axis))
+    cosSum = sum(cos(phases), axis=axis)
+    return ((cosSum**2 + sinSum**2) - N) / (N * (N - 1))
