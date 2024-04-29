@@ -398,6 +398,54 @@ def barplot_with_points(
     return ax
 
 
+def plotyy(
+    x,
+    y1,
+    y2,
+    ax1=None,
+    ax2=None,
+    kwargs1={},
+    kwargs2={},
+):
+    """
+    Plot two y-axes on the same x-axis.
+    RH 2022
+
+    Args:
+        x (np.array):
+            x-axis values. If None, then set to np.arange(y1.shape[0]).
+        y1 (np.array):
+            y-axis values for the first axis.
+        y2 (np.array):
+            y-axis values for the second axis.
+        ax1 (matplotlib.axes):
+            First axis.
+            Optional.
+        ax2 (matplotlib.axes):
+            Second axis.
+            Optional.
+        kwargs1 (dict):
+            Keyword arguments for the first axis.
+            Will be passed to ax1.plot().
+        kwargs2 (dict):
+            Keyword arguments for the second axis.
+            Will be passed to ax2.plot().
+    
+    Returns:
+        ax1 (matplotlib.axes):
+            First axis.
+        ax2 (matplotlib.axes):
+            Second axis.
+    """
+    x = np.arange(y1.shape[0]) if x is None else x
+    fig, ax1 = plt.subplots() if ax1 is None else (None, ax1)
+    ax2 = ax1.twinx() if ax2 is None else ax2
+    ax1.plot(x, y1, **kwargs1)
+    ax2.plot(x, y2, **kwargs2)
+
+    return ax1, ax2
+
+
 ###############
 ### Helpers ###
 ###############
