@@ -2,6 +2,7 @@ import re
 import copy
 from collections.abc import MutableMapping
 from typing import Dict, Any, Optional, Union, List, Tuple, Callable, Iterable, Iterator, Type
+import itertools
 
 """
 This module is intended to have minimal dependencies.
@@ -11,9 +12,10 @@ It is called by server.py which is intended to run
 RH 2022
 """
 
-class lazy_repeat_obj():
+class lazy_repeat_obj(itertools.repeat):
     """
     Makes a lazy iterator that repeats an object.
+    Makes a subclass of itertools.repeat that has a length.
     RH 2021
 
     Args:
@@ -32,27 +34,36 @@ class lazy_repeat_obj():
         """
         self.obj = obj
         self.pseudo_length = pseudo_length
+        self.count = 0
 
-    def __getitem__(self, i):
+    def __iter__(self):
         """
-        Args:
-            i (int):
-                index of item to return.
-                Ignored if pseudo_length is None.
+        Returns the iterator.
         """
-        if self.pseudo_length is None:
-            return self.obj
-        elif i < self.pseudo_length:
-            return self.obj
-        else:
-            raise IndexError('Index out of bounds')
-
-    def __len__(self):
-        return self.pseudo_length
-
-    def __repr__(self):
-        return repr(self.item)
+        return self
     
+    def __next__(self):
+        """
+        Returns the next object.
+        """
+        if self.pseudo_length is not None:
+            if self.count >= self.pseudo_length:
+                raise StopIteration
+            self.count += 1
+        return self.obj
+    
+    def __len__(self):
+        """
+        Returns the length of the iterator.
+        """
+        return self.pseudo_length
+    
+    def __repr__(self):
+        """
+        Returns the representation of the object.
+        """
+        return f"lazy_repeat_obj({self.obj}, pseudo_length={self.pseudo_length})"
+
 
 def flatten_list(irregular_list):
     """
