@@ -222,7 +222,10 @@ def circmean(samples, high=2*np.pi, low=0, axis=None, nan_policy='propagate'):
         axis (int):
             Axis along which to take the mean
         nan_policy (str):
-            Policy for handling NaN values. Can only be 'propagate' for now.
+            Policy for handling NaN values: \n
+                * 'propagate' - Propagate NaN values.
+                * 'omit' - Ignore NaN values.
+                * 'raise' - Raise an error if NaN values are present.
 
     Returns:
         mean (np.ndarray or torch.Tensor):
@@ -234,17 +237,28 @@ def circmean(samples, high=2*np.pi, low=0, axis=None, nan_policy='propagate'):
     
     if isinstance(samples, torch.Tensor):
         pi = torch.tensor(np.pi, dtype=samples.dtype, device=samples.device)
-        arctan2 = torch.atan2
+        arctan2, sum, nansum = torch.atan2, torch.sum, torch.nansum
     else:
         pi = np.array(np.pi, dtype=samples.dtype)
-        arctan2 = np.arctan2
+        arctan2, sum, nansum = np.arctan2, np.sum, np.nansum
+
+    if nan_policy == 'omit':
+        fn_sum = nansum
+    elif nan_policy == 'propagate':
+        fn_sum = sum
+    elif nan_policy == 'raise':
+        if torch.any(torch.isnan(samples)):
+            raise ValueError("NaN values are present in the input")
+        fn_sum = sum
+    else:
+        raise ValueError("Invalid nan_policy")
     
     sin_samp, cos_samp = _circfuncs_common(samples, high, low)
-    sin_sum = sin_samp.sum(axis)
-    cos_sum = cos_samp.sum(axis)
+    sin_sum = fn_sum(sin_samp, axis)
+    cos_sum = fn_sum(cos_samp, axis)
     res = arctan2(sin_sum, cos_sum)
 
-    res[res < 0] += 2*pi
+    res[res < 0] += 2 * pi
     res = res[()]
 
     return res*(high - low)/2.0/pi + low
