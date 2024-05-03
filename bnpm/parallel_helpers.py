@@ -29,7 +29,8 @@ def map_parallel(
     args: List[Any], 
     method: str = 'multithreading', 
     n_workers: int = -1, 
-    prog_bar: bool = True
+    n_args: int = None,
+    prog_bar: bool = True,
 ) -> List[Any]:
     """
     Maps a function to a list of arguments in parallel. Includes a progress bar
@@ -48,10 +49,17 @@ def map_parallel(
             * ``'multithreading'``: Use multithreading from concurrent.futures.
             * ``'multiprocessing'``: Use multiprocessing from concurrent.futures.
             * ``'mpire'``: Use mpire.
+            * ``'pathos'``: Use pathos.multiprocessing.ProcessingPool (similar
+            to multiprocessing, but with better serialization support).
+            * ``'pytorch'``: Use PyTorch multiprocessing.
             * ``'serial'``: Use list comprehension. \n
             (Default is ``'multithreading'``)
         workers (int): 
-            Number of workers to use. If set to -1, all available workers are used. (Default is ``-1``)
+            Number of workers to use. If set to -1, all available workers are
+            used. (Default is ``-1``)
+        n_args (int):
+            Number of arguments to expect. If not provided, the length of the
+            first element of args is used.
         prog_bar (bool): 
             Whether to display a progress bar using tqdm. (Default is ``True``)
 
@@ -74,12 +82,12 @@ def map_parallel(
     ## Assert that each element of args is an iterable
     assert all([hasattr(arg, '__iter__') for arg in args]), "All elements of args must be iterable"
 
-    ## Assert that each element has a length
-    assert all([hasattr(arg, '__len__') for arg in args]), "All elements of args must have a length"
     ## Get number of arguments. If args is a generator, make None.
-    n_args = len(args[0]) if hasattr(args, '__len__') else None
+    if n_args is None:
+        assert hasattr(args[0], '__len__'), f"If n_args is not provided, the first element of args must have a length."
+        n_args = len(args[0])
     ## Assert that all args are the same length
-    assert all([len(arg) == n_args for arg in args]), "All args must be the same length"
+    assert all([len(arg) == n_args for arg in args if hasattr(arg, '__len__')]), "All elements of args must have the same length"
 
     ## Make indices
     indices = np.arange(n_args)
@@ -89,21 +97,32 @@ def map_parallel(
         
     if method == 'multithreading':
         executor = ThreadPoolExecutor
+        star_args = True
     elif method == 'multiprocessing':
         executor = ProcessPoolExecutor
+        star_args = True
     elif method == 'mpire':
         import mpire
         executor = mpire.WorkerPool
-    # elif method == 'joblib':
-    #     import joblib
-    #     return joblib.Parallel(n_jobs=workers)(joblib.delayed(func)(arg) for arg in tqdm(args, total=n_args, disable=prog_bar!=True))
+        star_args = False
+    elif method == 'pathos':
+        from pathos.multiprocessing import ProcessingPool
+        executor = ProcessingPool
+        star_args = True
+    elif method == 'pytorch':
+        from torch.multiprocessing import Pool
+        executor = Pool
+        star_args = False
     elif method == 'serial':
         return    list(tqdm(map(_func_wrapper_helper, *args_map), total=n_args, disable=prog_bar!=True))
     else:
         raise ValueError(f"method {method} not recognized")
 
     with executor(n_workers) as ex:
-        return list(tqdm(ex.map(_func_wrapper_helper, *args_map), total=n_args, disable=prog_bar!=True))
+        if star_args:
+            return list(tqdm(ex.map(_func_wrapper_helper, *args_map), total=n_args, disable=prog_bar!=True))
+        else:
+            return list(tqdm(ex.map(_func_wrapper_helper, args_map), total=n_args, disable=prog_bar!=True))
 def _func_wrapper_helper(*func_args_index):
     """
     Wrapper function to catch exceptions.
