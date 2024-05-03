@@ -47,6 +47,7 @@ scanimage_tiff_reader
 jupyter
 PyWavelets
 mat73
+pathos
 
 ## For PostgreSQL
 psycopg2
