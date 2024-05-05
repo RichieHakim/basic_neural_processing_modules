@@ -37,7 +37,7 @@ def ttest_paired_ratio(a, b):
     return p_val
 
 
-def geometric_mean(a, axis=0, nan_policy="omit"):
+def geometric_mean(a, axis=0, nan_policy="omit", zero_policy="propagate"):
     """
     Computes the geometric mean of an array of data.
     This is useful for computing the geometric mean of ratios.
@@ -47,13 +47,33 @@ def geometric_mean(a, axis=0, nan_policy="omit"):
     Args:
         a (np.ndarray or torch.Tensor):
             Array of data.
+        axis (int):
+            Axis along which to compute the geometric mean.
+        nan_policy (str):
+            Defines how to handle nan values. \n
+                * "omit" - Ignore nan values.
+                * "propagate" - Propagate nan values.
+                * "raise" - Raise an error if nan values are present.
+        zero_policy (str):
+            Defines how to handle zero values. \n
+                * "raise" - Raise an error if zero values are present.
+                * "propagate" - Propagate zero values.
+                * "nan" - Replace zero values with nan.
     """
     if isinstance(a, (np.ndarray, list)):
-        mean, nanmean, isnan, exp, log = np.mean, np.nanmean, np.isnan, np.exp, np.log
+        mean, nanmean, isnan, exp, log, nan = np.mean, np.nanmean, np.isnan, np.exp, np.log, np.nan
     elif isinstance(a, torch.Tensor):
-        mean, nanmean, isnan, exp, log = torch.mean, torch.nanmean, torch.isnan, torch.exp, torch.log
+        mean, nanmean, isnan, exp, log, nan = torch.mean, torch.nanmean, torch.isnan, torch.exp, torch.log, torch.nan
     else:
         raise ValueError("Data must be a numpy array or a torch tensor.")
+    
+    if zero_policy == "raise":
+        if (a == 0).any():
+            raise ValueError("Data contains zero values.")
+    elif zero_policy == "nan":
+        a[a == 0] = nan
+    elif zero_policy == "propagate":
+        pass
 
     if nan_policy == "omit":
         mean = nanmean
@@ -162,3 +182,24 @@ def error_interval(
         raise ValueError("Error must be one of 'std', 'sem', or 'ci'.")
     
     return mean, lower, upper
+
+
+def zscore_to_pvalue(z, two_tailed=True):
+    """
+    Convert a z-score to a p-value.
+
+    Args:
+    z (float): 
+        The z-score.
+    two_tailed (bool): 
+        If True, return a two-tailed p-value. If False, return a one-tailed
+        p-value.
+
+    Returns:
+        float:
+            The p-value.
+    """
+    if two_tailed:
+        return 2 * scipy.stats.norm.sf(np.abs(z))
+    else:
+        return scipy.stats.norm.sf(np.abs(z))
