@@ -4,6 +4,7 @@ import copy
 from typing import Union, List, Tuple, Dict, Callable, Optional, Any, Iterable, Iterator, Generator
 from contextlib import contextmanager
 import warnings
+import math
 
 import torch
 from torch.utils.data import Dataset
@@ -1211,3 +1212,53 @@ def dtype_to_real(dtype: torch.dtype) -> torch.dtype:
     if dtype not in map:
         raise ValueError(f'{dtype} does not have a real equivalent in map.')
     return map[dtype]
+
+
+def geomspace(
+    start: Union[int, float], 
+    stop: Union[int, float], 
+    num: int, 
+    endpoint: bool = True,
+    dtype: torch.dtype = torch.float32,
+) -> torch.Tensor:
+    """
+    Returns numbers spaced evenly on a log scale (a geometric progression).
+
+    Args:
+        start (Union[int, float]): 
+            The starting value of the sequence.
+        stop (Union[int, float]): 
+            The final value of the sequence, unless `endpoint` is False.
+        num (int): 
+            Number of samples to generate.
+        endpoint (bool): 
+            If ``True``, `stop` is the last sample. Otherwise, it is not included. 
+        dtype (torch.dtype):
+            The data type to use for the tensor. 
+
+    Returns:
+        (torch.Tensor): 
+            samples (torch.Tensor): 
+                The samples on a log scale.
+    """
+    if start <= 0:
+        raise ValueError('start must be greater than 0.')
+    if stop <= 0:
+        raise ValueError('stop must be greater than 0.')
+    if endpoint:
+        return torch.logspace(
+            math.log10(start),
+            math.log10(stop),
+            num,
+            dtype=dtype,
+            base=10,
+        )
+    else:
+        gain = 10 ** (math.log10(stop / start) / (num))
+        return torch.logspace(
+            math.log10(start),
+            math.log10(start) + math.log10(gain) * (num - 1),
+            num,
+            dtype=dtype,
+            base=10,
+        )
