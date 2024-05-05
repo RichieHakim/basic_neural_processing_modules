@@ -1223,6 +1223,7 @@ def geomspace(
 ) -> torch.Tensor:
     """
     Returns numbers spaced evenly on a log scale (a geometric progression).
+    Matches numpy's geomspace.
 
     Args:
         start (Union[int, float]): 
@@ -1232,7 +1233,8 @@ def geomspace(
         num (int): 
             Number of samples to generate.
         endpoint (bool): 
-            If ``True``, `stop` is the last sample. Otherwise, it is not included. 
+            If ``True``, `stop` is the last sample. Otherwise, it is not
+            included. 
         dtype (torch.dtype):
             The data type to use for the tensor. 
 
