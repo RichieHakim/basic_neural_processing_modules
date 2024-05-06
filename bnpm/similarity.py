@@ -1,4 +1,4 @@
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Optional
 import copy
 import time
 from functools import partial
@@ -542,6 +542,68 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         output = (v1_ms.T @ v2_ms) / sqrt(sum(v1_ms**2, axis=0, keepdims=True).T * sum(v2_ms**2, axis=0, keepdims=True))
     if method=='cosine_similarity':    
         output = (v1 / (norm(v1 , axis=0, keepdims=True))).T  @ (v2  / norm(v2 , axis=0, keepdims=True))
+    return output
+    
+
+@torch.jit.script
+def torch_pairwise_similarity(v1: torch.Tensor , v2: Optional[torch.Tensor] = None , method: str = 'pearson' , ddof: int = 1) -> torch.Tensor:
+    '''
+    Exactly the same as ``pairwise_similarity`` but works with torch.jit.script.
+    Computes similarity matrices between two sets of vectors (columns within
+    2-D arrays) using either covariance, Pearson correlation or cosine_similarity.
+    
+    Think of this function as a more general version of np.cov or np.corrcoef
+    RH 2021
+
+    Args:
+        v1 (ndarray): 
+            2-D array of column vectors.
+        v2 (ndarray): 
+            2-D array of column vectors to compare to vector_set1. If None, then
+             the function is a type of autosimilarity matrix
+        method (str):
+            'cov' - covariance
+            'pearson' or 'R' - Pearson correlation
+            'cosine_similarity' - cosine similarity
+        ddof (scalar/int):
+            Used if method=='cov'. Define the degrees of freedom. Set to 1 for
+            unbiased calculation, 0 for biased calculation.
+    Returns:
+        ouput (ndarray):
+            similarity matrix dependent on method
+    '''
+
+    methods = ['cov', 'pearson', 'R', 'cosine_similarity']
+    assert method in methods, f'RH Error: method must be one of: {methods}'
+
+    if v2 is None:
+        v2 = v1
+    
+    if v1.ndim == 1:
+        v1 = v1[:,None]
+    if v2.ndim == 1:
+        v2 = v2[:,None]
+
+    if method=='cov':
+        v1_ms = v1 - torch.mean(v1, dim=0) # 'mean subtracted'
+        v2_ms = v2 - torch.mean(v2, dim=0)
+        output = (v1_ms.T @ v2_ms) / (v1.shape[0] - ddof)
+    elif method in ['pearson', 'R']: 
+        # Below method should be as fast as numpy.corrcoef . 
+        # Output should be same within precision, but 
+        # numpy.corrcoef makes a doublewide matrix and can be annoying
+        
+        # Note: Pearson's R-value can be different than sqrt(EV) 
+        # calculated below if the residuals are not orthogonal to the 
+        # prediction. Best to use EV for R^2 if unsure
+        v1_ms = v1 - torch.mean(v1, dim=0) # 'mean subtracted'
+        v2_ms = v2 - torch.mean(v2, dim=0)
+        output = (v1_ms.T @ v2_ms) / torch.sqrt(torch.sum(v1_ms**2, dim=0, keepdim=True).T * torch.sum(v2_ms**2, dim=0, keepdim=True))
+    elif method=='cosine_similarity':    
+        output = (v1 / (torch.linalg.norm(v1 , dim=0, keepdim=True))).T  @ (v2  / torch.linalg.norm(v2 , dim=0, keepdim=True))
+    else:
+        raise ValueError(f"method must be one of: {methods}")
+    
     return output
 
 
