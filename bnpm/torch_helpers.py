@@ -1251,16 +1251,187 @@ def geomspace(
         return torch.logspace(
             math.log10(start),
             math.log10(stop),
-            num,
+            int(num),
             dtype=dtype,
-            base=10,
+            base=10.0,
         )
     else:
         gain = 10 ** (math.log10(stop / start) / (num))
         return torch.logspace(
             math.log10(start),
             math.log10(start) + math.log10(gain) * (num - 1),
-            num,
+            int(num),
             dtype=dtype,
-            base=10,
+            base=10.0,
         )
+    
+
+################ Circular Statistics ################
+
+
+def _circfuncs_common(samples: torch.Tensor, high: float, low: float):
+    """
+    Helper function for circular statistics. \n 
+    This function is used to ensure that the output of a circular operation is
+    always within the range [low, high). \n 
+    RH 2024
+
+    Args:
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
+
+    Returns:
+        output (np.ndarray or torch.Tensor):
+            Output values
+    """
+    nan, pi = (torch.tensor(v, dtype=samples.dtype, device=samples.device) for v in [torch.nan, torch.pi])
+
+    ## If number of elements is 0, return nan
+    if samples.numel() == 0:
+        return nan, nan
+    
+    ## sin and cos
+    samples = (samples - low) * 2.0 * pi / (high - low)
+    sin_samp = torch.sin(samples)
+    cos_samp = torch.cos(samples)
+
+    return sin_samp, cos_samp
+
+
+def circmean(samples: torch.Tensor, high: float = 2*np.pi, low: float = 0.0, axis: Optional[List[int]] = None, nan_policy: str = 'propagate'):
+    """
+    Circular mean of samples. Equivalent results to scipy.stats.circmean. \n
+    RH 2024
+
+    Args:
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
+        axis (int):
+            Axis along which to take the mean
+        nan_policy (str):
+            Policy for handling NaN values: \n
+                * 'propagate' - Propagate NaN values.
+                * 'omit' - Ignore NaN values.
+                * 'raise' - Raise an error if NaN values are present.
+
+    Returns:
+        mean (np.ndarray or torch.Tensor):
+            Mean values
+    """
+
+    if nan_policy == 'raise':
+        if torch.any(torch.isnan(samples)):
+            raise ValueError("Input contains NaN values")
+    
+    pi = torch.tensor(torch.pi, dtype=samples.dtype, device=samples.device)
+    sin_samp, cos_samp = _circfuncs_common(samples, high, low)
+
+    if nan_policy == 'omit':
+        sin_sum = torch.nansum(sin_samp, dim=axis)
+        cos_sum = torch.nansum(cos_samp, dim=axis)
+    elif nan_policy == 'propagate':
+        sin_sum = torch.sum(sin_samp, dim=axis)
+        cos_sum = torch.sum(cos_samp, dim=axis)
+    elif nan_policy == 'raise':
+        sin_sum = torch.sum(sin_samp, dim=axis)
+        cos_sum = torch.sum(cos_samp, dim=axis)
+    else:
+        raise ValueError("Invalid nan_policy")
+    
+    res = torch.arctan2(sin_sum, cos_sum)
+
+    if res.ndim == 0:
+        res = res + 2 * pi if res < 0 else res
+    else:
+        res[res < 0] += 2 * pi
+    
+    # res = res[()]
+
+    return res*(high - low)/2.0/pi + low
+
+
+def cirvar(samples: torch.Tensor, high=2*np.pi, low=0, axis=None, nan_policy='propagate'):
+    """
+    Circular variance of samples. Equivalent results to scipy.stats.circvar. \n
+    RH 2024
+
+    Args:
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
+        axis (int):
+            Axis along which to take the variance
+        nan_policy (str):
+            Policy for handling NaN values. Can only be 'propagate' for now.
+
+    Returns:
+        variance (np.ndarray or torch.Tensor):
+            Variance values
+    """
+
+    if nan_policy != 'propagate':
+        raise NotImplementedError("Only 'propagate' nan_policy is supported")
+        
+    sin_samp, cos_samp = _circfuncs_common(samples, high, low)
+    sin_mean = sin_samp.mean(axis)
+    cos_mean = cos_samp.mean(axis)
+    
+    R = torch.sqrt(sin_mean**2 + cos_mean**2)
+
+    return 1 - R
+
+
+def circstd(samples: torch.Tensor, high: float = 2*np.pi, low: float = 0.0, axis: Optional[List[int]] = None, nan_policy: str = 'propagate', normalize: bool = False):
+    """
+    Circular standard deviation of samples. Equivalent results to
+    scipy.stats.circstd. \n 
+    RH 2024
+
+    Args:
+        samples (np.ndarray or torch.Tensor):
+            Input values
+        high (float or np.ndarray or torch.Tensor):
+            High value
+        low (float or np.ndarray or torch.Tensor):
+            Low value
+        axis (int):
+            Axis along which to take the standard deviation
+        nan_policy (str):
+            Policy for handling NaN values. Can only be 'propagate' for now.
+        normalize (bool):
+            Whether to normalize the standard deviation. If True, the result is
+            equal to ``sqrt(-2*log(R))`` and does not depend on the variable
+            units. If False (default), the returned value is scaled by
+            ``((high-low)/(2*pi))``.
+
+
+    Returns:
+        std (np.ndarray or torch.Tensor):
+            Standard deviation values
+    """
+
+    if nan_policy != 'propagate':
+        raise NotImplementedError("Only 'propagate' nan_policy is supported")
+    
+    pi = torch.tensor(np.pi, dtype=samples.dtype, device=samples.device)
+
+    sin_samp, cos_samp = _circfuncs_common(samples, high, low)
+    sin_mean = sin_samp.mean(axis)
+    cos_mean = cos_samp.mean(axis)
+    R = torch.sqrt(sin_mean**2 + cos_mean**2)
+
+    res = torch.sqrt(-2*torch.log(R))
+    if not normalize:
+        res *= (high-low)/(2.*pi)
+    return res
