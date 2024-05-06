@@ -4,6 +4,8 @@ from collections.abc import MutableMapping
 from typing import Dict, Any, Optional, Union, List, Tuple, Callable, Iterable, Iterator, Type
 import itertools
 
+import toolz
+
 """
 This module is intended to have minimal dependencies.
 It is called by server.py which is intended to run
@@ -473,6 +475,46 @@ def serializable_dict(
 
     serializable_dict = make_serializable_dict(obj, depth=0, max_depth=100, name='object')
     return serializable_dict
+
+
+def recursive_valmap(
+    func: Callable[[Any], Any],
+    d: Dict,
+    depth: int = -1,
+):
+    """
+    Apply a function to all values in a nested dictionary. \n
+    If item is a dictionary, then apply the function to all values in the
+    dictionary. \n
+    Uses toolz.dicttoolz.valmap. \n
+    RH 2024
+
+    Args:
+        func (Callable):
+            Function to apply to all values.
+        d (Dict):
+            Dictionary to apply the function to.
+        factory (Type[Dict]):
+            Type of dictionary to use for the output.
+        depth (int):
+            Maximum depth to apply the function.
+            If -1, then apply to all depths.
+            If 1, then apply to the top level only.
+            If 0, then return the dictionary as is.
+
+    Returns:
+        output (Dict):
+            Dictionary with the function applied to all values.
+    """
+    def helper_recursive_valmap(func, d, depth):
+        if depth == 0:
+            return d
+        return toolz.valmap(
+            lambda x: helper_recursive_valmap(func, x, depth-1) if isinstance(x, dict) else func(x),
+            d
+        )
+
+    return helper_recursive_valmap(func, d, depth)
 
 
 ############################################################
