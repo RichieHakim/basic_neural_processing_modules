@@ -332,8 +332,8 @@ def simple_cwt(
     return coeff, freq
 
 
-@misc.wrapper_flexible_args(['dim', 'axis'])
-def torch_hilbert(x, N=None, dim=-1):
+@torch.jit.script
+def torch_hilbert(x: torch.Tensor, N: Optional[int] = None, dim: int = -1):
     """
     Computes the analytic signal using the Hilbert transform.
     Based on scipy.signal.hilbert
@@ -366,9 +366,10 @@ def torch_hilbert(x, N=None, dim=-1):
         m[1:(n+1)//2] = 2
 
     if x.ndim > 1:
-        ind = [np.newaxis] * x.ndim
-        ind[dim] = slice(None)
-        m = m[tuple(ind)]
+        ## pad m with singleton dimensions
+        new_shape = [1] * x.ndim
+        new_shape[dim] = -1
+        m = m.reshape(new_shape)
 
     return torch.fft.ifft(xf * m, dim=dim)
 
@@ -444,7 +445,7 @@ def signal_angle_difference(x, y, center=True, window=None, axis=-1):
             Angle difference between x and y along dim
     """
     if isinstance(x, torch.Tensor) and isinstance(y, torch.Tensor):
-        mean, circmean, hilbert = (functools.partial(fn, axis=axis) for fn in (torch.mean, circular.circmean, torch_hilbert))
+        mean, circmean, hilbert = (functools.partial(fn, axis=axis) for fn in (torch.mean, torch_helpers.circmean, torch_hilbert))
         angle, pi = torch.angle, torch.pi
     elif isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
         mean, circmean, hilbert = (functools.partial(fn, axis=axis) for fn in (np.mean, scipy.stats.circmean, scipy.signal.hilbert))
@@ -565,6 +566,84 @@ def filtfilt_simple_fft(
     out = out.real if use_real else out
     return out
 
+
+@torch.jit.script
+def _helper_time_domain_reversal_in_fourier_domain(xf: torch.Tensor, axis: int = -1):
+    """
+    Reverses the Fourier-transformed input signal by effectively applying a
+    time-domain reversal while remaining in the Fourier domain. This is done by
+    applying the inverse shift operator. \n
+    RH 2024
+
+    Args:
+        xf (torch.Tensor or np.ndarray):
+            Fourier-transformed signal data. Should be complex and have negative
+            frequencies. Generally, the output of torch.fft.fft or np.fft.fft.
+        axis (int):
+            Dimension along which to do the transformation.
+
+    Returns:
+        (nd tensor):
+            Time-domain signal reversed along axis
+    """
+    assert torch.is_complex(xf), "xf should be complex"
+    
+    ## Make the inverse shift operator
+    ### The 'iso' is one period of a complex sinuoid. 
+    ### It basically changes the ratio of real to imaginary parts in xf.
+    n = xf.shape[axis]
+    k = torch.arange(n, device=xf.device, dtype=torch_helpers.dtype_to_real(xf.dtype))
+    w = torch.exp(-2j * torch.pi * k / n)
+    ## Apply the inverse shift operator
+    return torch.conj(xf * w).resolve_conj().resolve_neg()
+@torch.jit.script
+def torch_filtfilt_simple_fft(
+    x: torch.Tensor,
+    kernel: torch.Tensor,
+    fast_len: bool = True,
+):
+    """
+    Exactly the same as ``filtfilt_simple_fft`` but works with torch.jit.script.
+    Applies a zero-phase filter to the input signal using the FFT method along
+    the last dimension.\n
+    Calculated as ``ifft(fft(x) * fft(kernel) * fft(kernel_flipped))``.\n
+    This implementation is very fast and is suitable when using long kernels.\n
+    NOTE: This is a simple implementation and does not handle edge effects.
+    scipy.signal.filtfilt is recommended if speed is not a concern and/or if
+    kernel length is similar in length to x.\n
+    RH 2024
+
+    Args:
+        x (torch.Tensor or np.ndarray):
+            Signal data. Convolution is done along the last dimension.
+        kernel (torch.Tensor or np.ndarray):
+            Filter kernel. Convolution is done along the last dimension. \n
+            If not 1D, then shape should be broadcastable with x.
+        fast_len (bool):
+            Whether to use the fast length method.
+
+    Returns:
+        (nd tensor):
+            Filtered signal
+    """
+    use_real = (torch.is_complex(x) == False) and (torch.is_complex(kernel) == False)
+
+    n = x.shape[-1] + kernel.shape[-1] - 1
+    n = timeSeries.next_fast_len(n) if fast_len else n
+
+    out = torch.fft.fft(x, n=n, dim=-1)  ## x_fft
+    kernel_fft = torch.fft.fft(torch.flip(kernel, dims=(-1,)), n=n, dim=-1)
+    out = out * kernel_fft  ## xk_fft_1
+    out = out * _helper_time_domain_reversal_in_fourier_domain(kernel_fft, axis=-1)  ## xk_fft_2
+    out = torch.fft.ifft(out, n=n, dim=-1)  ## xk
+    # out = torch_helpers.slice_along_dim(
+    #     X=out,
+    #     dim=-1,
+    #     idx=slice(0, x.shape[-1]),
+    # )
+    out = out[..., :x.shape[-1]]
+    out = out.real if use_real else out
+    return out
 
 def torch_coherence(
     x: torch.Tensor,
@@ -824,4 +903,31 @@ def ppc(phases, axis=None):
     # Compute pairwise phase consistency
     sinSum = abs(sum(sin(phases), axis=axis))
     cosSum = sum(cos(phases), axis=axis)
+    return ((cosSum**2 + sinSum**2) - N) / (N * (N - 1))
+
+
+def torch_ppc(phases: torch.Tensor, axis: Optional[List[int]] = None):
+    """
+    Exactly the same as ``ppc`` but works with torch.jit.script.
+    Computes the pairwise phase consistency (PPC0) for a (set of) vector of
+    phases. Based on Vinck et al. 2010, and the implementation in the FieldTrip
+    toolbox:
+    https://github.com/fieldtrip/fieldtrip/blob/d7403c6a6e8765b679ba8accc69f69a282fce6cf/contrib/spike/ft_spiketriggeredspectrum_stat.m#L442
+    RH 2024
+
+    Args:
+        phases (np.ndarray): 
+            Vector of phases in radians. Bound to the range [-pi, pi].
+
+    Returns:
+        float: 
+            Pairwise phase consistency of the phases.
+    """
+    N = phases.shape[0]
+    if N < 2:
+        raise ValueError("The input vector must contain at least two phase values.")
+
+    # Compute pairwise phase consistency
+    sinSum = torch.abs(torch.sum(torch.sin(phases), dim=axis))
+    cosSum = torch.sum(torch.cos(phases), dim=axis)
     return ((cosSum**2 + sinSum**2) - N) / (N * (N - 1))
