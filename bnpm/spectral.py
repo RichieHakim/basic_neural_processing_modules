@@ -906,6 +906,7 @@ def ppc(phases, axis=None):
     return ((cosSum**2 + sinSum**2) - N) / (N * (N - 1))
 
 
+@torch.jit.script
 def torch_ppc(phases: torch.Tensor, axis: Optional[List[int]] = None):
     """
     Exactly the same as ``ppc`` but works with torch.jit.script.
