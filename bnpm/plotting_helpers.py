@@ -417,6 +417,8 @@ def plotyy(
             y-axis values for the first axis.
         y2 (np.array):
             y-axis values for the second axis.
+        fig (matplotlib.figure):
+            Figure to plot on. If None, then a new figure is created.
         kwargs1 (dict):
             Keyword arguments for the first axis.
             Will be passed to ax1.plot().
