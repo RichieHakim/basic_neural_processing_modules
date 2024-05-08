@@ -402,13 +402,12 @@ def plotyy(
     x,
     y1,
     y2,
-    ax1=None,
-    ax2=None,
+    fig=None,
     kwargs1={},
     kwargs2={},
 ):
     """
-    Plot two y-axes on the same x-axis.
+    Plot two y-axes on the same x-axis. Assumes that a 
     RH 2022
 
     Args:
@@ -418,12 +417,6 @@ def plotyy(
             y-axis values for the first axis.
         y2 (np.array):
             y-axis values for the second axis.
-        ax1 (matplotlib.axes):
-            First axis.
-            Optional.
-        ax2 (matplotlib.axes):
-            Second axis.
-            Optional.
         kwargs1 (dict):
             Keyword arguments for the first axis.
             Will be passed to ax1.plot().
@@ -437,9 +430,10 @@ def plotyy(
         ax2 (matplotlib.axes):
             Second axis.
     """
+    fig = plt.figure() if fig is None else fig
     x = np.arange(y1.shape[0]) if x is None else x
-    fig, ax1 = plt.subplots() if ax1 is None else (None, ax1)
-    ax2 = ax1.twinx() if ax2 is None else ax2
+    ax1 = fig.add_subplot(111)
+    ax2 = ax1.twinx()
     ax1.plot(x, y1, **kwargs1)
     ax2.plot(x, y2, **kwargs2)
 
