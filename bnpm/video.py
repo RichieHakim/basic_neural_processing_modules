@@ -1,5 +1,5 @@
 import threading
-from typing import Union
+from typing import Union, List, Tuple, Optional
 import time
 from pathlib import Path
 
@@ -849,225 +849,414 @@ class BufferedVideoReader:
         return iter(lazy_iterator())
 
 
+# def make_tiled_video_array_old(
+#     paths_videos, 
+#     frame_idx_list, 
+#     block_height_width=[300,300],
+#     n_channels=3, 
+#     tiling_shape=None, 
+#     dtype=np.uint8,
+#     interpolation=torchvision.transforms.InterpolationMode.BICUBIC,
+#     crop_idx=None,
+#     overlay_signals=None,
+#     overlay_idx=None,
+#     overlay_color=[0,0.7,1.0],
+#     spacer_black_frames=0,
+#     pixel_val_range=None,
+#     verbose=True,
+# ):
+#     """
+#     Creates a tiled video array from a list of paths to videos.
+#     NOTE: On my Ubuntu machine:
+#         - importing 'av' after cv2 causes cv2.imshow to hang forever if
+#          cv2.imshow is not called first
+#         - importing 'decord' after cv2 causes cv2.imshow to crash the kernel
+#          if cv2.imshow is not called first
+#     RH 2022
+
+#     Args:
+#         paths_videos (list of str):
+#             List of paths to videos.
+#         frame_idx_list (ndarray, 3D, int):
+#             Shape: (n_chunks, 2, n_videos)
+#             Second dimension: (start_frame, end_frame) of chunk.
+#             Values should be positive integers.
+#             To insert black frames instead of video chunk, use
+#              [-1, -1] for the idx tuple.
+#         block_height_width (list or 2-tuple):
+#             2-tuple or list of height and width of each block.
+#         n_channels (int):
+#             Number of channels.
+#         tiling_shape (2-tuple):
+#             2-tuple or list of height and width of the tiled video.
+#             If None, then set to be square and large enough to 
+#              contain all the blocks.
+#         dtype (np.dtype):
+#             Data type of the output array. Should match the data
+#              type of the input videos.
+#         interpolation (torchvision.transforms.InterpolationMode):
+#             Interpolation mode for the video. Should be one of the
+#              torchvision.transforms.InterpolationMode values.
+#         crop_idx (list of 4-tuples):
+#             List of 4-tuples or lists of indices to crop the video.
+#             [top, bottom, left, right]
+#             If None, then no cropping is performed.
+#             Outer list should be same length as paths_videos. Each 
+#              entry should correspond to the crop indices for a video.
+#         overlay_signals (list of ndarray):
+#             List of signals to overlay on the video.
+#             Each signal should be a numpy array of shape(frames, n_channels).
+#             The signals will be represented as a white rectangle with
+#              indices from overlay_idx.
+#         overlay_idx (list or 4-tuple):
+#             List of indices to overlay the signals.
+#             [top, bottom, left, right]
+#         overlay_color (list or 3-tuple of floats):
+#             Color of the overlay.
+#             range: 0 to 1
+#         spacer_black_frames:
+#             Number of black frames to add between each chunk.
+#         pixel_val_range:
+#             2-tuple or list of the minimum and maximum pixel values.
+#             If None, then no clipping is performed.
+#         verbose:
+#             Whether to print progress.
+
+#     Returns:
+#         output video array:
+#             Tiled video array.
+#             shape(frames, tiling_shape[0]*block_height_width[0], tiling_shape[1]*block_height_width[1], channels)
+#     """
+#     import av
+#     import decord
+
+#     ##  Example values
+#     ##  - frame_idx_list = [np.array([[703,843], [743,883], [799, 939], [744, 884]]*2).T, np.array([[39,89], [43,93], [99, 149], [44, 94]]*2).T]
+#     ##  - frame_idx_list = [np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T, np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T]
+    
+#     ##  - roi = plotting_helpers.select_ROI(image)
+#     ##  - pts = np.array(roi.selected_points).squeeze().astype('uint32')
+#     ##  - crop_idx = [pts[0,1], pts[1,1], pts[0,0], pts[1,0]]*8
+#     ##  - block_height_width=[crop_idx[1]-crop_idx[0] , crop_idx[3]-crop_idx[2]]
+#     ##  - tiling_shape = [2,2]
+#     ##  - spacer_black_frames = 5
+#     ##  - paths_videos = [path_video] * 8
+
+
+#     def resize_torch(images, new_shape=[100,100], interpolation=interpolation):
+#         resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
+#         return resize(torch.as_tensor(images)).numpy()
+
+#     def add_overlay(chunk, overlay_signal, overlay_idx, overlay_color=[1,1,1]):
+#         ol_height = overlay_idx[1]-overlay_idx[0]
+#         ol_width = overlay_idx[3]-overlay_idx[2]
+#         ol = np.ones((chunk.shape[0], ol_height, ol_width, chunk.shape[3])) * overlay_signal[:,None,None,None] * np.array(overlay_color)[None,None,None,:]
+#         chunk[:, overlay_idx[0]:overlay_idx[1], overlay_idx[2]:overlay_idx[3], :] = ol
+#         return chunk
+
+#     duration_chunks = frame_idx_list[:,1,:] - frame_idx_list[:,0,:] + spacer_black_frames
+#     max_frames_per_chunk = np.nanmax(duration_chunks, axis=1)
+
+#     null_chunks = (frame_idx_list == -1).all(axis=1)
+    
+#     ## ASSERTIONS
+#     ## check to make sure that shapes are correct
+#     for i_chunk, chunk in enumerate(frame_idx_list):
+#         assert chunk.shape[0] == 2, f'RH ERROR: size of first dimension of each frame_idx matrix should be 2'
+#         assert chunk.shape[1] == len(paths_videos), f'RH ERROR: size of second dimension of each frame_idx matrix should match len(paths_videos)'
+
+#     n_vids = len(paths_videos)
+#     n_frames_total = max_frames_per_chunk.sum()  ## total number of frames in the final video
+#     block_aspect_ratio = block_height_width[0] / block_height_width[1]
+
+#     cum_start_idx_chunk = np.cumsum(np.concatenate(([0], max_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
+
+#     if tiling_shape is None:
+#         el = int(np.ceil(np.sqrt(n_vids)))  ## 'edge length' in number of videos
+#         tiling_shape = [el, el]  ## n_vids high , n_vids wide
+#     tile_grid_tmp = np.meshgrid(np.arange(tiling_shape[0]), np.arange(tiling_shape[1]))
+#     tile_position_vids = [np.reshape(val, -1, 'F') for val in tile_grid_tmp]  ## indices of tile/block positions for each video
+
+#     vid_height_width = list(np.array(block_height_width) * tiling_shape)  ## total height and width of final video
+
+
+#     tile_topLeft_idx = [[tile_position_vids[0][i_vid]*block_height_width[0], tile_position_vids[1][i_vid]*block_height_width[1]] for i_vid in range(len(paths_videos))]  ## indices of the top left pixels for each tile/block. List of lists: outer list is tile/block, inner list is [y,x] starting idx
+
+#     video_out = np.zeros((n_frames_total, vid_height_width[0], vid_height_width[1], n_channels), dtype)  ## pre-allocation of final video array
+
+#     vid_dict = {}  ## pre-allocation of video dictionary
+
+#     ## Set decord backend to PyTorch
+#     decord.bridge.set_bridge('torch')
+
+#     for i_vid, path_vid in enumerate(tqdm(paths_videos, leave=False)):
+#         if isinstance(path_vid, list):
+#             flag_multivid = True
+#             multivid_lens = [av.open(str(path)).streams.video[0].frames for path in path_vid]
+#             # multivid_lens = [len(decord.VideoReader(path)) for path in path_vid]  ## decord method of same thing
+#             cum_start_idx_multiVid = np.cumsum(np.concatenate(([0], multivid_lens)))[:-1]
+#         else:
+#             flag_multivid = False
+
+#         for i_chunk, idx_chunk in enumerate(tqdm(frame_idx_list, leave=False)):
+#             if null_chunks[i_chunk, i_vid]:
+#                 continue
+#             elif flag_multivid:
+#                 frames_remainder = idx_chunk[1,i_vid] - idx_chunk[0,i_vid]  ## initialization of remaining frames
+#                 frame_toStartGlobal = idx_chunk[0,i_vid]  ## frame to start at (in concatenated frame indices)
+
+#                 chunks_list = []
+#                 while frames_remainder > 0:
+#                     multivid_toStart = indexing.get_last_True_idx((frame_toStartGlobal - cum_start_idx_multiVid) >= 0)  ## which of the multivids to start at
+
+#                     frame_toStartInVid = frame_toStartGlobal - cum_start_idx_multiVid[multivid_toStart]  ## where to start in the vid
+
+#                     frames_toEndOfVid = multivid_lens[multivid_toStart] - frame_toStartInVid  ## number of frames left in the vid
+#                     frames_toGrab = min(frames_remainder  ,  frames_toEndOfVid)  ## number of frames to get from current vid
+#                     frames_remainder -= frames_toGrab
+
+#                     if path_vid[multivid_toStart] in vid_dict.keys():
+#                         print(f'using cached video {path_vid[multivid_toStart]}') if verbose else None
+#                     else:
+#                         vid_dict[path_vid[multivid_toStart]] = decord.VideoReader(str(path_vid[multivid_toStart]), ctx=decord.cpu())  ## open the vid
+#                         print(f'opening new video file {path_vid[multivid_toStart]}') if verbose else None
+#                     vid = vid_dict[path_vid[multivid_toStart]]
+                    
+#                     chunks_list.append(vid[frame_toStartInVid : frame_toStartInVid+frames_toGrab].numpy())  ## raw video chunk
+#                     frame_toStartGlobal += frames_toGrab
+
+#                 chunk = np.concatenate(chunks_list, axis=0)
+#             else:
+#                 vid = decord.VideoReader(path_vid, ctx=decord.cpu())
+#                 chunk = vid[idx_chunk[0, i_vid] : idx_chunk[1, i_vid]].numpy()  ## raw video chunk
+
+#             chunk_height, chunk_width, chunk_n_frames, chunk_n_channels = chunk.shape
+#             if crop_idx is not None:
+#                 chunk = chunk[:, crop_idx[i_vid][0]:crop_idx[i_vid][1], crop_idx[i_vid][2]:crop_idx[i_vid][3], :]
+
+#             ## first we get the aspect ratio right by padding to correct aspect ratio
+#             aspect_ratio = chunk.shape[1] / chunk.shape[2]
+#             if aspect_ratio >= block_aspect_ratio:
+#                 tmp_height = chunk.shape[1]
+#                 tmp_width = int(np.ceil(chunk.shape[1] / block_aspect_ratio))
+#             if aspect_ratio < block_aspect_ratio:
+#                 tmp_height = int(np.ceil(chunk.shape[2] * block_aspect_ratio))
+#                 tmp_width = chunk.shape[2]
+#             chunk_ar = image_processing.center_pad_images(chunk, height_width=[tmp_height, tmp_width])
+
+#             ## then we resize the movie to the final correct size
+#             chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=interpolation).transpose(0,2,3,1)
+
+#             if pixel_val_range is not None:
+#                 chunk_rs[chunk_rs < pixel_val_range[0]] = pixel_val_range[0]  ## clean up interpolation errors
+#                 chunk_rs[chunk_rs > pixel_val_range[1]] = pixel_val_range[1]
+
+#             ## add overlay to the chunk
+#             if overlay_signals is not None:
+#                 add_overlay(
+#                     chunk_rs, 
+#                     overlay_signals[i_vid][idx_chunk[0,i_vid]:idx_chunk[1,i_vid], i_chunk], 
+#                     overlay_idx,
+#                     overlay_color=overlay_color,
+#                     )
+
+
+#             ## drop into final video array
+#             video_out[
+#                 cum_start_idx_chunk[i_chunk] : duration_chunks[i_chunk, i_vid] + cum_start_idx_chunk[i_chunk] - spacer_black_frames,
+#                 tile_topLeft_idx[i_vid][0] : tile_topLeft_idx[i_vid][0]+block_height_width[0], 
+#                 tile_topLeft_idx[i_vid][1] : tile_topLeft_idx[i_vid][1]+block_height_width[1], 
+#                 :
+#             ] = chunk_rs
+
+#     return video_out
+
+
 def make_tiled_video_array(
-    paths_videos, 
-    frame_idx_list, 
-    block_height_width=[300,300],
-    n_channels=3, 
-    tiling_shape=None, 
-    dtype=np.uint8,
-    interpolation=torchvision.transforms.InterpolationMode.BICUBIC,
-    crop_idx=None,
-    overlay_signals=None,
-    overlay_idx=None,
-    overlay_color=[0,0.7,1.0],
-    spacer_black_frames=0,
-    pixel_val_range=None,
-    verbose=True,
-    ):
+    videos: List[np.ndarray],
+    shape: Optional[Tuple[int, int]]=None,
+    verbose: bool=True,
+):
     """
-    Creates a tiled video array from a list of paths to videos.
-    NOTE: On my Ubuntu machine:
-        - importing 'av' after cv2 causes cv2.imshow to hang forever if
-         cv2.imshow is not called first
-        - importing 'decord' after cv2 causes cv2.imshow to crash the kernel
-         if cv2.imshow is not called first
-    RH 2022
+    Make a video array from a list of ndarrays of videos.
+    RH 2024
 
     Args:
-        paths_videos (list of str):
-            List of paths to videos.
-        frame_idx_list (ndarray, 3D, int):
-            Shape: (n_chunks, 2, n_videos)
-            Second dimension: (start_frame, end_frame) of chunk.
-            Values should be positive integers.
-            To insert black frames instead of video chunk, use
-             [-1, -1] for the idx tuple.
-        block_height_width (list or 2-tuple):
-            2-tuple or list of height and width of each block.
-        n_channels (int):
-            Number of channels.
-        tiling_shape (2-tuple):
-            2-tuple or list of height and width of the tiled video.
-            If None, then set to be square and large enough to 
-             contain all the blocks.
-        dtype (np.dtype):
-            Data type of the output array. Should match the data
-             type of the input videos.
-        interpolation (torchvision.transforms.InterpolationMode):
-            Interpolation mode for the video. Should be one of the
-             torchvision.transforms.InterpolationMode values.
-        crop_idx (list of 4-tuples):
-            List of 4-tuples or lists of indices to crop the video.
-            [top, bottom, left, right]
-            If None, then no cropping is performed.
-            Outer list should be same length as paths_videos. Each 
-             entry should correspond to the crop indices for a video.
-        overlay_signals (list of ndarray):
-            List of signals to overlay on the video.
-            Each signal should be a numpy array of shape(frames, n_channels).
-            The signals will be represented as a white rectangle with
-             indices from overlay_idx.
-        overlay_idx (list or 4-tuple):
-            List of indices to overlay the signals.
-            [top, bottom, left, right]
-        overlay_color (list or 3-tuple of floats):
-            Color of the overlay.
-            range: 0 to 1
-        spacer_black_frames:
-            Number of black frames to add between each chunk.
-        pixel_val_range:
-            2-tuple or list of the minimum and maximum pixel values.
-            If None, then no clipping is performed.
-        verbose:
+        videos (List[np.ndarray]):
+            List of video arrays.
+            Shape: (frames, height, width, channels) or (frames, height, width)
+            All videos should have the same dtype.
+        shape (Tuple[int, int]):
+            Shape of the final video array.
+            (height, width)
+            If None, then the videos will be tiled into the smallest square.
+            Videos are indexed from top to bottom, then left to right.
+        verbose (bool):
             Whether to print progress.
-
-    Returns:
-        output video array:
-            Tiled video array.
-            shape(frames, tiling_shape[0]*block_height_width[0], tiling_shape[1]*block_height_width[1], channels)
     """
-    import av
-    import decord
-
-    ##  Example values
-    ##  - frame_idx_list = [np.array([[703,843], [743,883], [799, 939], [744, 884]]*2).T, np.array([[39,89], [43,93], [99, 149], [44, 94]]*2).T]
-    ##  - frame_idx_list = [np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T, np.array([[37900,38050], [37900,38050], [37900,38050], [37900,38050]]*2).T]
+    ## Check inputs
+    assert isinstance(videos, list), f"videos must be a list. Got {type(videos)}"
+    assert all([isinstance(video, np.ndarray) for video in videos]), f"All elements of videos must be numpy arrays. Got {[type(video) for video in videos]}"
+    assert all([video.dtype == videos[0].dtype for video in videos]), f"All videos must have the same dtype. Got {[video.dtype for video in videos]}"
+    if shape is not None:
+        assert isinstance(shape, tuple), f"shape must be a tuple. Got {type(shape)}"
+        assert len(shape) == 2, f"shape must be a 2-tuple. Got {len(shape)} elements"
+        assert all([isinstance(val, int) for val in shape]), f"shape must contain only integers. Got {shape}"
     
-    ##  - roi = plotting_helpers.select_ROI(image)
-    ##  - pts = np.array(roi.selected_points).squeeze().astype('uint32')
-    ##  - crop_idx = [pts[0,1], pts[1,1], pts[0,0], pts[1,0]]*8
-    ##  - block_height_width=[crop_idx[1]-crop_idx[0] , crop_idx[3]-crop_idx[2]]
-    ##  - tiling_shape = [2,2]
-    ##  - spacer_black_frames = 5
-    ##  - paths_videos = [path_video] * 8
-
-
-    def resize_torch(images, new_shape=[100,100], interpolation=interpolation):
-        resize = torchvision.transforms.Resize(new_shape, interpolation=interpolation, max_size=None, antialias=None)
-        return resize(torch.as_tensor(images)).numpy()
-
-    def add_overlay(chunk, overlay_signal, overlay_idx, overlay_color=[1,1,1]):
-        ol_height = overlay_idx[1]-overlay_idx[0]
-        ol_width = overlay_idx[3]-overlay_idx[2]
-        ol = np.ones((chunk.shape[0], ol_height, ol_width, chunk.shape[3])) * overlay_signal[:,None,None,None] * np.array(overlay_color)[None,None,None,:]
-        chunk[:, overlay_idx[0]:overlay_idx[1], overlay_idx[2]:overlay_idx[3], :] = ol
-        return chunk
-
-    duration_chunks = frame_idx_list[:,1,:] - frame_idx_list[:,0,:] + spacer_black_frames
-    max_frames_per_chunk = np.nanmax(duration_chunks, axis=1)
-
-    null_chunks = (frame_idx_list == -1).all(axis=1)
+    n_videos = len(videos)
     
-    ## ASSERTIONS
-    ## check to make sure that shapes are correct
-    for i_chunk, chunk in enumerate(frame_idx_list):
-        assert chunk.shape[0] == 2, f'RH ERROR: size of first dimension of each frame_idx matrix should be 2'
-        assert chunk.shape[1] == len(paths_videos), f'RH ERROR: size of second dimension of each frame_idx matrix should match len(paths_videos)'
+    ## Set the output array shape
+    if shape is None:
+        n_height = int(np.floor(np.sqrt(n_videos)))
+        n_width = int(np.ceil(np.sqrt(n_videos)))
+        shape = (n_height, n_width)
+    assert shape[0] * shape[1] >= n_videos, f"shape[0] * shape[1] must be greater than or equal to the number of videos. Got {shape[0] * shape[1]} < {n_videos}"
+    print(f"Making video array with shape: {shape} videos") if verbose else None
 
-    n_vids = len(paths_videos)
-    n_frames_total = max_frames_per_chunk.sum()  ## total number of frames in the final video
-    block_aspect_ratio = block_height_width[0] / block_height_width[1]
+    ## Pad the videos' dimensions to 4D
+    for ii, video in enumerate(videos):
+        assert video.ndim in [3,4], f"videos[{ii}] must be 3D or 4D. Got {video.ndim} dimensions"
+        if video.ndim == 3:
+            videos[ii] = video[..., None]
 
-    cum_start_idx_chunk = np.cumsum(np.concatenate(([0], max_frames_per_chunk)))[:-1] ## cumulative starting indices of temporal chunks in final video
+    ## Get the shapes of each video
+    n_frames, heights, widths, channels = (np.array([video.shape[ii] for video in videos]) for ii in range(4))
+    max_frames = max(n_frames)
+    print(f"Max video length and total frames in output video array: {max_frames}") if verbose else None
 
-    if tiling_shape is None:
-        el = int(np.ceil(np.sqrt(n_vids)))  ## 'edge length' in number of videos
-        tiling_shape = [el, el]  ## n_vids high , n_vids wide
-    tile_grid_tmp = np.meshgrid(np.arange(tiling_shape[0]), np.arange(tiling_shape[1]))
-    tile_position_vids = [np.reshape(val, -1, 'F') for val in tile_grid_tmp]  ## indices of tile/block positions for each video
+    ## Get the dtype of the videos
+    dtype = videos[0].dtype  ## all videos should have the same dtype given the assertions above
+    print(f"Video dtype: {dtype}") if verbose else None
 
-    vid_height_width = list(np.array(block_height_width) * tiling_shape)  ## total height and width of final video
+    ## Assign video array indices for each video
+    idx_videoArray_videos = np.array([(ii % shape[0], ii // shape[0]) for ii in range(n_videos)])
+    print(f"Video array indices: {idx_videoArray_videos}") if verbose else None
+    ## Get total lengths and heights of the final array
+    ### Get max width for each column
+    widths_col = np.array([np.max(widths[idx_videoArray_videos[:,1] == ii]) for ii in np.unique(idx_videoArray_videos[:,1])])
+    ### Get max height for each row
+    heights_row = np.array([np.max(heights[idx_videoArray_videos[:,0] == ii]) for ii in np.unique(idx_videoArray_videos[:,0])])
+    ### Make final shape
+    final_shape = (max_frames, np.sum(heights_row), np.sum(widths_col), channels[0])
+    video_array = np.zeros(final_shape, dtype)
+    print(f"Final output array shape: {video_array.shape}") if verbose else None
+
+    ## Fill the video array
+    ### Get idx_top for each video
+    idx_tops_rows = np.cumsum(np.concatenate(([0], heights_row)))[:-1]
+    idx_tops_cols = np.cumsum(np.concatenate(([0], widths_col)))[:-1]
+    print(f"idx_tops_rows: {idx_tops_rows}, idx_tops_cols: {idx_tops_cols}") if verbose else None
+    for ii, video in enumerate(videos):
+        idx_top = idx_tops_rows[idx_videoArray_videos[ii,0]]
+        idx_left = idx_tops_cols[idx_videoArray_videos[ii,1]]
+        ### Fill the video array
+        video_array[:video.shape[0], idx_top:idx_top+video.shape[1], idx_left:idx_left+video.shape[2], :] = video
+
+    return video_array
 
 
-    tile_topLeft_idx = [[tile_position_vids[0][i_vid]*block_height_width[0], tile_position_vids[1][i_vid]*block_height_width[1]] for i_vid in range(len(paths_videos))]  ## indices of the top left pixels for each tile/block. List of lists: outer list is tile/block, inner list is [y,x] starting idx
+def add_signal_overlay(
+    vid: np.ndarray,
+    signal: np.ndarray,
+    normalize: bool=True,
+    width: int=10,
+    overlay_or_concatenate: str='overlay',
+    position: str='bottom',
+    color: Tuple[float, float, float]=(1,1,1),
+) -> np.ndarray:
+    """
+    Add a signal overlay to a video array.
+    RH 2024
 
-    video_out = np.zeros((n_frames_total, vid_height_width[0], vid_height_width[1], n_channels), dtype)  ## pre-allocation of final video array
-
-    vid_dict = {}  ## pre-allocation of video dictionary
-
-    for i_vid, path_vid in enumerate(tqdm(paths_videos, leave=False)):
-        if isinstance(path_vid, list):
-            flag_multivid = True
-            multivid_lens = [av.open(str(path)).streams.video[0].frames for path in path_vid]
-            # multivid_lens = [len(decord.VideoReader(path)) for path in path_vid]  ## decord method of same thing
-            cum_start_idx_multiVid = np.cumsum(np.concatenate(([0], multivid_lens)))[:-1]
+    Args:
+        vid (np.ndarray):
+            Video array to add overlay to.
+            Shape: (frames, height, width, channels) or (frames, height, width)
+            len(frames) must be equal to vid.shape[0].
+        signal (np.ndarray):
+            Signal to overlay.
+            Shape: (frames, n_channels) or (frames,)
+            len(frames) must be equal to vid.shape[0].
+            Either signal.ndim must be 1 OR n_channels must be equal to
+            vid.shape[-1].
+        normalize (bool):
+            Whether to normalize the signal. \n
+            If True: \n
+                If vid.dtype is a float type, then the max value of the signal
+                is normalized to 1. If vid.dtype is an integer type, then the
+                max value of the signal is normalized to the maximum value of
+                the integer type. \n
+            If False: \n
+                The signal and the vid must have the same dtype.
+        width (int):
+            Width of the overlay in pixels.  
+        overlay_or_concatenate (str):
+            Whether to 'overlay' the signal on top of the video or to 'concatenate' the signal to the video.
+            Options: 'overlay', 'concatenate'
+        position (str):
+            Position to overlay the signal.
+            Options: 'top', 'bottom'
+        color (Union[Tuple[float, float, float], List[float], np.ndarray):
+            Color of the overlay.
+            Shape: (n_channels,)
+            range: 0 to 1
+    """
+    ## Check inputs
+    assert isinstance(vid, np.ndarray), f"vid must be a numpy array. Got {type(vid)}"
+    assert isinstance(signal, np.ndarray), f"signal must be a numpy array. Got {type(signal)}"
+    assert vid.ndim in [3,4], f"vid must be 3D or 4D. Got {vid.ndim} dimensions"
+    vid = vid[..., None] if vid.ndim == 3 else vid
+    assert signal.ndim in [1,2], f"signal must be 1D or 2D. Got {signal.ndim} dimensions"
+    signal = signal[..., None] if signal.ndim == 1 else signal
+    assert vid.shape[0] == signal.shape[0], f"len(frames) of vid and signal must be equal. Got {vid.shape[0]} != {signal.shape[0]}"
+    assert (signal.shape[1] == 1) or (signal.shape[1] == vid.shape[-1]), f"signal must have 1 channel or the same number of channels as vid. Got {signal.shape[1]} channels in signal and {vid.shape[-1]} channels in vid"
+    if not normalize:
+        assert vid.dtype == signal.dtype, f"vid and signal must have the same dtype if normalize is False. Got {vid.dtype} and {signal.dtype}"
+    assert isinstance(width, int), f"width must be an integer. Got {type(width)}"
+    assert isinstance(color, (tuple, list, np.ndarray)), f"color must be a tuple, list, or numpy array. Got {type(color)}"
+    
+    ## Normalize the signal
+    if normalize:
+        if np.issubdtype(vid.dtype, np.floating):
+            signal = (signal / np.max(signal)).astype(vid.dtype)
         else:
-            flag_multivid = False
+            signal = ((signal / np.max(signal)) * np.iinfo(vid.dtype).max).astype(vid.dtype)
+            
+    ## Get the color
+    color = np.array(color, dtype=vid.dtype)
 
-
-        for i_chunk, idx_chunk in enumerate(tqdm(frame_idx_list, leave=False)):
-            if null_chunks[i_chunk, i_vid]:
-                continue
-            elif flag_multivid:
-                frames_remainder = idx_chunk[1,i_vid] - idx_chunk[0,i_vid]  ## initialization of remaining frames
-                frame_toStartGlobal = idx_chunk[0,i_vid]  ## frame to start at (in concatenated frame indices)
-
-                chunks_list = []
-                while frames_remainder > 0:
-                    multivid_toStart = indexing.get_last_True_idx((frame_toStartGlobal - cum_start_idx_multiVid) >= 0)  ## which of the multivids to start at
-
-                    frame_toStartInVid = frame_toStartGlobal - cum_start_idx_multiVid[multivid_toStart]  ## where to start in the vid
-
-                    frames_toEndOfVid = multivid_lens[multivid_toStart] - frame_toStartInVid  ## number of frames left in the vid
-                    frames_toGrab = min(frames_remainder  ,  frames_toEndOfVid)  ## number of frames to get from current vid
-                    frames_remainder -= frames_toGrab
-
-                    if path_vid[multivid_toStart] in vid_dict.keys():
-                        print(f'using cached video {path_vid[multivid_toStart]}') if verbose else None
-                    else:
-                        vid_dict[path_vid[multivid_toStart]] = decord.VideoReader(str(path_vid[multivid_toStart]), ctx=decord.cpu())  ## open the vid
-                        print(f'opening new video file {path_vid[multivid_toStart]}') if verbose else None
-                    vid = vid_dict[path_vid[multivid_toStart]]
-                    
-                    chunks_list.append(vid[frame_toStartInVid : frame_toStartInVid+frames_toGrab].asnumpy())  ## raw video chunk
-                    frame_toStartGlobal += frames_toGrab
-
-                chunk = np.concatenate(chunks_list, axis=0)
-            else:
-                vid = decord.VideoReader(path_vid, ctx=decord.cpu())
-                chunk = vid[idx_chunk[0, i_vid] : idx_chunk[1, i_vid]].asnumpy()  ## raw video chunk
-
-            chunk_height, chunk_width, chunk_n_frames, chunk_n_channels = chunk.shape
-            if crop_idx is not None:
-                chunk = chunk[:, crop_idx[i_vid][0]:crop_idx[i_vid][1], crop_idx[i_vid][2]:crop_idx[i_vid][3], :]
-
-            ## first we get the aspect ratio right by padding to correct aspect ratio
-            aspect_ratio = chunk.shape[1] / chunk.shape[2]
-            if aspect_ratio >= block_aspect_ratio:
-                tmp_height = chunk.shape[1]
-                tmp_width = int(np.ceil(chunk.shape[1] / block_aspect_ratio))
-            if aspect_ratio < block_aspect_ratio:
-                tmp_height = int(np.ceil(chunk.shape[2] * block_aspect_ratio))
-                tmp_width = chunk.shape[2]
-            chunk_ar = image_processing.center_pad_images(chunk, height_width=[tmp_height, tmp_width])
-
-            ## then we resize the movie to the final correct size
-            chunk_rs = resize_torch(chunk_ar.transpose(0,3,1,2), new_shape=block_height_width, interpolation=interpolation).transpose(0,2,3,1)
-
-            if pixel_val_range is not None:
-                chunk_rs[chunk_rs < pixel_val_range[0]] = pixel_val_range[0]  ## clean up interpolation errors
-                chunk_rs[chunk_rs > pixel_val_range[1]] = pixel_val_range[1]
-
-            ## add overlay to the chunk
-            if overlay_signals is not None:
-                add_overlay(
-                    chunk_rs, 
-                    overlay_signals[i_vid][idx_chunk[0,i_vid]:idx_chunk[1,i_vid], i_chunk], 
-                    overlay_idx,
-                    overlay_color=overlay_color,
-                    )
-
-
-            ## drop into final video array
-            video_out[
-                cum_start_idx_chunk[i_chunk] : duration_chunks[i_chunk, i_vid] + cum_start_idx_chunk[i_chunk] - spacer_black_frames,
-                tile_topLeft_idx[i_vid][0] : tile_topLeft_idx[i_vid][0]+block_height_width[0], 
-                tile_topLeft_idx[i_vid][1] : tile_topLeft_idx[i_vid][1]+block_height_width[1], 
-                :
-            ] = chunk_rs
-
-    return video_out
+    ## Make the overlay
+    if position in ['top', 'bottom']:
+        overlay = np.ones((vid.shape[0], width, vid.shape[2], vid.shape[3],), dtype=vid.dtype)
+    elif position in ['left', 'right']:
+        overlay = np.ones((vid.shape[0], vid.shape[1], width, vid.shape[3],), dtype=vid.dtype)
+    else:
+        raise ValueError(f"Invalid position: {position}")
+    overlay = overlay * color[None,None,None,:] * signal[:,None,None,:]
+    
+    ## Overlay the signal
+    if overlay_or_concatenate == 'overlay':
+        if position == 'top':
+            vid[:, :width, :, :] = overlay
+        elif position == 'bottom':
+            vid[:, -width:, :, :] = overlay
+        elif position == 'left':
+            vid[:, :, :width, :] = overlay
+        elif position == 'right':
+            vid[:, :, -width:, :] = overlay
+    elif overlay_or_concatenate == 'concatenate':
+        if position == 'top':
+            vid = np.concatenate([overlay, vid], axis=1)
+        elif position == 'bottom':
+            vid = np.concatenate([vid, overlay], axis=1)
+        elif position == 'left':
+            vid = np.concatenate([overlay, vid], axis=2)
+        elif position == 'right':
+            vid = np.concatenate([vid, overlay], axis=2)
+    else:
+        raise ValueError(f"Invalid overlay_or_concatenate: {overlay_or_concatenate}")
+    
+    return vid
 
 
 def save_array_as_video_ffmpeg(
