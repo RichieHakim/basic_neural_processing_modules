@@ -29,6 +29,7 @@ wandb
 torch
 torchvision
 torchaudio
+toolz
 
 ## Optional / Advanced
 tables

@@ -84,6 +84,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'wandb',
     'sqlalchemy',
     'pymysql',
+    'toolz',
 ]}
 
 deps_advanced = {dep: deps_all_dict[dep] for dep in [
