@@ -49,6 +49,7 @@ jupyter
 PyWavelets
 mat73
 pathos
+pygame
 
 ## For PostgreSQL
 psycopg2

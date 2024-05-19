@@ -158,6 +158,60 @@ def play_video_cv2(
         cv2.destroyWindow('handle')
 
 
+def play_video_pygame(
+    array=None,
+    frameRate=30,
+    frame_counter=False,
+):
+    """
+    Play a video using Pygame.
+    Press 'q' or 'ESC' to quit.
+    RH 2024
+
+    Args:
+        array (np.ndarray):
+            3D or 4D array of images. Shape should be (frames, height, width) or
+            (frames, height, width, channels).
+            dtype must be uint8, and scaling assumed to be between 0 and 255.
+        frameRate:  
+            Frame rate of the video (in Hz)
+        frame_counter (bool):
+            Display a frame counter (zero-indexed).
+    """
+    import pygame
+    
+    if array.ndim == 3:
+        array = np.stack([array]*3, axis=-1)
+
+    array = array.transpose(0, 2, 1, 3)
+    frame_height, frame_width = array.shape[2], array.shape[1]
+    
+    pygame.init()
+    screen = pygame.display.set_mode((frame_width, frame_height))
+    clock = pygame.time.Clock()
+
+    running = True
+    i_frame = 0
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_ESCAPE, pygame.K_q]:
+                    running = False
+
+        screen.blit(pygame.surfarray.make_surface(array[i_frame]), (0, 0))
+        if frame_counter:
+            font = pygame.font.Font(None, 36)
+            text = font.render(f'{i_frame}', True, (255, 255, 255))
+            screen.blit(text, (10, 10))        
+        pygame.display.flip()
+        clock.tick(frameRate)
+        i_frame = (i_frame + 1) % array.shape[0]
+
+    pygame.quit()
+
+
 def grayscale_to_rgb(array):
     """
     Convert a grayscale image (2D array) or movie (3D array) to
