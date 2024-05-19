@@ -203,3 +203,52 @@ def zscore_to_pvalue(z, two_tailed=True):
         return 2 * scipy.stats.norm.sf(np.abs(z))
     else:
         return scipy.stats.norm.sf(np.abs(z))
+    
+
+def multiTest_two_sample_independence(
+    a,
+    b,
+) -> dict:
+    """
+    Perform multiple tests for two-sample independence.
+    This function performs the following tests: \n
+        * Two-sample t-test
+            * equal variance, unequal variance
+            * two-tailed, greater, less
+        * Mann-Whitney U test
+            * two-tailed, greater, less
+
+    Args:
+        a (np.ndarray or torch.Tensor): 
+            The first samples.
+        b (np.ndarray or torch.Tensor):
+            The second samples.
+
+    Returns:
+        dict:
+            A dictionary containing the results of the tests.
+    """
+    # Perform two-sample t-test
+    ttest_ind = scipy.stats.ttest_ind(a, b, equal_var=True)
+    ttest_ind_unequal = scipy.stats.ttest_ind(a, b, equal_var=False)
+    ttest_ind_greater = scipy.stats.ttest_ind(a, b, alternative="greater")
+    ttest_ind_unequal_greater = scipy.stats.ttest_ind(a, b, equal_var=False, alternative="greater")
+    ttest_ind_less = scipy.stats.ttest_ind(a, b, alternative="less")
+    ttest_ind_unequal_less = scipy.stats.ttest_ind(a, b, equal_var=False, alternative="less")
+
+    # Perform Mann-Whitney U test
+    mannwhitneyu = scipy.stats.mannwhitneyu(a, b, alternative="two-sided")
+    mannwhitneyu_greater = scipy.stats.mannwhitneyu(a, b, alternative="greater")
+    mannwhitneyu_less = scipy.stats.mannwhitneyu(a, b, alternative="less")
+
+    return {
+        "ttest_ind": ttest_ind,
+        "ttest_ind_unequal": ttest_ind_unequal,
+        "ttest_ind_greater": ttest_ind_greater,
+        "ttest_ind_unequal_greater": ttest_ind_unequal_greater,
+        "ttest_ind_less": ttest_ind_less,
+        "ttest_ind_unequal_less": ttest_ind_unequal_less,
+        "mannwhitneyu": mannwhitneyu,
+        "mannwhitneyu_greater": mannwhitneyu_greater,
+        "mannwhitneyu_less": mannwhitneyu_less,
+    }
