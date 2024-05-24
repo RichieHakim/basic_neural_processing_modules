@@ -177,8 +177,8 @@ def mtaper_specgram(
     **kwargs
 ):
     """
-    Multi-taper spectrogram
-    RH 2021
+    Multi-taper spectrogram.
+    From Jeff Markowitz.
 
         Args:
             signal (array type): 
