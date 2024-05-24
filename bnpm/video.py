@@ -161,6 +161,7 @@ def play_video_cv2(
 def play_video_pygame(
     array=None,
     frameRate=30,
+    loop=True,
     frame_counter=False,
 ):
     """
@@ -175,6 +176,8 @@ def play_video_pygame(
             dtype must be uint8, and scaling assumed to be between 0 and 255.
         frameRate:  
             Frame rate of the video (in Hz)
+        loop (bool):
+            Whether to loop the video or not.
         frame_counter (bool):
             Display a frame counter (zero-indexed).
     """
@@ -207,8 +210,11 @@ def play_video_pygame(
             screen.blit(text, (10, 10))        
         pygame.display.flip()
         clock.tick(frameRate)
+        if not loop:
+            if i_frame >= array.shape[0] - 1:
+                running = False
         i_frame = (i_frame + 1) % array.shape[0]
-
+        
     pygame.quit()
 
 
@@ -1133,6 +1139,7 @@ def make_tiled_video_array(
 ):
     """
     Make a video array from a list of ndarrays of videos.
+    Order of videos is top to bottom, then left to right.
     RH 2024
 
     Args:
