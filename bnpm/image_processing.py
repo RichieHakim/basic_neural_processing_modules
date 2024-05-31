@@ -1739,3 +1739,47 @@ def resize_images(
         images_resized = images_resized.detach().cpu().numpy()
     
     return images_resized
+
+
+def image_to_uint8(
+    images, 
+    dtype_intermediate=np.float32,
+    clip=True,
+):
+    """
+    Convert any dtype images to uint8.
+    RH 2023
+
+    Args:
+        images (np.ndarray):
+            Input images.
+            If dtype is integer, then the range is assumed to be [0, max_val].
+            If dtype is float, then the range is assumed to be [0, 1].
+        dtype_intermediate (np.dtype):
+            Intermediate dtype to use for conversion.
+        clip (bool):
+            If True, then will clip values to [0, 255]. Otherwise, over and
+            underflow will be allowed.
+
+    Returns:
+        images_uint8 (np.ndarray):
+            Output images.
+            Shape matches input images.
+    """
+    ## Get dtype range
+    dtype = images.dtype
+    if np.issubdtype(dtype, np.integer):
+        min_val = 0
+        max_val = np.iinfo(dtype).max
+    elif np.issubdtype(dtype, np.floating):
+        min_val = 0
+        max_val = 1
+    else:
+        raise ValueError(f"images must be an integer or float dtype. Got {dtype}")
+    
+    ## Convert to uint8
+    images = images.astype(dtype_intermediate)
+    images = (images - min_val) / (max_val - min_val) * 255
+    images = images.clip(0, 255).astype(np.uint8) if clip else images.astype(np.uint8)
+
+    return images
