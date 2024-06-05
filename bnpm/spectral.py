@@ -101,7 +101,8 @@ def design_fir_bandpass(lowcut, highcut, num_taps=30001, q=None, fs=30, window='
                 number of taps in the filter. If None, then q is used.
             q (scalar):
                 quality factor. \n
-                ``num_taps = int(fs / lowcut) * q``. \n
+                ``num_taps = int(fs / f) * q``. \n
+                where f is lowcut if lowcut > 0 else highcut. \n
                 If None, then num_taps is used.
             fs (scalar): 
                 sample rate (frequency in Hz)
@@ -119,6 +120,7 @@ def design_fir_bandpass(lowcut, highcut, num_taps=30001, q=None, fs=30, window='
     high = highcut / nyq
 
     if q is not None:
+        f = lowcut if lowcut > 0 else highcut
         num_taps = int((fs / lowcut) * q)
         num_taps = num_taps + 1 if num_taps % 2 == 0 else num_taps
 
