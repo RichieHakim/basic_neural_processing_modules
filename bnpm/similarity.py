@@ -483,7 +483,7 @@ def EV(y_true, y_pred):
     return EV , EV_total_weighted , EV_total_unweighted
 
 
-def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
+def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1, matrix=True):
     '''
     Computes similarity matrices between two sets of vectors (columns within
     2-D arrays) using either covariance, Pearson correlation or cosine_similarity.
@@ -504,6 +504,9 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         ddof (scalar/int):
             Used if method=='cov'. Define the degrees of freedom. Set to 1 for
             unbiased calculation, 0 for biased calculation.
+        matrix (bool):
+            If True, computes all to all similarity. If False, computes
+            similarities only between matching columns of v1 and v2.
     Returns:
         ouput (ndarray):
             similarity matrix dependent on method
@@ -513,9 +516,9 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
     assert method in methods, f'RH Error: method must be one of: {methods}'
 
     if isinstance(v1, np.ndarray):
-        mean, sum, sqrt, norm = np.mean, np.sum, np.sqrt, np.linalg.norm
+        mean, sum, sqrt, norm, einsum = np.mean, np.sum, np.sqrt, np.linalg.norm, np.einsum
     elif isinstance(v1, torch.Tensor):
-        mean, sum, sqrt, norm = torch.mean, torch.sum, torch.sqrt, torch.linalg.norm
+        mean, sum, sqrt, norm, einsum = torch.mean, torch.sum, torch.sqrt, torch.linalg.norm, torch.einsum
 
     if v2 is None:
         v2 = v1
@@ -528,7 +531,10 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
     if method=='cov':
         v1_ms = v1 - mean(v1, axis=0) # 'mean subtracted'
         v2_ms = v2 - mean(v2, axis=0)
-        output = (v1_ms.T @ v2_ms) / (v1.shape[0] - ddof)
+        if matrix:
+            output = (v1_ms.T @ v2_ms) / (v1.shape[0] - ddof) 
+        else:
+            output = (v1_ms * v2_ms).sum(axis=0) / (v1.shape[0] - ddof)
     if method in ['pearson', 'R']: 
         # Below method should be as fast as numpy.corrcoef . 
         # Output should be same within precision, but 
@@ -539,9 +545,18 @@ def pairwise_similarity(v1 , v2=None , method='pearson' , ddof=1):
         # prediction. Best to use EV for R^2 if unsure
         v1_ms = v1 - mean(v1, axis=0) # 'mean subtracted'
         v2_ms = v2 - mean(v2, axis=0)
-        output = (v1_ms.T @ v2_ms) / sqrt(sum(v1_ms**2, axis=0, keepdims=True).T * sum(v2_ms**2, axis=0, keepdims=True))
-    if method=='cosine_similarity':    
-        output = (v1 / (norm(v1 , axis=0, keepdims=True))).T  @ (v2  / norm(v2 , axis=0, keepdims=True))
+        if matrix:
+            output = (v1_ms.T @ v2_ms) / (norm(v1_ms, ord=2, axis=0, keepdims=True).T * norm(v2_ms, ord=2, axis=0, keepdims=True))
+        else:
+            # output = (v1_ms * v2_ms).sum(axis=0) / sqrt(sum(v1_ms**2, axis=0) * sum(v2_ms**2, axis=0))
+            output = (v1_ms * v2_ms).sum(axis=0) / (norm(v1_ms, ord=2, axis=0) * norm(v2_ms, ord=2, axis=0))
+            # output = (v1_ms.T[:, None, :] @ v2_ms.T[:, :, None]).squeeze() / (norm(v1_ms, ord=2, axis=0) * norm(v2_ms, ord=2, axis=0))
+            # output = einsum('ij,ij->j', v1_ms, v2_ms) / (norm(v1_ms, ord=2, axis=0) * norm(v2_ms, ord=2, axis=0))
+    if method=='cosine_similarity': 
+        if matrix:
+            output = (v1 / (norm(v1 , axis=0, keepdims=True))).T  @ (v2  / norm(v2 , axis=0, keepdims=True))
+        else:
+            output = ((v1 / norm(v1 , axis=0)) * (v2  / norm(v2 , axis=0))).sum(axis=0)
     return output
     
 
