@@ -98,10 +98,10 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
             dictionary to flatten
         parent_key (str):
             key to prepend to flattened keys
-            IGNORE: USED INTERNALLY FOR RECURSION
+            USED INTERNALLY FOR RECURSION
         sep (str):
             separator to use between keys
-            IGNORE: USED INTERNALLY FOR RECURSION
+            USED INTERNALLY FOR RECURSION
 
     Returns:
         output (Dict):
