@@ -729,6 +729,51 @@ class Cmap_conjunctive:
         return colors
 
 
+def complex_colormap(
+    mags: np.ndarray, 
+    angles: np.ndarray, 
+    normalize_mags: bool = True,
+    color_sin: Tuple[int, int, int] = (255, 0, 0),
+    color_cos: Tuple[int, int, int] = (0, 0, 255),
+) -> np.ndarray:
+    """
+    Generates an RGB colormap for complex values based on magnitude and angle.
+
+    The colors vary with the angle and the brightness varies with
+    the magnitude.
+
+    Args:
+        mags (np.ndarray): 
+            Array of magnitudes.
+        angles (np.ndarray): 
+            Array of angles in radians.
+        normalize_mags (bool):
+            If True, applies min-max normalization to the magnitudes.
+
+    Returns:
+        np.ndarray: 
+            Array with RGB values.
+    """
+    assert mags.shape == angles.shape, "The shapes of mags and angles must be the same."
+
+    ## Normalize the magnitudes to the range [0, 1]
+    if normalize_mags:
+        mags_norm = (mags - np.min(mags)) / (np.max(mags) - np.min(mags))
+    mags_norm = np.clip(mags_norm, 0, 1)
+
+    ## Initialize the RGB array
+    rgb = np.zeros((mags.size, 3))
+
+    ## Apply the colors according to the angles
+    rgb += np.array(color_sin)[None, :] * np.sin(angles)[:, None]
+    rgb += np.array(color_cos)[None, :] * np.cos(angles)[:, None]
+
+    ## Apply the brightness according to the normalized magnitudes
+    rgb *= mags_norm[:, None]
+
+    return rgb
+
+
 class Figure_Saver:
     """
     Class for saving figures
