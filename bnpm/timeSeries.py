@@ -65,6 +65,8 @@ def convolve_along_axis(
     '''
     tic = time.time()
 
+    axis = array.ndim + axis if axis<0 else axis  ## convert negative axis to positive axis
+
     if array.ndim == 1:
         multicore_pref = False
     if multicore_pref:
