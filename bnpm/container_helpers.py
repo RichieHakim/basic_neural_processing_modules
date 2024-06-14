@@ -24,7 +24,8 @@ class lazy_repeat_obj(itertools.repeat):
         obj (Any):
             Object to repeat.
         pseudo_length (int):
-            length of the iterator.
+            length of the iterator. Don't use keyword argument, just pass the
+            length as the second argument.
     """
     def __init__(
         self, 
