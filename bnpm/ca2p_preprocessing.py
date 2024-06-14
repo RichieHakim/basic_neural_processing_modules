@@ -24,7 +24,7 @@ def make_dFoF(
     channelOffset_correction=0,
     multicore_pref=False, 
     verbose=True,
-    ):
+):
     """
     Calculates the dF/F and other signals. Designed for Suite2p data.
     If Fneu is left empty or =None, then no neuropil subtraction done.
