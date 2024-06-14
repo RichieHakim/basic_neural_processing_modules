@@ -804,9 +804,9 @@ def torch_coherence(
         pad_value=pad_last_segment,
     ) for var in (x, y))
     
+    process_segment = lambda x: torch.fft.rfft(fn_detrend(x, axis=-1) * window, n=nfft, dim=-1)  ## Note the broadcasting of 1-D window with last dimension of x
     ## Perform Welch's averaging of FFT segments
     for segs_x, segs_y in zip(x_batches, y_batches):
-        process_segment = lambda x: torch.fft.rfft(fn_detrend(x, axis=-1) * window, n=nfft, dim=-1)  ## Note the broadcasting of 1-D window with last dimension of x
         segs_x = process_segment(segs_x)
         segs_y = process_segment(segs_y)
         f_cross += (torch.sum(torch.conj(segs_x) * segs_y, dim=axis).moveaxis(-1, axis)) / num_segments
@@ -937,4 +937,46 @@ def torch_ppc(phases: torch.Tensor, axis: int = -1):
     # Compute pairwise phase consistency
     sinSum = torch.abs(torch.sum(torch.sin(phases), dim=axis))
     cosSum = torch.sum(torch.cos(phases), dim=axis)
+    return ((cosSum**2 + sinSum**2) - N) / (N * (N - 1))
+
+
+def ppc_windowed(phases, window, axis=-1):
+    """
+    Computes the pairwise phase consistency (PPC0) for a (set of) vector of
+    phases using a windowed approach.
+    RH 2024
+
+    Args:
+        phases (np.ndarray): 
+            Matrix of phases in radians. Bound to the range [-pi, pi].
+        window (int): 
+            Vector or matrix of same length as phases along axis. Window to
+            multiply by the sin and cos components.
+            If 1-D: Shape should be (n_points,)
+            If N-D: Shape must be broadcastable with phases. window.shape[axis]
+            must be equal to phases.shape[axis]
+        axis (int):
+            Axis along which to compute the pairwise phase consistency.
+
+    Returns:
+        float: 
+            Pairwise phase consistency of the phases.
+    """
+    if isinstance(phases, torch.Tensor):
+        sin, cos, abs, sum = torch.sin, torch.cos, torch.abs, torch.sum
+    elif isinstance(phases, np.ndarray):
+        sin, cos, abs, sum = np.sin, np.cos, np.abs, np.sum
+
+    N = phases.shape[axis]
+    if N < 2:
+        raise ValueError("The input vector must contain at least two phase values.")
+
+    if window.ndim == 1:
+        assert window.shape[0] == N, "Window should have the same length as the input phases."
+    else:
+        assert window.shape[axis] == N, "Window should have the same length as the input phases."
+
+    # Compute pairwise phase consistency
+    sinSum = abs(sum(sin(phases) * window, axis=axis))
+    cosSum = sum(cos(phases) * window, axis=axis)
     return ((cosSum**2 + sinSum**2) - N) / (N * (N - 1))
