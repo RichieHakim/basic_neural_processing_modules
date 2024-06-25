@@ -544,7 +544,7 @@ def trace_quality_metrics(
 def get_chan1_offset(path_to_tif):
     from ScanImageTiffReader import ScanImageTiffReader
 
-    vol=ScanImageTiffReader(path_to_tif)
+    vol = ScanImageTiffReader(path_to_tif)
     md = vol.metadata().split("\n")
     for ii, val in enumerate(md):
         if val[:25] == 'SI.hScan2D.channelOffsets':
