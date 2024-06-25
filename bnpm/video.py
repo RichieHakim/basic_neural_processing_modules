@@ -634,6 +634,7 @@ class BufferedVideoReader:
             try:
                 self.slots[idx_video][idx_buffer] = self.video_readers[idx_video][idx_frame_start:idx_frame_end+1]
                 loaded = True
+                print(f"FR: Loaded slot {idx_slot} with frames {idx_frame_start} to {idx_frame_end} from video {idx_video}") if self._verbose > 1 else None
             except Exception as e:
                 print(f"FR WARNING: Failed to load slot {idx_slot}. Likely causes are: 1) File is partially corrupted, 2) You are trying to go back to a file that was recently removed from a slot.") if self._verbose > 0 else None
                 print(f"    Sleeping for 1s, then will try loading again. Decord error below:") if self._verbose > 0 else None
@@ -1357,7 +1358,12 @@ def save_array_as_video_ffmpeg(
         lossless (bool):
             Whether or not to use compression.
         codec (str):
-            Codec to use. 'libx264' is a good default.
+            Codec to use. 'libx264' is a good default. \n
+            Common codecs: \n
+                * 'libx264' (H.264): Decent quality, fast, oftend doesn't work with decord \n
+                * 'png' (PNG): Large, lossless, slow, works with decord and most players \n
+                * 'libx265' (H.265) \n
+                * 'libvpx-vp9' (VP9) \n
         pixel_format (str):
             Pixel format to use. 'yuv420p' is a good default for 'libx264'
             codec.
@@ -1414,3 +1420,81 @@ def save_array_as_video_ffmpeg(
 
     if verbose:
         print("Video saved successfully.")
+
+
+def save_array_as_video_imageio(
+    array: Union[np.ndarray, List], 
+    filepath: str, 
+    frame_rate: int = 30,
+    codec: str = 'libx264',
+    quality: int = 25,
+    pixel_format: str = 'yuv420p',
+    speed: str = 'medium',
+    overwrite: bool = False
+) -> None:
+    """
+    Saves a 3D or 4D array (frames, height, width, [channels]) as an .avi file
+    using imageio.
+
+    Args:
+        array (Union[np.ndarray, list]): 
+            The 3D or 4D array of frames to save. The array can be grayscale
+            (3D) or RGB (4D) with shape (frames, height, width) or (frames,
+            height, width, channels).
+        filepath (str): 
+            The path to save the video file.
+        frame_rate (int):
+            The frame rate of the video. Defaults to 30.
+        codec (str):
+            Codec to use. 'libx264' is a good default. 
+            Common codecs:
+                * 'libx264' (H.264): Decent quality, fast, often doesn't work with decord
+                * 'png' (PNG): Large, lossless, slow, works with decord and most players
+                * 'libx265' (H.265)
+                * 'libvpx-vp9' (VP9)
+        quality (int):
+            Quality of the video. (1 to 10 inclusive)
+        pixel_format (str):
+            Pixel format to use. 'yuv420p' is a good default for 'libx264' codec. Defaults to 'yuv420p'.
+        speed (str):
+            Speed of compression. For 'libx264', you can use the following:
+                * ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo
+            Defaults to 'medium'.
+        overwrite (bool):
+            Whether to overwrite the existing file. Defaults to False.
+    """
+    import os
+    import imageio
+    
+    # Ensure the array is a numpy array
+    array = np.array(array)
+    
+    # Validate the shape of the array
+    if array.ndim not in [3, 4]:
+        raise ValueError("Array must be 3D (grayscale) or 4D (RGB).")
+    
+    # Check if file exists and handle overwrite
+    if os.path.exists(filepath) and not overwrite:
+        raise FileExistsError(f"The file '{filepath}' already exists. Use overwrite=True to overwrite it.")
+    
+    # Determine if the input is grayscale (3D) or RGB (4D)
+    is_grayscale = array.ndim == 3
+    
+    # Initialize the writer with additional parameters
+    writer = imageio.get_writer(
+        uri=filepath, 
+        fps=frame_rate, 
+        codec=codec, 
+        quality=quality, 
+        format='avi',
+        ffmpeg_params=['-pix_fmt', pixel_format, '-preset', speed]
+    )
+
+    try:
+        for frame in array:
+            if is_grayscale:
+                # Convert grayscale to RGB by stacking the same frame 3 times
+                frame = np.stack([frame]*3, axis=-1)
+            writer.append_data(frame)
+    finally:
+        writer.close()
