@@ -813,15 +813,21 @@ class Colorwheel:
         radius: int = 255,
         dtype: np.dtype = np.uint8,
         bit_depth: int = 16,
-        exponent: float = 1.2,
+        exponent: float = 10,
         normalize: bool = True,
         colors: List[Union[List, Tuple]] = [
             [1  , 0  , 0  ], 
+            [1  , 0.5, 0  ], 
             [1  , 1  , 0  ], 
+            [0.5, 1  , 0  ], 
             [0  , 1  , 0  ],  
+            [0  , 1  , 0.5],  
             [0  , 1  , 1  ], 
+            [0  , 0.5, 1  ], 
             [0  , 0  , 1  ],
+            [0.5, 0  , 1  ],
             [1  , 0  , 1  ], 
+            [1  , 0  , 0.5], 
         ],        
     ):
         """
@@ -845,17 +851,20 @@ class Colorwheel:
         import scipy.signal
         waves, x = spectral.generate_multiphasic_sinewave(
             n_samples=int(2**bit_depth),
-            n_periods=1,
+            n_periods=1 + 2 / int(2**bit_depth),
             n_waves=len(colors),
             return_x=True,
         )
+
         waves = ((waves + 1).astype(np.float64) / 2) ** exponent
         
         waves = (waves - waves.min()) / (waves.max() - waves.min())
 
         if normalize:
-            # waves = waves / np.linalg.norm(waves, axis=0, keepdims=True)
-            waves = waves / np.sum(waves, axis=0, keepdims=True)
+            if waves.shape[0] == 1:
+                waves = np.ones_like(waves)
+            else:
+                waves = waves / np.sum(waves, axis=0, keepdims=True)
 
         waves = (waves * (radius - (1-saturation) * radius) + (1-saturation) * radius)
         waves = np.roll(waves, int(rotation * 2**bit_depth / (2*np.pi)), axis=1)
@@ -872,8 +881,8 @@ class Colorwheel:
 
     def __call__(
         self,
-        angles: np.ndarray,
-        magnitudes: np.ndarray = None,
+        angles: Union[np.ndarray, List[Union[float, int]], Tuple[Union[float, int]], float, int],
+        magnitudes: Optional[Union[np.ndarray, List[Union[float, int]], Tuple[Union[float, int]], float, int]] = None,
         normalize_magnitudes: bool = True,
     ) -> np.ndarray:
         """
@@ -881,9 +890,9 @@ class Colorwheel:
         RH 2024
 
         Args:
-            angles (np.ndarray):
+            angles (Union[np.ndarray, List[float, int], Tuple[float, int], float, int]):
                 Array of angles in radians. *Shape: (n_samples,)*
-            magnitudes (np.ndarray, optional):
+            magnitudes (Optional[Union[np.ndarray, List[float, int], Tuple[float, int], float, int]]):
                 Array of magnitudes. *Shape: (n_samples,)*
             normalize_magnitudes (bool):
                 If True, applies min-max normalization to the magnitudes. (Default is ``True``)
@@ -892,6 +901,19 @@ class Colorwheel:
             np.ndarray:
                 Array with RGB values. *Shape: (n_samples, 3)*
         """
+        # Check inputs
+        def check_input(arg):
+            if isinstance(arg, (float, int)):
+                arg = np.array([angles])
+            elif isinstance(arg, (list, tuple)):
+                arg = np.array(arg)
+            elif not isinstance(angles, np.ndarray):
+                raise ValueError("angles and magnitudes must be a numpy array, list, or tuple of ints or floats.")
+            return arg
+
+        angles = check_input(angles)
+        magnitudes = check_input(magnitudes) if magnitudes is not None else None
+
         # Normalize the magnitudes
         if magnitudes is not None:
             if normalize_magnitudes:
@@ -914,6 +936,11 @@ class Colorwheel:
         rgb = rgb * magnitudes[None, :] + (1 - magnitudes)[None, :] * self.center
 
         # Convert to dtype
+        ## Clip the values to the dtype range
+        if rgb.dtype != self.dtype:
+            vmax, vmin = np.iinfo(self.dtype).max, np.iinfo(self.dtype).min
+            rgb = np.clip(rgb, vmin, vmax)
+
         rgb = rgb.astype(self.dtype)
 
         return rgb.T
