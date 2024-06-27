@@ -980,3 +980,51 @@ def ppc_windowed(phases, window, axis=-1):
     sinSum = abs(sum(sin(phases) * window, axis=axis))
     cosSum = sum(cos(phases) * window, axis=axis)
     return ((cosSum**2 + sinSum**2) - N) / (N * (N - 1))
+
+
+def generate_multiphasic_sinewave(
+    n_samples: int = 10000,
+    n_periods: float = 1.0,
+    n_waves: int = 3,
+    return_x: bool = False,
+    return_phases: bool = False,
+):
+    """
+    Generates a multiphasic sine wave.
+    RH 2024
+
+    Args:
+        n_samples (int): 
+            Number of samples to generate.
+        n_periods (float): 
+            Number of periods in the sine wave.
+        n_waves (int): 
+            Number of sine waves to generate.
+        return_x (bool): 
+            If ``True``, returns the x-values along with the waves.
+        return_phases (bool): 
+            If ``True``, returns the phases along with the waves.
+
+    Returns:
+        (tuple): 
+            Depending on the `return_x` and `return_phases` parameters, the
+            function returns some combination of the following: \n
+                * waves (np.ndarray): The generated sine waves.
+                * x (np.ndarray): The x-values.
+                * phases (np.ndarray): The phases of the sine waves.
+    """
+    x = np.linspace(0, n_periods * np.pi*2, n_samples)
+
+    phases = np.stack([
+        x - ii * np.pi * (2 / n_waves) for ii in range(n_waves)
+    ])
+    waves = np.cos(phases)
+    
+    if return_x and return_phases:
+        return waves, x, phases
+    elif return_x:
+        return waves, x
+    elif return_phases:
+        return waves, phases
+    else:
+        return waves
