@@ -800,6 +800,10 @@ class Colorwheel:
             Exponent used to adjust the color intensity.
         normalize (bool):
             Whether to normalize the colorwheel.
+        colors (list):
+            List of colors to use for the colorwheel. Should be a list of tuples
+            or lists containing RGB values. Ex:
+            [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
     """
     def __init__(
         self,
