@@ -31,7 +31,7 @@ def gaussian(x=None, mu=0, sig=1, plot_pref=False):
     return gaus
 
 
-def generalised_logistic_function(
+def generalized_logistic_function(
     x, 
     a=0, 
     k=1, 
