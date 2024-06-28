@@ -788,37 +788,78 @@ def cp_reconstruction_EVR(tensor_dense, tensor_CP):
 
 
 def order_cp_factors_by_EVR(
-    tensor_dense,
-    tensor_CP,
-):
+    tensor_dense: Union[np.ndarray, torch.Tensor],
+    cp_factors: Union[list, 'tensorly.CPTensor'],
+    cp_weights: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    orthogonalizable_EVR: bool = True,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Get the sorting order of the CP factors by their
-    explained variance ratio.
+    Get the sorting order of the CP factors by their explained variance ratio.
     RH 2024
 
     Args:
-        tensor_dense (np.ndarray or torch.Tensor):
-            Dense tensor to be reconstructed. shape (n_samples, n_features)
-        tensor_CP (tensorly CPTensor or list of np.ndarray/torch.Tensor):
-            CP tensor.
-            If a list of factors, then each factor should be a 2D array of shape
-            (n_samples, rank).
-            Can also be a tensorly CPTensor object.
+        tensor_dense (Union[np.ndarray, torch.Tensor]):
+            Dense tensor to be reconstructed.
+        cp_factors (Union[list, 'tensorly.CPTensor']):
+            CP factors. If a list of factors, then each factor should be a 2D 
+            array of shape *(n_samples, rank)*. Can also be a tensorly 
+            CPTensor object.
+        cp_weights (Optional[Union[np.ndarray, torch.Tensor]]):
+            Weights for each factor. shape *(rank)*. (Default is ``None``)
+        orthogonalizable_EVR (bool):
+            Whether to use the orthogonalizable EVR calculation, which optimizes
+            the scaling of each factor to maximize the EVR. Uses OLS to 
+            orthogonalize the dense tensor relative to each factor. (Default is 
+            ``True``)
+
+    Returns:
+        (Tuple[np.ndarray, np.ndarray]): 
+            order (np.ndarray): 
+                Sorting order of the factors by EVR.
+            evrs (np.ndarray): 
+                Explained variance ratios of each factor.
     """
-    if isinstance(tensor_CP, list):
-        factors = tensor_CP
-    elif isinstance(tensor_CP, tl.cp_tensor.CPTensor):
-        import tensorly as tl
-        factors = tensor_CP.factors
+    import tensorly as tl
+
+    if isinstance(cp_factors, list):
+        # If cp_factors is a list, use it directly
+        factors = cp_factors
+        if cp_weights is not None:
+            # Apply weights to each factor if cp_weights is provided
+            factors = [factors[ii] * cp_weights[ii] for ii in range(len(factors))]
+    elif isinstance(cp_factors, tl.cp_tensor.CPTensor):
+        # If cp_factors is a CPTensor, extract factors and apply weights
+        factors = [f * cp_factors.weights[None, :] for f in cp_factors.factors]
     else:
         raise ValueError('tensor_CP must be a list of factors or a tensorly CPTensor object')
     
+    if orthogonalizable_EVR:
+        # Flatten tensor_dense and remove its mean
+        tensor_dense = tensor_dense.reshape(-1)
+        tensor_dense -= tensor_dense.mean()
+        tensor_dense_var = tensor_dense.var()  # Compute variance of tensor_dense
+
+    # Determine the rank from the shape of the first factor
     rank = factors[0].shape[1]
-    evrs = []
+    evrs = []  # Initialize list to store explained variance ratios (EVRs)
+
     for ii in range(rank):
+        # Extract the ii-th component from each factor and reshape to be a column vector
         f = [f[:, ii][:, None] for f in factors]
-        evr = cp_reconstruction_EVR(tensor_dense, f)
-        evrs.append(evr)
+        if orthogonalizable_EVR:
+            # Convert CP components back to a dense tensor and flatten
+            v2 = indexing.cp_to_dense(f).reshape(-1)
+            v2 = v2 - v2.mean()  # Remove mean of v2
+            # Calculate orthogonal component of tensor_dense with respect to v2
+            v1_orth = tensor_dense - ((tensor_dense * v2).sum() / (v2 * v2).sum() )*v2
+            # Compute EVR as the fraction of variance explained by v2
+            evr = 1 - (v1_orth.var() / tensor_dense_var)
+        else:
+            # Compute EVR using a predefined function for the non-orthogonalizable case
+            evr = cp_reconstruction_EVR(tensor_dense, f)
+        evrs.append(evr)  # Append the computed EVR to the list
+
+    # Sort the EVRs in descending order and return the sorted order and EVRs
     order = np.argsort(evrs)[::-1]
     return order, np.array(evrs)[order]
 
