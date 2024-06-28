@@ -1435,3 +1435,30 @@ def circstd(samples: torch.Tensor, high: float = 2*np.pi, low: float = 0.0, axis
     if not normalize:
         res *= (high-low)/(2.*pi)
     return res
+
+
+##################################################################
+######################### TENSORLY ###############################
+##################################################################
+
+def tensorly_cp_to_device(cp, device='cpu'):
+    """
+    Moves the factors and weights of a tensorly cp object to a particular
+    device.
+
+    RH 2024
+
+    Args:
+        cp (tensorly.cp_tensor.CP):
+            The tensorly CP object to move to a device.
+        device (str):
+            The device to move the factors and weights to.
+
+    Returns:
+        cp (tensorly.cp_tensor.CP):
+            The tensorly CP object with factors and weights moved to the device.
+    """
+    for ii in range(len(cp.factors)):
+        cp.factors[ii] = cp.factors[ii].to(device)
+    cp.weights = cp.weights.to(device)
+    return cp
