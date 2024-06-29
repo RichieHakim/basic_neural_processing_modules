@@ -789,7 +789,7 @@ def cp_reconstruction_EVR(tensor_dense, tensor_CP):
 
 def order_cp_factors_by_EVR(
     tensor_dense: Union[np.ndarray, torch.Tensor],
-    cp_factors: Union[list, 'tensorly.CPTensor'],
+    cp_factors: Union[list, object],
     cp_weights: Optional[Union[np.ndarray, torch.Tensor]] = None,
     orthogonalizable_EVR: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
