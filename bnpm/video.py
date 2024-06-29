@@ -1427,7 +1427,7 @@ def save_array_as_video_imageio(
     filepath: str, 
     frame_rate: int = 30,
     codec: str = 'libx264',
-    quality: int = 25,
+    quality: int = 9,
     pixel_format: str = 'yuv420p',
     speed: str = 'medium',
     overwrite: bool = False
