@@ -561,6 +561,135 @@ def batched_unfold(
         yield x_batch.unfold(dimension, size, step)
 
 
+def find_longest_true_sequence(arr):
+    """
+    Finds the longest sequence of True values in a boolean array.
+    RH 2024
+
+    Args:
+        arr (np.ndarray):
+            1-D boolean array
+
+    Returns:
+        (int, int):
+            Index of the first True value in the longest sequence
+            Length of the longest sequence
+    """
+    assert arr.dtype == np.bool_, 'Input array must be boolean'
+    idx = np.where(arr)[0]
+    if len(idx) == 0:
+        return None
+    idx_diff = np.diff(idx, prepend=-1, append=arr.size)
+    idx_diff = np.split(idx_diff, np.where(idx_diff > 1)[0])
+    idx_diff = np.array([len(x) for x in idx_diff])
+    idx_max = np.argmax(idx_diff)
+    return idx[idx_max], idx_diff[idx_max]
+
+
+def find_longest_true_sequence_circular(arr):
+    """
+    Finds the longest sequence of True values in a boolean array, assuming
+    that the array is circular. This function is useful for finding the
+    longest sequence of True values in a circular array, such as a circular
+    buffer.
+    RH 2024
+
+    Args:
+        arr (np.ndarray):
+            1-D boolean array
+
+    Returns:
+        (int, int):
+            Index of the first True value in the longest sequence
+            Length of the longest sequence
+    """
+    assert arr.dtype == np.bool_, 'Input array must be boolean'
+    idx = np.where(arr)[0]
+    if len(idx) == 0:
+        return None
+    idx_diff = np.diff(idx, prepend=-1, append=arr.size)
+    idx_diff = np.split(idx_diff, np.where(idx_diff > 1)[0])
+    idx_diff = np.array([len(x) for x in idx_diff])
+    ## if the following conditions are true then join the first sequence onto the end of the last sequence
+    if len(idx_diff) > 1:
+        if idx_diff[0][0] == 0 and idx_diff[-1][-1] == len(arr) - 1:
+            ## join the first sequence onto the end of the last sequence
+            idx_diff[-1] = np.concatenate((idx_diff[-1], idx_diff[0]))
+            idx_diff = idx_diff[1:]
+    idx_max = np.argmax(idx_diff)
+    return idx[idx_max], idx_diff[idx_max]
+
+
+def find_longest_true_sequence_circular(arr):
+    """
+    Finds the longest sequence of True values in a boolean array, assuming
+    that the array is circular. This function is useful for finding the
+    longest sequence of True values in a circular array, such as a circular
+    buffer.
+    RH 2024
+
+    Args:
+        arr (np.ndarray):
+            1-D boolean array
+
+    Returns:
+        (int, int):
+            Index of the first True value in the longest sequence
+            Length of the longest sequence
+    """
+    assert arr.dtype == np.bool_, 'Input array must be boolean'
+    idx = np.where(arr)[0]
+    if len(idx) == 0:
+        return None
+    idx_diff = np.diff(idx, prepend=-1, append=arr.size + 1)
+    idx_diff_split = np.split(idx, np.where(idx_diff > 1)[0])
+    ## if the following conditions are true then join the first sequence onto the end of the last sequence
+    idx_diff_split = [t for idx in idx_diff_split if len(t:=np.atleast_1d(idx)) > 0]
+    if len(idx_diff_split) > 1:
+        if idx_diff_split[0][0] == 0 and idx_diff_split[-1][-1] == len(arr) - 1:
+            ## join the first sequence onto the end of the last sequence
+            idx_diff_split[-1] = np.concatenate((idx_diff_split[-1], idx_diff_split[0]))
+            idx_diff_split = idx_diff_split[1:]
+
+    idx_diff = np.array([len(x) for x in idx_diff_split])
+    idx_max = np.argmax(idx_diff)
+    return idx_diff_split[idx_max][0], idx_diff[idx_max]
+
+
+def find_all_true_sequences_circular(arr):
+    """
+    Finds the longest sequence of True values in a boolean array, assuming
+    that the array is circular. This function is useful for finding the
+    longest sequence of True values in a circular array, such as a circular
+    buffer.
+    RH 2024
+
+    Args:
+        arr (np.ndarray):
+            1-D boolean array
+
+    Returns:
+        (int, int):
+            Index of the first True value in the longest sequence
+            Length of the longest sequence
+    """
+    assert arr.dtype == np.bool_, 'Input array must be boolean'
+    idx = np.where(arr)[0]
+    if len(idx) == 0:
+        return None
+    idx_diff = np.diff(idx, prepend=-1, append=arr.size + 1)
+    idx_diff_split = np.split(idx, np.where(idx_diff > 1)[0])
+    ## if the following conditions are true then join the first sequence onto the end of the last sequence
+    idx_diff_split = [t for idx in idx_diff_split if len(t:=np.atleast_1d(idx)) > 0]
+    if len(idx_diff_split) > 1:
+        if idx_diff_split[0][0] == 0 and idx_diff_split[-1][-1] == len(arr) - 1:
+            ## join the first sequence onto the end of the last sequence
+            idx_diff_split[-1] = np.concatenate((idx_diff_split[-1], idx_diff_split[0]))
+            idx_diff_split = idx_diff_split[1:]
+            
+    return idx_diff_split
+
+
 #######################################
 ############ SPARSE STUFF #############
 #######################################

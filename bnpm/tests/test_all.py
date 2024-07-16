@@ -16,6 +16,8 @@ from ..clustering import cluster_similarity_matrices
 
 from ..path_helpers import find_date_in_path
 
+from ..indexing import find_longest_true_sequence, find_longest_true_sequence_circular
+
 
 
 def test_Convergence_checker():
@@ -227,3 +229,82 @@ def test_cluster_similarity_matrices():
 ])
 def test_known_dates_in_path(path, expected_date, reverse_path_order):
     assert find_date_in_path(path, reverse_path_order=reverse_path_order) == expected_date
+
+
+def test_find_longest_true_sequence():
+    # Test case 1: Regular case with mixed True and False
+    arr1 = np.array([True, False, True, True, False, True, True, True], dtype=np.bool_)
+    result1 = find_longest_true_sequence(arr1)
+    assert result1 == (5, 3), f"Test 1 failed. Expected (5, 3), got {result1}"
+    
+    # Test case 2: All False
+    arr2 = np.array([False, False, False, False], dtype=np.bool_)
+    result2 = find_longest_true_sequence(arr2)
+    assert result2 is None, f"Test 2 failed. Expected None, got {result2}"
+    
+    # Test case 3: All True
+    arr3 = np.array([True, True, True, True], dtype=np.bool_)
+    result3 = find_longest_true_sequence(arr3)
+    assert result3 == (0, 4), f"Test 3 failed. Expected (0, 4), got {result3}"
+    
+    # Test case 4: Single True at the beginning
+    arr4 = np.array([True, False, False, False], dtype=np.bool_)
+    result4 = find_longest_true_sequence(arr4)
+    assert result4 == (0, 1), f"Test 4 failed. Expected (0, 1), got {result4}"
+    
+    # Test case 5: Single True at the end
+    arr5 = np.array([False, False, False, True], dtype=np.bool_)
+    result5 = find_longest_true_sequence(arr5)
+    assert result5 == (3, 1), f"Test 5 failed. Expected (3, 1), got {result5}"
+    
+    # Test case 6: Empty array
+    arr6 = np.array([], dtype=np.bool_)
+    result6 = find_longest_true_sequence(arr6)
+    assert result6 is None, f"Test 6 failed. Expected None, got {result6}"
+    
+    # Test case 7: Long sequence with multiple True subsequences
+    arr7 = np.array([False, True, True, False, True, True, True, False, True, True], dtype=np.bool_)
+    result7 = find_longest_true_sequence(arr7)
+    assert result7 == (4, 3), f"Test 7 failed. Expected (4, 3), got {result7}"
+    
+    
+def test_find_longest_true_sequence_circular():
+    # Test case 1: Circular case
+    arr1 = np.array([True, False, False, True], dtype=np.bool_)
+    result1 = find_longest_true_sequence_circular(arr1)
+    assert result1 == (3, 2), f"Test 1 failed. Expected (3, 2), got {result1}"
+    
+    # Test case 2: All False
+    arr2 = np.array([False, False, False, False], dtype=np.bool_)
+    result2 = find_longest_true_sequence_circular(arr2)
+    assert result2 is None, f"Test 2 failed. Expected None, got {result2}"
+    
+    # Test case 3: All True
+    arr3 = np.array([True, True, True, True], dtype=np.bool_)
+    result3 = find_longest_true_sequence_circular(arr3)
+    assert result3 == (0, 4), f"Test 3 failed. Expected (0, 4), got {result3}"
+    
+    # Test case 4: Single True at the beginning
+    arr4 = np.array([True, False, False, False], dtype=np.bool_)
+    result4 = find_longest_true_sequence_circular(arr4)
+    assert result4 == (0, 1), f"Test 4 failed. Expected (0, 1), got {result4}"
+    
+    # Test case 5: Single True at the end
+    arr5 = np.array([False, False, False, True], dtype=np.bool_)
+    result5 = find_longest_true_sequence_circular(arr5)
+    assert result5 == (3, 1), f"Test 5 failed. Expected (3, 1), got {result5}"
+    
+    # Test case 6: Empty array
+    arr6 = np.array([], dtype=np.bool_)
+    result6 = find_longest_true_sequence_circular(arr6)
+    assert result6 is None, f"Test 6 failed. Expected None, got {result6}"
+    
+    # Test case 7: Long sequence with multiple True subsequences
+    arr7 = np.array([False, True, True, False, True, True, True, False, True, True], dtype=np.bool_)
+    result7 = find_longest_true_sequence_circular(arr7)
+    assert result7 == (4, 3), f"Test 7 failed. Expected (4, 3), got {result7}"
+
+    # Test case 8: Circular case with longer sequence
+    arr8 = np.array([True, True, False, True, True, True, False, False, True], dtype=np.bool_)
+    result8 = find_longest_true_sequence_circular(arr8)
+    assert result8 == (3, 3), f"Test 8 failed. Expected (3, 3), got {result8}"
