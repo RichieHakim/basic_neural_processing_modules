@@ -76,6 +76,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'pytest',
     'hypothesis',
     'PyYAML',
+    'tensorly',
     'torch',
     'torchvision',
     'torchaudio',

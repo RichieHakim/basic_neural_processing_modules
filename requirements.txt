@@ -26,6 +26,7 @@ sqlalchemy
 pymysql
 xxhash
 wandb
+tensorly
 torch
 torchvision
 torchaudio
