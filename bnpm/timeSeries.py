@@ -414,10 +414,17 @@ def event_triggered_traces(
     ## if idx_triggers is length 0, return empty arrays
     if len(idx_triggers)==0:
         print("idx_triggers is length 0. Returning empty arrays.") if verbose>0 else None
-        arr_out = np.empty((0, win_bounds[1]-win_bounds[0], *arr.shape[:dim], *arr.shape[dim+1:]))
-        xAxis_out = np.empty((0, win_bounds[1]-win_bounds[0]))
-        windows_out = np.empty((0, win_bounds[1]-win_bounds[0]))
-        return arr_out, xAxis_out, windows_out
+        shape_out = list(arr.shape)
+        # replace dim with window length
+        shape_out[dim] = win_bounds[1] - win_bounds[0]
+        # insert 0 at dim
+        shape_out.insert(dim, 0)
+        
+        arr_out = torch.empty(shape_out, dtype=arr.dtype)
+        xAxis_out = torch.arange(win_bounds[0], win_bounds[1], dtype=torch.long)
+        windows_out = torch.empty((0, win_bounds[1]-win_bounds[0]), dtype=torch.long)
+        
+        return tuple(v.numpy() if dtype_in=='np' else v for v in (arr_out, xAxis_out, windows_out))
     
     ## Find x-axis
     xAxis = torch.arange(win_bounds[0], win_bounds[1], dtype=torch.long)  ## x-axis for each window relative to trigger
