@@ -769,8 +769,9 @@ class CP_NN_HALS_minibatch:
             **self.kwargs_dataloader,
         )
 
-        self.kwargs_CP_NN_HALS.pop('init', None)
-        self.kwargs_CP_NN_HALS.pop('n_iter_max', None)
+        kwargs_tmp = copy.deepcopy(self.kwargs_CP_NN_HALS)
+        kwargs_tmp.pop('init', None)
+        kwargs_tmp.pop('n_iter_max', None)
         ## Fit
         for i_epoch in tqdm(range(self.n_epochs), desc='CP_NN_HALS_minibatch', leave=True, disable=self.verbose==False):
             for i_iter, (X_batch, idx_batch) in enumerate(dataloader):
@@ -782,7 +783,7 @@ class CP_NN_HALS_minibatch:
                 model = tl.decomposition.CP_NN_HALS(
                     n_iter_max=self.n_iter_batch,
                     init=factors_batch,
-                    **self.kwargs_CP_NN_HALS,
+                    **kwargs_tmp,
                 )
                 model.fit(X_batch)
 
