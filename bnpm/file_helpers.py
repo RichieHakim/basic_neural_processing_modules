@@ -291,7 +291,7 @@ def yaml_save(obj, filepath, indent=4, mode='w', mkdir=False, allow_overwrite=Tr
     """
     path = prepare_filepath_for_saving(filepath, mkdir=mkdir, allow_overwrite=allow_overwrite)
     with open(path, mode) as f:
-        yaml.dump(obj, f, indent=indent)
+        yaml.dump(obj, f, indent=indent, sort_keys=False)
 
 def yaml_load(filepath, mode='r', loader=yaml.FullLoader):
     """
