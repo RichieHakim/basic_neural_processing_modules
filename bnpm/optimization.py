@@ -220,13 +220,10 @@ class Convergence_checker_optuna:
         max_duration (float): 
             Maximum number of seconds to run before stopping. 
             (Default is *600*)
-        duration_type (str):
-            Type of timer to use for duration:\n
-                * 'internal': Use the time difference between the initialization
-                  time and when the checker is called.
-                * 'study': Use the time difference between the first trial and when
-                   the checker is called.
-                * 'trials': Use the sum of the durations of the trials.
+        value_stop (Optional[float]):
+            Value at which to stop the optimization. If the best value is equal
+            to or less than this value, the optimization will stop.
+            (Default is *None*)
         verbose (bool): 
             If ``True``, print messages. 
             (Default is ``True``)
@@ -260,7 +257,7 @@ class Convergence_checker_optuna:
         tol_frac: float = 0.05, 
         max_trials: int = 350, 
         max_duration: float = 60*10, 
-        duration_type: str = 'internal',
+        value_stop: Optional[float] = None,
         verbose: bool = True,
     ):
         """
@@ -272,17 +269,10 @@ class Convergence_checker_optuna:
         self.tol_frac = tol_frac
         self.max_trials = max_trials
         self.max_duration = max_duration
+        self.value_stop = value_stop
         self.num_trial = 0
-        self.converged = False
-        self.reason_converged = None
-        self.duration_type = duration_type
         self.verbose = verbose
-
-        assert self.duration_type in ['internal', 'study', 'trials'], f"duration_type '{self.duration_type}' not recognized"
         
-        if self.duration_type == 'internal':
-            self.time_start = time.time()
-
     def check(
         self, 
         study: object, 
@@ -298,39 +288,32 @@ class Convergence_checker_optuna:
             trial (optuna.trial.FrozenTrial): 
                 Optuna trial object.
         """
-        if self.duration_type == 'internal':
-            duration = time.time() - self.time_start
-        elif self.duration_type == 'study':
-            dur_first, dur_last = study.trials[0].datetime_complete, trial.datetime_complete
-            if (dur_first is not None) and (dur_last is not None):
-                duration = (dur_last - dur_first).total_seconds()
-            else:
-                duration = 0
-        elif self.duration_type == 'trials':
-            duration = sum([t.duration.total_seconds() for t in study.trials if t.duration is not None])
+        dur_first, dur_last = study.trials[0].datetime_complete, trial.datetime_complete
+        if (dur_first is not None) and (dur_last is not None):
+            duration = (dur_last - dur_first).total_seconds()
         else:
-            raise ValueError(f"duration_type '{self.duration_type}' not recognized")
+            duration = 0
         
-        if trial.value is not None:
-            if trial.value < self.best:
-                self.best = trial.value
+        if trial.value < self.best:
+            self.best = trial.value
         self.bests.append(self.best)
             
         bests_recent = np.unique(self.bests[-self.n_patience:])
         if self.num_trial > self.n_patience and ((np.abs(bests_recent.max() - bests_recent.min())/np.abs(self.best)) < self.tol_frac):
-            self.converged, self.reason_converged = True, 'tol_frac'
             print(f'Stopping. Convergence reached. Best value ({self.best*10000}) over last ({self.n_patience}) trials fractionally changed less than ({self.tol_frac})') if self.verbose else None
             study.stop()
-        elif self.num_trial >= self.max_trials - 1:
-            self.converged, self.reason_converged = True, 'max_trials'
+        if self.num_trial >= self.max_trials:
             print(f'Stopping. Trial number limit reached. num_trial={self.num_trial}, max_trials={self.max_trials}.') if self.verbose else None
             study.stop()
-        elif duration > self.max_duration:
-            self.converged, self.reason_converged = True, 'max_duration'
+        if duration > self.max_duration:
             print(f'Stopping. Duration limit reached. study.duration={duration}, max_duration={self.max_duration}.') if self.verbose else None
             study.stop()
+
+        if self.value_stop is not None:
+            if self.best <= self.value_stop:
+                print(f'Stopping. Best value ({self.best}) is less than or equal to value_stop ({self.value_stop}).') if self.verbose else None
+                study.stop()
             
         if self.verbose:
-            best, value = (f"{val:.3e}" if isinstance(val, float) else val for val in (self.best, trial.value))
-            print(f'Trial num: {self.num_trial}. Duration: {duration:.3f}s. Best value: {best}. Current value: {value}') if self.verbose else None
+            print(f'Trial num: {self.num_trial}. Duration: {duration:.3f}s. Best value: {self.best:3e}. Current value:{trial.value:3e}') if self.verbose else None
         self.num_trial += 1
