@@ -1480,8 +1480,6 @@ class Interp1d(torch.autograd.Function):
                 result[index] = gradients[pos]
                 pos += 1
         return (*result,)
-
-
 interp1d = Interp1d.apply
     
 
