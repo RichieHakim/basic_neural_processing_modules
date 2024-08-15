@@ -340,7 +340,7 @@ def find_nearest(
     idx_nearest = torch.searchsorted(array_sorted, values, side="left")
     idx_nearest = torch.where(
         (idx_nearest > 0) & \
-        ((idx_nearest == len(array_sorted)) | (torch.abs(values - array_sorted[idx_nearest-1]) < torch.abs(values - array_sorted[idx_nearest]))),
+        ((idx_nearest == len(array_sorted)) | (torch.abs(values - array_sorted[idx_nearest-1]) < torch.abs(values - array_sorted[torch.minimum(idx_nearest, torch.as_tensor(len(array_sorted)-1))]))),
         idx_nearest-1, 
         idx_nearest,
     )
