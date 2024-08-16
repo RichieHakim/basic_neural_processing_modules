@@ -20,7 +20,7 @@ from . import misc
 ############ VARIABLE HELPERS ##############
 ############################################
 
-def show_all_tensors() -> None:
+def show_all_tensors(max_depth=1, verbose=0) -> None:
     """
     Displays all tensors present in the provided dictionary.
     From: https://discuss.pytorch.org/t/how-to-debug-causes-of-gpu-memory-leaks/6741
@@ -29,12 +29,38 @@ def show_all_tensors() -> None:
     # prints currently alive Tensors and Variables
     import torch
     import gc
+    def get_info(obj, depth=0):
+        if depth > max_depth:
+            return
+        
+        if check_conditions(obj):
+            objs[id(obj)] = {'type': type(obj), 'size': obj.size(), 'mem': misc.estimate_array_size(obj)}
+            print(type(obj), obj.size(), misc.estimate_array_size(obj)) if verbose else None
+        elif isinstance(obj, dict):
+            for key, value in obj.items():
+                get_info(value, depth+1)
+        elif hasattr(obj, '__dict__'):
+            get_info(obj.__dict__, depth+1)
+        elif hasattr(obj, '__slots__'):
+            for item in obj.__slots__:
+                get_info(getattr(obj, item), depth+1)
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                get_info(item, depth+1)
+        
+    def check_conditions(obj):
+        return torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data))
+
+    objs = {}
     for obj in gc.get_objects():
         try:
-            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                print(type(obj), obj.size(), misc.estimate_array_size(obj))
+            get_info(obj)
         except:
             pass
+
+    ## Sort by size
+    objs = {k: v for k, v in sorted(objs.items(), key=lambda item: item[1]['mem'], reverse=True)}
+    return objs
 
 
 
