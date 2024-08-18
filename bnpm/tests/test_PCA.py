@@ -12,7 +12,7 @@ X_torch = torch.from_numpy(X_np)
 
 def test_fit_transform_equivalence():
     n_components = 5
-    pca_sklearn = sklearnPCA(n_components=n_components).fit(X_np)
+    pca_sklearn = sklearnPCA(n_components=n_components, svd_solver='full').fit(X_np)
     pca_torch = PCA(n_components=n_components).fit(X_torch)
     
     # Compare the principal components directly
