@@ -53,4 +53,4 @@ pathos
 pygame
 
 ## For PostgreSQL
-psycopg2
+psycopg2-binary
