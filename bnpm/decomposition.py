@@ -762,11 +762,12 @@ class CP_NN_HALS_minibatch:
             X.moveaxis(self.batch_dimension, 0),
             torch.arange(X.shape[self.batch_dimension]),
         )
-        self.kwargs_dataloader.pop('batch_size', None)
+        kwargs_dataloader_tmp = copy.deepcopy(self.kwargs_dataloader)
+        kwargs_dataloader_tmp.pop('batch_size', None)
         dataloader = torch.utils.data.DataLoader(
             dataset, 
             batch_size=self.batch_size, 
-            **self.kwargs_dataloader,
+            **kwargs_dataloader_tmp,
         )
 
         kwargs_tmp = copy.deepcopy(self.kwargs_CP_NN_HALS)

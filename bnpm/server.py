@@ -1261,7 +1261,7 @@ def make_rsync_command(
 Implemented by casperdcl here: https://github.com/tqdm/tqdm/issues/311#issuecomment-387066847
 """
 try:
-    from tqdm import tqdm
+    from tqdm.auto import tqdm
 except ImportError:
     class _TqdmWrap(object):
         # tqdm not installed - construct and return dummy/basic versions

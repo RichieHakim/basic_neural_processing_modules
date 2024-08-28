@@ -10,7 +10,7 @@ import math
 import torch
 from torch.utils.data import Dataset
 import numpy as np
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from . import indexing
 from . import misc
@@ -523,7 +523,89 @@ class Basic_dataset(Dataset):
                 idx (int):
                     The index of the requested sample.
         """
-        return self.X[idx], idx
+        return self.X[idx]
+    
+
+class Dataset_numpy(Dataset):
+    """
+    Creates a PyTorch dataset from a numpy array. 
+    RH 2024
+
+    Args:
+        X (np.ndarray):
+            The data from which to create the dataset.
+        axis (int):
+            The dimension along which to sample the data.
+        device (str): 
+            The device where the tensors will be stored. 
+        dtype (torch.dtype): 
+            The data type to use for the tensor.
+
+    Attributes:
+        X (np.ndarray or np.memmap):
+            The data from the numpy file.
+        n_samples (int):
+            The number of samples in the dataset.
+
+    Returns:
+        (torch.utils.data.Dataset):
+            A PyTorch dataset.
+    """
+    def __init__(
+        self,
+        X: Union[np.ndarray, np.memmap],
+        axis: int = 0,
+        device: str = 'cpu',
+        dtype: torch.dtype = torch.float32,
+    ):
+        """
+        Initializes the Dataset_NumpyFile with the provided parameters.
+        """
+        assert isinstance(X, (np.ndarray, np.memmap)), 'X must be a numpy array or memmap.'
+        self.X = X
+        self.n_samples = self.X.shape[axis]
+        self.is_memmap = isinstance(self.X, np.memmap) 
+        self.axis = axis
+        self.device = device
+        self.dtype = dtype
+
+    def __len__(self) -> int:
+        """
+        Returns the number of samples in the dataset.
+
+        Returns:
+            (int):
+                n_samples (int):
+                    The number of samples in the dataset.
+        """
+        return self.n_samples
+    
+    def __getitem__(
+        self,
+        idx: int,
+    ) -> Tuple[torch.Tensor, int]:
+        """
+        Returns a single sample and its index from the dataset.
+
+        Args:
+            idx (int):
+                The index of the sample to return.
+
+        Returns:
+            sample (torch.Tensor):
+                The requested sample from the dataset.
+        """
+        arr = np.take(self.X, idx, axis=self.axis)
+        if self.is_memmap:
+            arr = np.array(arr)
+        return torch.as_tensor(arr, dtype=self.dtype, device=self.device)
+    
+    def close(self):
+        """
+        Closes the numpy file.
+        """
+        if self.is_memmap:
+            self.X.close()
 
 
 class BatchRandomSampler(torch.utils.data.Sampler):

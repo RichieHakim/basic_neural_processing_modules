@@ -2,7 +2,7 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import torch
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 import time
 import gc

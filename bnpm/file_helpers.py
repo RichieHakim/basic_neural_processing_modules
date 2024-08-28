@@ -4,7 +4,7 @@ import yaml
 from pathlib import Path
 import zipfile
 
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from . import path_helpers
 
@@ -92,7 +92,7 @@ def prepare_path(path, mkdir=False, exist_ok=True):
     return str(path_obj)
 
 ### Custom functions for preparing paths for saving and loading files and directories
-def prepare_filepath_for_saving(filepath, mkdir=False, allow_overwrite=True):
+def prepare_filepath_for_saving(filepath, mkdir=False, allow_overwrite=False):
     return prepare_path(filepath, mkdir=mkdir, exist_ok=allow_overwrite)
 def prepare_filepath_for_loading(filepath, must_exist=True):
     path = prepare_path(filepath, mkdir=False, exist_ok=must_exist)
@@ -116,7 +116,7 @@ def pickle_save(
     mode='wb', 
     zipCompress=False, 
     mkdir=False, 
-    allow_overwrite=True,
+    allow_overwrite=False,
     library='pickle',
     **kwargs_zipfile,
 ):
@@ -221,7 +221,7 @@ def pickle_load(
             return pickle.load(f)
 
 
-def json_save(obj, filepath, indent=4, mode='w', mkdir=False, allow_overwrite=True):
+def json_save(obj, filepath, indent=4, mode='w', mkdir=False, allow_overwrite=False):
     """
     Saves an object to a json file.
     Uses json.dump.
@@ -267,7 +267,7 @@ def json_load(filepath, mode='r'):
         return json.load(f)
 
 
-def yaml_save(obj, filepath, indent=4, mode='w', mkdir=False, allow_overwrite=True):
+def yaml_save(obj, filepath, indent=4, mode='w', mkdir=False, allow_overwrite=False):
     """
     Saves an object to a yaml file.
     Uses yaml.dump.
@@ -363,7 +363,7 @@ def matlab_save(
     obj,
     filepath,
     mkdir=False, 
-    allow_overwrite=True,
+    allow_overwrite=False,
     clean_string=True,
     list_to_objArray=True,
     none_to_nan=True,
@@ -470,7 +470,7 @@ def download_file(
     hash_type='MD5', 
     hash_hex=None,
     mkdir=False,
-    allow_overwrite=True,
+    allow_overwrite=False,
     write_mode='wb',
     verbose=True,
     chunk_size=1024,

@@ -7,7 +7,7 @@ import numpy as np
 import scipy.optimize
 from numba import njit, prange, jit
 import torch
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from . import indexing, torch_helpers
 

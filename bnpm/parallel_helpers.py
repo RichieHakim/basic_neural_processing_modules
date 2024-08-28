@@ -3,7 +3,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import multiprocessing as mp
 from functools import partial
 import numpy as np
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 class ParallelExecutionError(Exception):
     """
