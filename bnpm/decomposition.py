@@ -687,7 +687,16 @@ class CP_NN_HALS_minibatch:
     """
     def __init__(
         self,
-        kwargs_CP_NN_HALS: dict = {},
+        kwargs_CP_NN_HALS: dict = {
+            'rank': 10,
+            'init': 'svd',
+            'svd': 'truncated_svd',
+            'non_negative': True,
+            'random_state': 0,
+            'normalize_factors': False,
+            'mask': None,
+            'svd_mask_repeats': 5,
+        },
         batch_dimension: int = 0,
         batch_size: int = 10,
         n_iter_batch: int = 10,
@@ -757,11 +766,25 @@ class CP_NN_HALS_minibatch:
         """
         self.init_factors(X) if self.factors is None else None
 
+        ## Make dataset (if X is not a dataset)
+        if isinstance(X, torch.Tensor):
+            dataset = torch.utils.data.TensorDataset(
+                X.moveaxis(self.batch_dimension, 0),
+                torch.arange(X.shape[self.batch_dimension]),
+            )
+        elif isinstance(X, Dataset):
+            class DatasetWrapper(Dataset):
+                def __init__(self, dataset):
+                    super(DatasetWrapper, self).__init__()
+                    self.dataset = dataset
+                def __len__(self):
+                    return len(self.dataset)
+                def __getitem__(self, idx):
+                    return self.dataset[idx], idx
+            dataset = DatasetWrapper(X)
+        else:
+            raise ValueError('X must be a torch.Tensor or torch.utils.data.Dataset.')
         ## Make dataloader
-        dataset = torch.utils.data.TensorDataset(
-            X.moveaxis(self.batch_dimension, 0),
-            torch.arange(X.shape[self.batch_dimension]),
-        )
         kwargs_dataloader_tmp = copy.deepcopy(self.kwargs_dataloader)
         kwargs_dataloader_tmp.pop('batch_size', None)
         dataloader = torch.utils.data.DataLoader(
