@@ -815,6 +815,8 @@ class CP_NN_HALS_minibatch:
                 idx_batch = idx_batch.to(self.device)
                 
                 factors_batch = copy.deepcopy(self.factors)
+                factors_batch.factors = [torch.as_tensor(f, device=self.device) for f in factors_batch.factors]
+                factors_batch.weights = torch.as_tensor(factors_batch.weights, device=self.device)
                 factors_batch.factors[0] = factors_batch.factors[0][idx_batch]
                 model = tl.decomposition.CP_NN_HALS(
                     n_iter_max=self.n_iter_batch,
@@ -824,8 +826,10 @@ class CP_NN_HALS_minibatch:
                 model.fit(X_batch)
 
                 ## Drop into self.losses
-                i_total = np.array(list(self.losses.keys()), dtype=int)[:, 1].max() if len(self.losses) > 0 else 0
-                self.losses.update({(i_epoch, i_total + ii): loss.item() for ii, loss in enumerate(model.errors_)})
+                # i_total = np.array(list(self.losses.keys()), dtype=int)[:, 1].max() if len(self.losses) > 0 else 0
+                # self.losses.update({(i_epoch, i_total + ii): loss.item() for ii, loss in enumerate(model.errors_)})
+                self.losses.update({(i_epoch, i_iter): [loss.item() for loss in model.errors_]})
+
 
                 factors_batch = model.decomposition_
 
@@ -847,8 +851,21 @@ class CP_NN_HALS_minibatch:
                     self.factors.factors[0][idx_batch] = factors_batch.factors[0]
                     self.factors.factors[1:] = factors_batch.factors[1:]
                     self.factors.weights = factors_batch.weights
+
+                if self.verbose:
+                    print(f'Epoch {i_epoch+1}/{self.n_epochs}, Batch {i_iter+1}/{len(dataloader)}')
+                    print(f'Losses: {[loss.item() for loss in model.errors_]}')
+                    print('')
                     
         return self
+
+    def factors_to_numpy(self):
+        """
+        Returns the factors as numpy arrays.
+        """
+        factors = [f.cpu().numpy() for f in self.factors.factors]
+        weights = self.factors.weights.cpu().numpy()
+        return factors, weights
 
     @property
     def components_(self):
