@@ -2,6 +2,8 @@ from typing import Dict, Type, Any, Union, Optional, Callable, Tuple, List
 import gc
 
 import numpy as np
+import sklearn
+import sklearn.linear_model
 
 
 def LinearRegression_sweep(X_in,
