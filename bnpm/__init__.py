@@ -1,4 +1,5 @@
 __all__ = [
+    'array_storage',
     'automatic_regression',
     'ca2p_preprocessing',
     'circular',
