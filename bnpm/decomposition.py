@@ -752,8 +752,8 @@ class CP_NN_HALS_minibatch:
             tensor=X.moveaxis(self.batch_dimension, 0),
             **{k: self.kwargs_CP_NN_HALS.get(k, v) for k, v in kwargs_default.items()},
         )
-        self.factors.factors = [f.to(self.device) for f in self.factors.factors]
-        self.factors.weights = self.factors.weights.to(self.device)
+        self.factors.factors = [torch.as_tensor(f).to(self.device) for f in self.factors.factors]
+        self.factors.weights = torch.as_tensor(self.factors.weights).to(self.device)
         return self.factors
 
     def fit(self, X):
@@ -863,9 +863,8 @@ class CP_NN_HALS_minibatch:
         """
         Returns the factors as numpy arrays.
         """
-        factors = [f.cpu().numpy() for f in self.factors.factors]
-        weights = self.factors.weights.cpu().numpy()
-        return factors, weights
+        self.factors.factors = [f.cpu().numpy() for f in self.factors.factors] if isinstance(self.factors.factors[0], torch.Tensor) else self.factors.factors
+        self.factors.weights = self.factors.weights.cpu().numpy() if isinstance(self.factors.weights, torch.Tensor) else self.factors.weights
 
     @property
     def components_(self):
