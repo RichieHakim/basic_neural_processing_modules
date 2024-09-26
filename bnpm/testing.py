@@ -90,10 +90,15 @@ class Equivalence_checker():
                     at = np.abs(true)
                     r_diff = diff / at if np.all(at != 0) else np.inf
                     r_diff_mean, r_diff_max, any_nan = np.nanmean(r_diff), np.nanmax(r_diff), np.any(np.isnan(r_diff))
-                    reason = f"Equivalence: Relative difference: mean={r_diff_mean}, max={r_diff_max}, any_nan={any_nan}"
+                    ## fraction of mismatches
+                    n_elements = np.prod(test.shape)
+                    n_mismatches = np.sum(diff > 0)
+                    frac_mismatches = n_mismatches / n_elements
+                    ## Use scientific notation and round to 3 decimal places
+                    reason = f"Equivalence: Relative difference: mean={r_diff_mean:.3e}, max={r_diff_max:.3e}, any_nan={any_nan}, n_elements={n_elements}, n_mismatches={n_mismatches}, frac_mismatches={frac_mismatches:.3e}"
                 else:
                     reason = f"Values are not numpy numeric types. types: {test.dtype}, {true.dtype}"
-        elif out == True:
+        else:
             reason = "equivlance"
 
         return out, reason
@@ -158,9 +163,12 @@ class Equivalence_checker():
             if len(true) != len(test):
                 result = (False, 'length_mismatch')
             else:
-                result = {}
-                for idx, (i, j) in enumerate(zip(test, true)):
-                    result[str(idx)] = self.__call__(i, j, path=path + [str(idx)])
+                if all([isinstance(i, (int, float, complex, np.number)) for i in true]):
+                    result = self._checker(np.array(test), np.array(true), path)
+                else:
+                    result = {}
+                    for idx, (i, j) in enumerate(zip(test, true)):
+                        result[str(idx)] = self.__call__(i, j, path=path + [str(idx)])
         ## STRING
         elif isinstance(true, str):
             result = (test == true, 'equivalence')
@@ -170,6 +178,17 @@ class Equivalence_checker():
         ## NONE
         elif true is None:
             result = (test is None, 'equivalence')
+
+        ## OBJECT with __dict__
+        elif hasattr(true, '__dict__'):
+            result = {}
+            for key in true.__dict__:
+                if key.startswith('_'):
+                    continue
+                if not hasattr(test, key):
+                    result[str(key)] = (False, 'key not found')
+                else:
+                    result[str(key)] = self.__call__(getattr(test, key), getattr(true, key), path=path + [str(key)])
         ## N/A
         else:
             result = (None, 'not tested')

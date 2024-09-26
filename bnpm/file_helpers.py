@@ -1,3 +1,4 @@
+from typing import Any, Union, Callable
 import pickle
 import json
 import yaml
@@ -413,6 +414,147 @@ def matlab_save(
     import scipy.io
     scipy.io.savemat(filepath, data_cleaned, **kwargs_scipy_savemat)
 
+
+# def zarr_save(
+#     obj,
+#     filepath,
+#     mode='w',
+#     mkdir=False,
+#     allow_overwrite=False,
+#     function_unsupported: Callable = lambda data: repr(data),
+#     **kwargs_zarr,
+# ):
+#     """
+#     Saves an object to a zarr file. Uses recursive approach to save
+#     hierarchical objects.
+#     RH 2024
+
+#     Args:
+#         obj (object):
+#             Object to save. Can be any array or hierarchical object.
+#         filepath (str):
+#             Path to save object to.
+#         mode (str):
+#             Mode to open file in.
+#             Can be:
+#                 'wb' (write binary)
+#                 'ab' (append binary)
+#                 'xb' (exclusive write binary. Raises FileExistsError if file already exists.)
+#         mkdir (bool):
+#             If True, creates parent directory if it does not exist.
+#         allow_overwrite (bool):
+#             If True, allows overwriting of existing file.        
+#         kwargs_zarr (dict):
+#             Keyword arguments to pass to zarr.save.
+#     """
+#     import zarr
+
+#     path = prepare_filepath_for_saving(filepath, mkdir=mkdir, allow_overwrite=allow_overwrite)
+    
+#     import numpy as np
+#     import scipy.sparse
+
+#     def save_data_to_zarr(data, group, name=None):
+#         """
+#         Recursively saves complex nested data structures into a Zarr group.
+
+#         Parameters:
+#         - data: The data to save (dict, list, tuple, np.ndarray, int, float, str, bool, or None).
+#         - group: The Zarr group to save data into.
+#         - name: The name of the dataset or subgroup (used in recursive calls).
+#         """
+#         if isinstance(data, dict):
+#             # Use the given name or the current group
+#             sub_group = group.require_group(name) if name else group
+#             for key, value in data.items():
+#                 # Ensure keys are strings
+#                 key_str = str(key) if not isinstance(key, str) else key
+#                 # Recursively save data
+#                 save_data_to_zarr(value, sub_group, name=key_str)
+#         elif isinstance(data, (list, tuple)):
+#             # Create a subgroup for lists and tuples
+#             sub_group = group.require_group(name) if name else group
+#             for idx, item in enumerate(data):
+#                 key_str = str(idx)
+#                 save_data_to_zarr(item, sub_group, name=key_str)
+#         elif isinstance(data, np.ndarray):
+#             if name is None:
+#                 raise ValueError("Name must be provided for dataset")
+#             group.create_dataset(name, data=data)
+#         elif isinstance(data, scipy.sparse.spmatrix):
+#             if name is None:
+#                 raise ValueError("Name must be provided for dataset")
+#             group.create_dataset(name, data=data)
+#         elif isinstance(data, (int, float, str, bool)):
+#             if name is None:
+#                 raise ValueError("Name must be provided for dataset")
+#             group.create_dataset(name, data=data)
+#         elif data is None:
+#             if name is None:
+#                 raise ValueError("Name must be provided for dataset")
+#             # Store None as a special attribute
+#             group.attrs[name] = 'None'
+#         else:
+#             # For unsupported types, store the string representation
+#             if name is None:
+#                 raise ValueError("Name must be provided for attribute")
+#             group.attrs[name] = repr(data)
+
+#     zarr_group = zarr.open(path, mode=mode, **kwargs_zarr)
+#     save_data_to_zarr(obj, zarr_group, name=None)
+
+
+# def zarr_load(
+#     filepath,
+#     mode='r',
+#     **kwargs_zarr,
+# ):
+#     """
+#     Loads a zarr file. Uses recursive approach to load hierarchical
+#     objects.
+#     RH 2024
+
+#     Args:
+#         filepath (str):
+#             Path to zarr file.
+#         mode (str):
+#             Mode to open file in.
+#         kwargs_zarr (dict):
+#             Keyword arguments to pass to zarr.load.
+#     """
+#     import zarr
+
+#     # path = prepare_filepath_for_loading(filepath, must_exist=True)
+#     path = filepath
+    
+#     def load_data_from_zarr(group):
+#         """
+#         Recursively loads complex nested data structures from a Zarr group.
+
+#         Parameters:
+#         - group: The Zarr group to load data from.
+
+#         Returns:
+#         - The loaded data (dict, list, tuple, np.ndarray, int, float, str, bool, or None).
+#         """
+#         data = {}
+#         for key in group.array_keys():
+#             data[key] = group[key][...]
+#         for key in group.group_keys():
+#             data[key] = load_data_from_zarr(group[key])
+#         for key, value in group.attrs.items():
+#             if value == 'None':
+#                 data[key] = None
+#             else:
+#                 try:
+#                     data[key] = eval(value)
+#                 except Exception:
+#                     data[key] = value
+#         return data
+
+#     zarr_group = zarr.open(path, mode=mode, **kwargs_zarr)
+#     return load_data_from_zarr(zarr_group)
+        
 
 def hash_file(path, type_hash='MD5', buffer_size=65536):
     """
