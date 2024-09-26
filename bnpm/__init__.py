@@ -25,7 +25,6 @@ __all__ = [
     'path_helpers',
     'plotting_helpers',
     'resource_tracking',
-    'richfile',
     'server',
     'similarity',
     'spectral',
