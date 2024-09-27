@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import sklearn
+import sklearn.model_selection
                                      
 def make_cv_indices(
     cv, 

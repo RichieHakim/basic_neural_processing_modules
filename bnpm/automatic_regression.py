@@ -7,6 +7,7 @@ import datetime
 import numpy as np
 import torch
 import sklearn
+import sklearn.model_selection
 import optuna
 
 from . import path_helpers
