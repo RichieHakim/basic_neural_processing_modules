@@ -11,7 +11,6 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 from tqdm.auto import tqdm
-import tensordict
 
 from . import indexing
 from . import misc
