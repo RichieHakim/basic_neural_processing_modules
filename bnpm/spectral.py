@@ -16,7 +16,7 @@ from . import timeSeries
 from . import indexing
 
 
-def design_butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
+def design_butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=False):
     '''
     designs a butterworth bandpass filter.
     Makes a lowpass filter if lowcut is 0.

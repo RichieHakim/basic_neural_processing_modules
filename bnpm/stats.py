@@ -205,6 +205,26 @@ def zscore_to_pvalue(z, two_tailed=True):
         return scipy.stats.norm.sf(np.abs(z))
     
 
+def pvalue_to_zscore(p, two_tailed=True):
+    """
+    Convert a p-value to a z-score.
+
+    Args:
+    p (float): 
+        The p-value.
+    two_tailed (bool): 
+        If True, the p-value is two-tailed. If False, the p-value is one-tailed.
+
+    Returns:
+        float:
+            The z-score.
+    """
+    if two_tailed:
+        return scipy.stats.norm.ppf(1 - p/2)
+    else:
+        return scipy.stats.norm.ppf(1 - p)
+    
+
 def multiTest_two_sample_independence(
     a,
     b,

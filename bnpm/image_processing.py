@@ -12,7 +12,7 @@ from tqdm.notebook import tqdm
 import scipy.interpolate
 import scipy.sparse
 
-from . import indexing, featurization, parallel_helpers
+from . import indexing, featurization, parallel_helpers, spectral
 
 
 def find_geometric_transformation(
@@ -276,8 +276,6 @@ def remap_images(
     elif images.ndim != 4:
         raise ValueError(f"images must be a 2D, 3D, or 4D array. Got shape {images.shape}")
     assert remappingIdx.ndim == 3, f"remappingIdx must be a 3D array of shape (H, W, 2). Got shape {remappingIdx.shape}"
-    assert images.shape[-2] == remappingIdx.shape[0], f"images H ({images.shape[-2]}) must match remappingIdx H ({remappingIdx.shape[0]})"
-    assert images.shape[-1] == remappingIdx.shape[1], f"images W ({images.shape[-1]}) must match remappingIdx W ({remappingIdx.shape[1]})"
 
     # Check backend
     if backend not in ["torch", "cv2"]:
@@ -896,6 +894,104 @@ def cv2RemappingIdx_to_pytorchFlowField(ri):
     normgrid = ((ri / (im_shape[None, None, :] - 1)) - 0.5) * 2  ## PyTorch's grid_sample expects grid values in [-1, 1] because it's a relative offset from the center pixel. CV2's remap expects grid values in [0, 1] because it's an absolute offset from the top-left pixel.
     ## note also that pytorch's grid_sample expects align_corners=True to correspond to cv2's default behavior.
     return normgrid
+
+def pytorchFlowField_to_cv2RemappingIdx(normgrid):
+    """
+    Convert remapping indices from the PyTorch format to the OpenCV format.
+    cv2 format: Displacement is in pixels relative to the top left pixel
+     of the image.
+    PyTorch format: Displacement is in pixels relative to the center of
+     the image.
+    RH 2024
+
+    Args:
+        normgrid (np.ndarray or torch.Tensor):
+            "Flow field", in the PyTorch format.
+            Technically not a flow field, since it doesn't describe
+             displacement. Rather, it is a remapping index relative to
+             the center of the image.
+            Shape (H, W, 2). Last dimension is (x, y).
+
+    Returns:
+        ri (np.ndarray or torch.Tensor): 
+            Remapping indices.
+            Each pixel describes the index of the pixel in the original
+             image that should be mapped to the new pixel.
+            Shape (H, W, 2). Last dimension is (x, y).
+    """
+    assert isinstance(normgrid, torch.Tensor), f"normgrid must be a torch.Tensor. Got {type(normgrid)}"
+    im_shape = torch.flipud(torch.as_tensor(normgrid.shape[:2], dtype=torch.float32, device=normgrid.device))  ## (W, H)
+    ri = ((normgrid / 2) + 0.5) * (im_shape[None, None, :] - 1)
+    return ri
+
+def resize_remappingIdx(
+    ri: Union[np.ndarray, torch.Tensor], 
+    new_shape: Tuple[int, int],
+    interpolation: str = 'BILINEAR',
+) -> Union[np.ndarray, torch.Tensor]:
+    """
+    Resize a remapping index field. This function both resizes the shape of the
+    actual remappingIdx arrays and scales the values to match the new shape.
+    RH 2024
+
+    Args:
+        ri (np.ndarray or torch.Tensor): 
+            Remapping index field(s). Describes the index of the pixel in the
+            original image that should be mapped to the new pixel. Shape (H, W,
+            2) or (B, H, W, 2). Last dimension is (x, y).
+        new_shape (Tuple[int, int]):
+            New shape of the remapping index field.
+            Shape (H', W').
+        interpolation (str): 
+            The interpolation method to use. See ``torchvision.transforms.Resize`` 
+            for options. \n
+                * ``'NEAREST'``: Nearest neighbor interpolation
+                * ``'NEAREST_EXACT'``: Nearest neighbor interpolation
+                * ``'BILINEAR'``: Bilinear interpolation
+                * ``'BICUBIC'``: Bicubic interpolation
+        antialias (bool): 
+            If ``True``, antialiasing will be used. (Default is ``False``)                
+
+    Returns:
+        ri_resized (np.ndarray or torch.Tensor):
+            Resized remapping index field.
+            Shape (H', W', 2). Last dimension is (x, y).
+    """
+    assert isinstance(ri, (np.ndarray, torch.Tensor)), f"ri must be a np.ndarray or torch.Tensor. Got {type(ri)}"
+    assert ri.ndim in [3, 4], f"ri must have shape (H, W, 2) or (B, H, W, 2). Got shape {ri.shape}"
+    assert ri.shape[-1] == 2, f"ri must have shape (H, W, 2). Got shape {ri.shape}"
+    assert isinstance(new_shape, (tuple, list, np.ndarray, torch.Tensor)), f"new_shape must be a tuple, list, np.ndarray, or torch.Tensor. Got {type(new_shape)}"
+    assert len(new_shape) == 2, f"new_shape must have length 2. Got length {len(new_shape)}"
+    
+    new_shape = (int(new_shape[0]), int(new_shape[1]))
+    
+    if ri.ndim == 3:
+        ri = ri[None, ...]
+        return_3D = True
+    else:
+        return_3D = False
+    hw_ri = ri.shape[1:3]
+    
+    if isinstance(ri, np.ndarray):
+        ri = torch.as_tensor(ri)
+        return_numpy = True
+    else:
+        return_numpy = False
+    device = ri.device
+
+    offsets = torch.as_tensor([(new_shape[0] - 1) / (hw_ri[0] - 1), (new_shape[1] - 1) / (hw_ri[1] - 1)], dtype=torch.float32, device=device)[None, None, None, ...]
+
+    ri_resized = resize_images(
+        images=ri.permute(3, 0, 1, 2),
+        new_shape=new_shape,
+        interpolation=interpolation,
+    ).permute(1, 2, 3, 0) * offsets
+
+    if return_numpy:
+        ri_resized = ri_resized.cpu().numpy()
+    if return_3D:
+        ri_resized = ri_resized[0]
+    return ri_resized
 
 
 @torch.jit.script
@@ -1650,8 +1746,8 @@ def resize_images(
     new_shape: Tuple[int, int] = (100,100),
     interpolation: str = 'BILINEAR',
     antialias: bool = False,
-    device: str = 'cpu',
-    return_numpy: bool = True,
+    device: Optional[str] = None,
+    return_numpy: Optional[bool] = None,
 ) -> np.ndarray:
     """
     Resizes images using the ``torchvision.transforms.Resize`` method.
@@ -1675,12 +1771,13 @@ def resize_images(
             * ``'BICUBIC'``: Bicubic interpolation
         antialias (bool): 
             If ``True``, antialiasing will be used. (Default is ``False``)
-        device (str): 
-            The device to use for ``torchvision.transforms.Resize``. 
-            (Default is ``'cpu'``)
-        return_numpy (bool):
+        device Optional[str]:
+            The device to use for ``torchvision.transforms.Resize``. If None,
+            will use the device of the input images. (Default is ``None``)
+        return_numpy Optional[bool]:
             If ``True``, then will return a numpy array. Otherwise, will return
-            a torch tensor on the defined device. (Default is ``True``)
+            a torch tensor on the defined device. If None, will return a numpy
+            array only if the input is a numpy array. (Default is ``None``)
             
     Returns:
         (np.ndarray): 
@@ -1690,9 +1787,13 @@ def resize_images(
     ## Convert images to torch tensor
     if isinstance(images, list):
         if isinstance(images[0], np.ndarray):
+            device = device if device is not None else 'cpu'
             images = torch.stack([torch.as_tensor(im, device=device) for im in images], dim=0)
+            return_numpy = True if return_numpy is None else return_numpy
     elif isinstance(images, np.ndarray):
+        device = device if device is not None else 'cpu'
         images = torch.as_tensor(images, device=device)
+        return_numpy = True if return_numpy is None else return_numpy
     elif isinstance(images, torch.Tensor):
         images = images.to(device=device)
     else:
@@ -1735,7 +1836,7 @@ def resize_images(
     images_resized = unpad_to_orig(images_resized, ndim_orig)
         
     ## Convert images to numpy
-    if return_numpy:
+    if return_numpy == True:
         images_resized = images_resized.detach().cpu().numpy()
     
     return images_resized
@@ -1783,3 +1884,242 @@ def image_to_uint8(
     images = images.clip(0, 255).astype(np.uint8) if clip else images.astype(np.uint8)
 
     return images
+
+
+class ImageAlignmentChecker:
+    """
+    Class to check the alignment of images using phase correlation.
+    RH 2024
+
+    Args:
+        hw (Tuple[int, int]): 
+            Height and width of the images.
+        radius_in (Union[float, Tuple[float, float]]): 
+            Radius of the pixel shift / offset that can be considered as
+            'aligned'. Used to create the 'in' filter which is an image of a
+            small centered circle that is used as a filter and multiplied by
+            the phase correlation images. If a single value is provided, the
+            filter will be a circle with radius 0 to that value; it will be
+            converted to a tuple representing a bandpass filter (0, radius_in).
+        radius_out (Union[float, Tuple[float, float]]):
+            Similar to radius_in, but for the 'out' filter, which defines the
+            'null distribution' for defining what is 'aligned'. Should be a
+            value larger than the expected maximum pixel shift / offset. If a
+            single value is provided, the filter will be a donut / taurus
+            starting at that value and ending at the edge of the smallest
+            dimension of the image; it will be converted to a tuple representing
+            a bandpass filter (radius_out, min(hw)).
+        order (int):
+            Order of the butterworth bandpass filters used to define the 'in'
+            and 'out' filters. Larger values will result in a sharper edges, but
+            values higher than 5 can lead to collapse of the filter.
+        device (str):
+            Torch device to use for computations. (Default is 'cpu')
+
+    Attributes:
+        hw (Tuple[int, int]): 
+            Height and width of the images.
+        order (int):
+            Order of the butterworth bandpass filters used to define the 'in'
+            and 'out' filters.
+        device (str):
+            Torch device to use for computations.
+        filt_in (torch.Tensor):
+            The 'in' filter used for scoring the alignment.
+        filt_out (torch.Tensor):
+            The 'out' filter used for scoring the alignment.
+    """
+    def __init__(
+        self,
+        hw: Tuple[int, int],
+        radius_in: Union[float, Tuple[float, float]],
+        radius_out: Union[float, Tuple[float, float]],
+        order: int = 5,
+        device: str = 'cpu',
+    ):
+        ## Set attributes
+        ### Convert to torch.Tensor
+        self.hw = tuple(hw)
+
+        ### Set other attributes
+        self.order = int(order)
+        self.device = str(device)
+        ### Set filter attributes
+        if isinstance(radius_in, (int, float, complex)):
+            radius_in = (float(0.0), float(radius_in))
+        elif isinstance(radius_in, (tuple, list, np.ndarray, torch.Tensor)):
+            radius_in = tuple(float(r) for r in radius_in)
+        else:
+            raise ValueError(f'radius_in must be a float or tuple of floats. Found type: {type(radius_in)}')
+        if isinstance(radius_out, (int, float, complex)):
+            radius_out = (float(radius_out), float(min(self.hw)) / 2)
+        elif isinstance(radius_out, (tuple, list, np.ndarray, torch.Tensor)):
+            radius_out = tuple(float(r) for r in radius_out)
+        else:
+            raise ValueError(f'radius_out must be a float or tuple of floats. Found type: {type(radius_out)}')
+
+        ## Make filters
+        self.filt_in, self.filt_out = (torch.as_tensor(self._make_filter(
+            hw=self.hw,
+            low=bp[0],
+            high=bp[1],
+            order=order,
+        ), dtype=torch.float32, device=device) for bp in [radius_in, radius_out])
+    
+    def _make_filter(
+        self,
+        hw: tuple,
+        low: float = 5,
+        high: float = 6,
+        order: int = 3,
+    ):
+        """
+        Make a filter for scoring the alignment of images using phase correlation.
+        RH 2024
+
+        Args:
+            hw (tuple): 
+                Height and width of the images.
+            low (float): 
+                Low cutoff frequency for the bandpass filter. (Default is *5*)
+            high (float): 
+                High cutoff frequency for the bandpass filter. (Default is *6*)
+            order (int): 
+                Order of the butterworth bandpass filter. (Default is *3*)
+
+        Returns:
+            (np.ndarray): 
+                Filter for scoring the alignment. Shape: *(height, width)*
+        """
+        ## Make a distance grid starting from the fftshifted center
+        grid = featurization.make_distance_grid(shape=hw, p=2, use_fftshift_center=True)
+
+        ## Make the number of datapoints for the kernel large
+        n_x = max(hw) * 10
+
+        fs = max(hw) * 1
+        b, a = spectral.design_butter_bandpass(lowcut=low, highcut=high, fs=fs, order=order, plot_pref=False)
+        w, h = scipy.signal.freqz(b, a, worN=n_x)
+        x_kernel = (fs * 0.5 / np.pi) * w
+        kernel = np.abs(h)
+
+        ## Interpolate the kernel to the distance grid
+        filt = np.interp(
+            x=grid,
+            xp=x_kernel,
+            fp=kernel,
+        )
+
+        return filt
+    
+    def score_alignment(
+        self,
+        images: Union[np.ndarray, torch.Tensor],
+        images_ref: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    ):
+        """
+        Score the alignment of a set of images using phase correlation. Computes
+        the stats of the center ('in') of the phase correlation image over the
+        stats of the outer region ('out') of the phase correlation image.
+        RH 2024
+
+        Args:
+            images (Union[np.ndarray, torch.Tensor]): 
+                A 3D array of images. Shape: *(n_images, height, width)*
+            images_ref (Optional[Union[np.ndarray, torch.Tensor]]):
+                Reference images to compare against. If provided, the images
+                will be compared against these images. If not provided, the
+                images will be compared against themselves. (Default is
+                ``None``)
+
+        Returns:
+            (Dict): 
+                Dictionary containing the following keys:
+                * 'mean_out': 
+                    Mean of the phase correlation image weighted by the
+                    'out' filter
+                * 'mean_in': 
+                    Mean of the phase correlation image weighted by the
+                    'in' filter
+                * 'ptile95_out': 
+                    95th percentile of the phase correlation image multiplied by
+                    the 'out' filter
+                * 'max_in': 
+                    Maximum value of the phase correlation image multiplied by
+                    the 'in' filter
+                * 'std_out': 
+                    Standard deviation of the phase correlation image weighted by
+                    the 'out' filter
+                * 'std_in': 
+                    Standard deviation of the phase correlation image weighted by
+                    the 'in' filter
+                * 'max_diff': 
+                    Difference between the 'max_in' and 'ptile95_out' values
+                * 'z_in': 
+                    max_diff divided by the 'std_out' value
+                * 'r_in': 
+                    max_diff divided by the 'ptile95_out' value
+        """
+        def _fix_images(ims):
+            assert isinstance(ims, (np.ndarray, torch.Tensor, list, tuple)), f'images must be np.ndarray, torch.Tensor, or a list/tuple of np.ndarray or torch.Tensor. Found type: {type(ims)}'
+            if isinstance(ims, (list, tuple)):
+                assert all(isinstance(im, (np.ndarray, torch.Tensor)) for im in ims), f'images must be np.ndarray or torch.Tensor. Found types: {set(type(im) for im in ims)}'
+                assert all(im.ndim == 2 for im in ims), f'images must be 2D arrays (height, width). Found shapes: {set(im.shape for im in ims)}'
+                if isinstance(ims[0], np.ndarray):
+                    ims = np.stack([np.array(im) for im in ims], axis=0)
+                else:
+                    ims = torch.stack([torch.as_tensor(im) for im in ims], dim=0)
+            else:
+                if ims.ndim == 2:
+                    ims = ims[None, :, :]
+                assert ims.ndim == 3, f'images must be a 3D array (n_images, height, width). Found shape: {ims.shape}'
+                assert ims.shape[1:] == self.hw, f'images must have shape (n_images, {self.hw[0]}, {self.hw[1]}). Found shape: {ims.shape}'
+
+            ims = torch.as_tensor(ims, dtype=torch.float32, device=self.device)
+            return ims
+
+        images = _fix_images(images)
+        images_ref = _fix_images(images_ref) if images_ref is not None else images
+        
+        pc = phase_correlation(images_ref[None, :, :, :], images[:, None, :, :])  ## All to all phase correlation. Shape: (n_images, n_images, height, width)
+
+        ## metrics
+        filt_in, filt_out = self.filt_in[None, None, :, :], self.filt_out[None, None, :, :]
+        mean_out = (pc * filt_out).sum(dim=(-2, -1)) / filt_out.sum(dim=(-2, -1))
+        mean_in =  (pc * filt_in).sum(dim=(-2, -1))  / filt_in.sum(dim=(-2, -1))
+        ptile95_out = torch.quantile((pc * filt_out).reshape(pc.shape[0], pc.shape[1], -1)[:, :, filt_out.reshape(-1) > 1e-3], 0.95, dim=-1)
+        max_in = (pc * filt_in).amax(dim=(-2, -1))
+        std_out = torch.sqrt(torch.mean((pc - mean_out[:, :, None, None])**2 * filt_out, dim=(-2, -1)))
+        std_in = torch.sqrt(torch.mean((pc - mean_in[:, :, None, None])**2 * filt_in, dim=(-2, -1)))
+
+        max_diff = max_in - ptile95_out
+        z_in = max_diff / std_out
+        r_in = max_diff / ptile95_out
+
+        outs = {
+            'pc': pc.cpu().numpy(),
+            'mean_out': mean_out,
+            'mean_in': mean_in,
+            'ptile95_out': ptile95_out,
+            'max_in': max_in,
+            'std_out': std_out,
+            'std_in': std_in,
+            'max_diff': max_diff,
+            'z_in': z_in,  ## z-score of in value over out distribution
+            'r_in': r_in,
+        }
+
+        outs = {k: val.cpu().numpy() if isinstance(val, torch.Tensor) else val for k, val in outs.items()}
+        
+        return outs
+    
+    def __call__(
+        self,
+        images: Union[np.ndarray, torch.Tensor],
+    ):
+        """
+        Calls the `score_alignment` method. See `self.score_alignment` docstring
+        for more info.
+        """
+        return self.score_alignment(images)
+

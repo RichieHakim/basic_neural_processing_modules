@@ -183,7 +183,7 @@ def amplitude_basis_expansion(y, LUT, kernels, device='cpu', verbose=False):
     return y_expanded
 
 
-def make_distance_grid(shape=(512,512), p=2):
+def make_distance_grid(shape=(512,512), p=2, idx_center=None, return_axes=False, use_fftshift_center=False):
     """
     Creates a matrix of distances from the center.
     Can calculate the Minkowski distance for any p.
@@ -200,23 +200,55 @@ def make_distance_grid(shape=(512,512), p=2):
             p=1 is the Manhattan distance
             p=2 is the Euclidean distance
             p=inf is the Chebyshev distance
+        idx_center Optional[Tuple[int, int, ...]]:
+            The index of the center of the grid. If None, the center is
+            assumed to be the center of the grid. If provided, the center
+            will be set to this index. This is useful for odd shaped grids
+            where the center is not obvious.
+        return_axes (bool):
+            If True, return the axes of the grid as well. Return will be a
+            tuple.
+        use_fft_center (bool):
+            If True, the center of the grid will be the center of the FFT
+            grid. This is useful for FFT operations where the center is
+            assumed to be the top left corner.
 
     Returns:
-        distance_image (np.ndarray): 
-            array of distances to the center index
+        Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+            distance_image (np.ndarray): 
+                array of distances to the center index
+            axes (Optional[np.ndarray]):
+                axes of the grid as well. Only returned if return_axes=True
 
     """
-    axes = [np.arange(-(d - 1) / 2, (d - 1) / 2 + 0.5) for d in shape]
-    grid_dist = np.linalg.norm(
-        np.stack(
-            np.meshgrid(*axes),
-            axis=0,
-        ),
-        ord=p,
+    if use_fftshift_center:
+        ## Find idx wheter freq=0. Use np.fft.fftfreq
+        freqs_h, freqs_w = np.fft.fftshift(np.fft.fftfreq(shape[0])), np.fft.fftshift(np.fft.fftfreq(shape[1]))
+        idx_center = (np.argmin(np.abs(freqs_h)), np.argmin(np.abs(freqs_w)))
+
+    shape = np.array(shape)
+    if idx_center is not None:
+        axes = [np.linspace(-idx_center[i], shape[i] - idx_center[i] - 1, shape[i]) for i in range(len(shape))]
+    else:
+        axes = [np.arange(-(d - 1) / 2, (d - 1) / 2 + 0.5) for d in shape]
+    grid = np.stack(
+        np.meshgrid(*axes, indexing="ij"),
         axis=0,
     )
+    if idx_center is not None:
+        grid_dist = np.linalg.norm(
+            grid ,
+            ord=p,
+            axis=0,
+        )
+    else:
+        grid_dist = np.linalg.norm(
+            grid,
+            ord=p,
+            axis=0,
+        )
 
-    return grid_dist
+    return grid_dist if not return_axes else (grid_dist, axes)
 
 def gaussian_kernel_2D(image_size=(11, 11), sig=1, center=None):
     """

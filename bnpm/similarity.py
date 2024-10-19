@@ -660,17 +660,18 @@ def batched_covariance(X, batch_size=1000, device='cpu'):
     return X_cov
 
 
-def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='cpu'):
+def matmul_minibatch(X1, X2, batch_size1=1000, batch_size2=1000, device='cpu'):
     """
     Batched matrix multiplication of two matrices.
     Allows for multiplying huge matrices together on a GPU.
+    Computes X1 @ X2.T in batches.
     RH 2022
 
     Args:
         X1 (np.ndarray or torch.Tensor):
-            first matrix. shape (n_samples1, n_features1).
+            first matrix.
         X2 (np.ndarray or torch.Tensor):
-            second matrix. shape (n_samples2, n_features2).
+            second matrix.
         batch_size1 (int):
             batch size for first matrix.
         batch_size2 (int):
@@ -681,40 +682,22 @@ def batched_matrix_multiply(X1, X2, batch_size1=1000, batch_size2=1000, device='
     Returns:
         X1_X2 (np.ndarray or torch.Tensor):
     """
-    X1_dl = indexing.make_batches(np.arange(X1.shape[1]), batch_size=batch_size1, return_idx=True)
-    X2_dl = indexing.make_batches(np.arange(X2.shape[1]), batch_size=batch_size2, return_idx=True)
-
     if torch.is_tensor(X1):
-        Y = torch.zeros(X1.shape[1], X2.shape[1], device=device)
+        X1_X2 = torch.zeros(X1.shape[0], X2.shape[0], device=device)
     else:
-        Y = np.zeros((X1.shape[1], X2.shape[1]))
-    
-    n_batches1 = X1.shape[1] // batch_size1
-    n_batches2 = X2.shape[1] // batch_size2
-    for ii, (X_batch_i, idx_batch_i) in enumerate(tqdm(X1_dl, total=n_batches1, leave=False, desc='outer loop')):
-        for jj, (X_batch_j, idx_batch_j) in enumerate(X2_dl):
-            x1_t = X1[:,idx_batch_i[0]:idx_batch_i[-1]].T
-            x2   = X2[:,idx_batch_j[0]:idx_batch_j[-1]]
+        X1_X2 = np.zeros((X1.shape[0], X2.shape[0]))
+
+    n_batches1 = X1.shape[0] // batch_size1
+    n_batches2 = X2.shape[0] // batch_size2
+
+    for batch_1, idx_1 in tqdm(indexing.make_batches(X1, batch_size=batch_size1, return_idx=True), total=n_batches1, leave=False, desc='outer loop'):
+        for batch_2, idx_2 in  indexing.make_batches(X2, batch_size=batch_size2, return_idx=True):
             if device != 'cpu':
-                x1_t = x1_t.to(device)
-                x2 = x2.to(device)
+                batch_1 = batch_1.to(device)
+                batch_2 = batch_2.to(device)
+            X1_X2[idx_1[0]:idx_1[-1], idx_2[0]:idx_2[-1]] = batch_1 @ batch_2.T
+    return X1_X2
 
-            Y[idx_batch_i[0]:idx_batch_i[-1], idx_batch_j[0]:idx_batch_j[-1]] = x1_t @ x2
-    return Y
-    # X1_dl = indexing.make_batches(X1.T, batch_size=batch_size1, return_idx=True)
-    # X2_dl = indexing.make_batches(X2.T, batch_size=batch_size2, return_idx=True)
-
-    # if torch.is_tensor(X1):
-    #     Y = torch.zeros(X1.shape[1], X2.shape[1], device=device)
-    # else:
-    #     Y = np.zeros((X1.shape[1], X2.shape[1]))
-    
-    # n_batches1 = X1.shape[1] // batch_size1
-    # n_batches2 = X2.shape[1] // batch_size2
-    # for ii, (X_batch_i, idx_batch_i) in enumerate(tqdm(X1_dl, total=n_batches1, leave=False, desc='outer loop')):
-    #     for jj, (X_batch_j, idx_batch_j) in enumerate(X2_dl):
-    #         Y[idx_batch_i[0]:idx_batch_i[-1], idx_batch_j[0]:idx_batch_j[-1]] = X_batch_i @ X_batch_j.T
-    # return Y
 
 
 def similarity_to_distance(x, fn_toUse=1, a=1, b=0, eps=0):
@@ -1045,3 +1028,60 @@ def maximum_directed_matching(weights, partition):
     problem.solve()
     matching = [p for p,v in path_vars.items() if v.value()==1]
     return matching
+
+
+def get_path_between_nodes(
+    idx_start: int,
+    idx_end: int,
+    predecessors: np.ndarray,
+    max_length: int = 9999,
+):
+    """
+    Finds the indices corresponding to the shortest path between two nodes in a
+    graph. Uses a predecessor matrix from a shortest path algorithm (e.g.
+    scipy.sparse.csgraph.shortest_path)
+    RH 2024
+
+    Args:
+        idx_start (int):
+            Index of the starting node.
+        idx_end (int):
+            Index of the ending node.
+        predecessors (np.ndarray):
+            Predecessor matrix from a shortest path algorithm.
+        max_length (int):
+            Maximum length of the path. (Default is 9999)
+
+    Returns:
+        path (List[int]):
+            List of node indices corresponding to the shortest path from
+            idx_start to idx_end. [idx_start, ..., idx_end]
+    """
+    ## Check inputs
+    ### Check that idx_start and idx_end are within the range of the predecessors matrix
+    assert idx_start < predecessors.shape[0], "idx_start is out of range"
+    assert idx_end < predecessors.shape[0], "idx_end is out of range"
+    ### Check that the predecessors matrix is 2D
+    assert predecessors.ndim == 2, "predecessors matrix must be 2D"
+    ### Check that the predecessors matrix is square
+    assert predecessors.shape[0] == predecessors.shape[1], "predecessors matrix must be square"
+    ### Check that idx_start, idx_end, and max_length are integers
+    assert isinstance(idx_start, int), "idx_start must be an integer"
+    assert isinstance(idx_end, int), "idx_end must be an integer"
+    assert isinstance(max_length, int), "max_length must be an integer"
+    ### Check that the path from idx_start to idx_end exists
+    assert predecessors[idx_end, idx_start] != -9999, f"Possibly no path exists. Found that path from {idx_start} to {idx_end} has value -9999 (predecessors[idx_end, idx_start] == {predecessors[idx_end, idx_start]}). This value is assumed to be a placeholder for no path."
+    
+    ## Initialize path
+    path = []
+    idx_current = idx_start
+    path.append(idx_current)
+
+    ## Traverse the predecessors matrix to find the shortest path
+    while idx_current != idx_end:
+        if len(path) > max_length:
+            raise ValueError("Path length exceeds max_length")
+        idx_current = predecessors[idx_end, idx_current]
+        path.append(idx_current)
+
+    return path

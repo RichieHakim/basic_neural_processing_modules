@@ -130,6 +130,28 @@ def cartesian2polar(x):
     return abs(x), angle(x)
 
 
+def angle2rotmat(angle):
+    """
+    Converts an angle to a 2D rotation matrix
+    RH 2024
+
+    Args:
+        angle (float or np.ndarray or torch.Tensor):
+            Angle of rotation
+        
+    Returns:
+        output (np.ndarray or torch.Tensor):
+            2D rotation matrix
+    """
+    if type(angle) is torch.Tensor:
+        cos, sin = torch.cos, torch.sin
+        wrapper = torch.as_tensor
+    else:
+        cos, sin = np.cos, np.sin
+        wrapper = np.array
+    return wrapper([[(c:=cos(angle)), -(s:=sin(angle))], [s, c]])
+
+
 def make_correlated_distributions_2D(means, stds, corrs, n_points_per_mode):
     """
     Makes correlated noisey distributions in 2D.
