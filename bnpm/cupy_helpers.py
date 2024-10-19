@@ -1,8 +1,3 @@
-def import_cupy_pkgs():
-    import cuml
-    import cuml.decomposition
-    import cupy
-
 def set_device(device_num=0, verbose=True):
     """
     Set the device to use.
@@ -15,6 +10,7 @@ def set_device(device_num=0, verbose=True):
         verbose (bool):
             Whether to print the device name.
     """
+    import cupy
     
     if cupy.cuda.runtime.getDeviceCount() > 0:
         if device_num is None:
