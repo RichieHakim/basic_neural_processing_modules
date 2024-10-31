@@ -994,110 +994,195 @@ def resize_remappingIdx(
     return ri_resized
 
 
-@torch.jit.script
-def phase_correlation_helper(
-    im_template,
-    im_moving,
-    mask_fft=None, 
-    compute_maskFFT: bool=False, 
-    template_precomputed: bool=False,
-    eps: float=1e-17,
-):
-    if im_template.ndim == 2:
-        im_template = im_template[None, ...]
-    if im_moving.ndim == 2:
-        im_moving = im_moving[None, ...]
-        return_2D = True
-    else:
-        return_2D = False
-    if compute_maskFFT:
-        mask_fft = mask_fft[None, ...]
+# @torch.jit.script
+# def phase_correlation_helper(
+#     im_template,
+#     im_moving,
+#     mask_fft=None, 
+#     compute_maskFFT: bool=False, 
+#     template_precomputed: bool=False,
+#     eps: float=1e-17,
+# ):
+#     if im_template.ndim == 2:
+#         im_template = im_template[None, ...]
+#     if im_moving.ndim == 2:
+#         im_moving = im_moving[None, ...]
+#         return_2D = True
+#     else:
+#         return_2D = False
+#     if compute_maskFFT:
+#         mask_fft = mask_fft[None, ...]
 
-    dims = (-2, -1)
+#     dims = (-2, -1)
         
-    if compute_maskFFT:
-        mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum(), dim=dims)
-        fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims) * mask_fft) if not template_precomputed else im_template
-        fft_moving = torch.fft.fft2(im_moving, dim=dims) * mask_fft
-    else:
-        fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims)) if not template_precomputed else im_template
-        fft_moving = torch.fft.fft2(im_moving, dim=dims)
+#     if compute_maskFFT:
+#         mask_fft = torch.fft.fftshift(mask_fft/mask_fft.sum(), dim=dims)
+#         fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims) * mask_fft) if not template_precomputed else im_template
+#         fft_moving = torch.fft.fft2(im_moving, dim=dims) * mask_fft
+#     else:
+#         fft_template = torch.conj(torch.fft.fft2(im_template, dim=dims)) if not template_precomputed else im_template
+#         fft_moving = torch.fft.fft2(im_moving, dim=dims)
 
-    R = fft_template[:,None,:,:] * fft_moving[None,:,:,:]
-    R /= torch.abs(R) + eps
+#     R = fft_template[:,None,:,:] * fft_moving[None,:,:,:]
+#     R /= torch.abs(R) + eps
     
-    cc = torch.fft.fftshift(torch.fft.ifft2(R, dim=dims), dim=dims).real.squeeze()
+#     cc = torch.fft.fftshift(torch.fft.ifft2(R, dim=dims), dim=dims).real.squeeze()
     
-    return cc if not return_2D else cc[0]
+#     return cc if not return_2D else cc[0]
+# def phase_correlation(
+#     im_template, 
+#     im_moving,
+#     mask_fft=None, 
+#     template_precomputed=False, 
+#     device='cpu'
+# ):
+#     """
+#     Perform phase correlation on two images.
+#     Uses pytorch for speed
+#     RH 2022
+    
+#     Args:
+#         im_template (np.ndarray or torch.Tensor):
+#             Template image(s).
+#             If ndim=2, a single image is assumed.
+#                 shape: (height, width)
+#             if ndim=3, multiple images are assumed, dim=0 is the batch dim.
+#                 shape: (batch, height, width)
+#                 dim 0 should either be length 1 or the same as im_moving.
+#             If template_precomputed is True, this is assumed to be:
+#              np.conj(np.fft.fft2(im_template, axis=(1,2)) * mask_fft)
+#         im_moving (np.ndarray or torch.Tensor):
+#             Moving image(s).
+#             If ndim=2, a single image is assumed.
+#                 shape: (height, width)
+#             if ndim=3, multiple images are assumed, dim=0 is the batch dim.
+#                 shape: (batch, height, width)
+#                 dim 0 should either be length 1 or the same as im_template.
+#         mask_fft (np.ndarray or torch.Tensor):
+#             Mask for the FFT.
+#             Shape: (height, width)
+#             If None, no mask is used.
+#         template_precomputed (bool):
+#             If True, im_template is assumed to be:
+#              np.conj(np.fft.fft2(im_template, axis=(1,2)) * mask_fft)
+#         device (str):
+#             Device to use.
+    
+#     Returns:
+#         cc (np.ndarray):
+#             Phase correlation coefficient.
+#             Middle of image is zero-shift.
+#             Last two dims are frame height and width.
+#     """
+#     if isinstance(im_template, np.ndarray):
+#         im_template = torch.from_numpy(im_template).to(device)
+#         return_numpy = True
+#     else:
+#         return_numpy = False
+#     if isinstance(im_moving, np.ndarray):
+#         im_moving = torch.from_numpy(im_moving).to(device)
+#     if isinstance(mask_fft, np.ndarray):
+#         mask_fft = torch.from_numpy(mask_fft).to(device)
+#     if isinstance(mask_fft, torch.Tensor):
+#         if mask_fft.device != device:
+#             mask_fft = mask_fft.to(device)
+
+#     cc = phase_correlation_helper(
+#         im_template=im_template,
+#         im_moving=im_moving,
+#         mask_fft=mask_fft if mask_fft is not None else torch.as_tensor([1], device=device),
+#         compute_maskFFT=(mask_fft is not None),
+#         template_precomputed=template_precomputed,
+#     )
+
+#     if return_numpy:
+#         cc = cc.cpu().numpy()
+#     return cc
+
+
 def phase_correlation(
-    im_template, 
-    im_moving,
-    mask_fft=None, 
-    template_precomputed=False, 
-    device='cpu'
-):
+    im_template: Union[np.ndarray, torch.Tensor],
+    im_moving: Union[np.ndarray, torch.Tensor],
+    mask_fft: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    return_filtered_images: bool = False,
+    eps: float = 1e-8,
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """
-    Perform phase correlation on two images.
-    Uses pytorch for speed
-    RH 2022
-    
+    Perform phase correlation on two images. Calculation performed along the
+    last two axes of the input arrays (-2, -1) corresponding to the (height,
+    width) of the images.
+    RH 2024
+
     Args:
-        im_template (np.ndarray or torch.Tensor):
-            Template image(s).
-            If ndim=2, a single image is assumed.
-                shape: (height, width)
-            if ndim=3, multiple images are assumed, dim=0 is the batch dim.
-                shape: (batch, height, width)
-                dim 0 should either be length 1 or the same as im_moving.
-            If template_precomputed is True, this is assumed to be:
-             np.conj(np.fft.fft2(im_template, axis=(1,2)) * mask_fft)
-        im_moving (np.ndarray or torch.Tensor):
-            Moving image(s).
-            If ndim=2, a single image is assumed.
-                shape: (height, width)
-            if ndim=3, multiple images are assumed, dim=0 is the batch dim.
-                shape: (batch, height, width)
-                dim 0 should either be length 1 or the same as im_template.
-        mask_fft (np.ndarray or torch.Tensor):
-            Mask for the FFT.
-            Shape: (height, width)
-            If None, no mask is used.
-        template_precomputed (bool):
-            If True, im_template is assumed to be:
-             np.conj(np.fft.fft2(im_template, axis=(1,2)) * mask_fft)
-        device (str):
-            Device to use.
+        im_template (np.ndarray): 
+            The template image(s). Shape: (..., height, width). Can be any
+            number of dimensions; last two dimensions must be height and width.
+        im_moving (np.ndarray): 
+            The moving image. Shape: (..., height, width). Leading dimensions
+            must broadcast with the template image.
+        mask_fft (Optional[np.ndarray]): 
+            2D array mask for the FFT. If ``None``, no mask is used. Assumes mask_fft is
+            fftshifted. (Default is ``None``)
+        return_filtered_images (bool): 
+            If set to ``True``, the function will return filtered images in
+            addition to the phase correlation coefficient. (Default is
+            ``False``)
+        eps (float):
+            Epsilon value to prevent division by zero. (Default is ``1e-8``)
     
     Returns:
-        cc (np.ndarray):
-            Phase correlation coefficient.
-            Middle of image is zero-shift.
-            Last two dims are frame height and width.
+        (Tuple[np.ndarray, np.ndarray, np.ndarray]): tuple containing:
+            cc (np.ndarray): 
+                The phase correlation coefficient.
+            fft_template (np.ndarray): 
+                The filtered template image. Only returned if
+                return_filtered_images is ``True``.
+            fft_moving (np.ndarray): 
+                The filtered moving image. Only returned if
+                return_filtered_images is ``True``.
     """
-    if isinstance(im_template, np.ndarray):
-        im_template = torch.from_numpy(im_template).to(device)
-        return_numpy = True
+    fft2, fftshift, ifft2 = torch.fft.fft2, torch.fft.fftshift, torch.fft.ifft2
+    abs, conj = torch.abs, torch.conj
+    axes = (-2, -1)
+
+    return_numpy = isinstance(im_template, np.ndarray)
+    im_template = torch.as_tensor(im_template)
+    im_moving = torch.as_tensor(im_moving)
+
+    fft_template = fft2(im_template, dim=axes)
+    fft_moving   = fft2(im_moving, dim=axes)
+
+    if mask_fft is not None:
+        mask_fft = torch.as_tensor(mask_fft)
+        # Normalize and shift the mask
+        mask_fft = fftshift(mask_fft / mask_fft.sum(), dim=axes)
+        mask = mask_fft[tuple([None] * (im_template.ndim - 2) + [slice(None)] * 2)]
+        fft_template *= mask
+        fft_moving *= mask
+
+    # Compute the cross-power spectrum
+    R = fft_template * conj(fft_moving)
+
+    # Normalize to obtain the phase correlation function
+    R /= abs(R) + eps  # Add epsilon to prevent division by zero
+
+    # Compute the magnitude of the inverse FFT to ensure symmetry
+    # cc = abs(fftshift(ifft2(R, dim=axes), dim=axes))
+    # Compute the real component of the inverse FFT (not symmetric)
+    cc = fftshift(ifft2(R, dim=axes), dim=axes).real
+
+    if return_filtered_images == False:
+        return cc.cpu().numpy() if return_numpy else cc
     else:
-        return_numpy = False
-    if isinstance(im_moving, np.ndarray):
-        im_moving = torch.from_numpy(im_moving).to(device)
-    if isinstance(mask_fft, np.ndarray):
-        mask_fft = torch.from_numpy(mask_fft).to(device)
-    if isinstance(mask_fft, torch.Tensor):
-        if mask_fft.device != device:
-            mask_fft = mask_fft.to(device)
+        if return_numpy:
+            return (
+                cc.cpu().numpy(), 
+                abs(ifft2(fft_template, dim=axes)).cpu().numpy(), 
+                abs(ifft2(fft_moving, dim=axes)).cpu().numpy()
+            )
+        else:
+            return cc, abs(ifft2(fft_template, dim=axes)), abs(ifft2(fft_moving, dim=axes))
 
-    cc = phase_correlation_helper(
-        im_template=im_template,
-        im_moving=im_moving,
-        mask_fft=mask_fft if mask_fft is not None else torch.as_tensor([1], device=device),
-        compute_maskFFT=(mask_fft is not None),
-        template_precomputed=template_precomputed,
-    )
-
-    if return_numpy:
-        cc = cc.cpu().numpy()
-    return cc
 
 @torch.jit.script 
 def phaseCorrelationImage_to_shift_helper(cc_im):
@@ -1959,58 +2044,12 @@ class ImageAlignmentChecker:
             raise ValueError(f'radius_out must be a float or tuple of floats. Found type: {type(radius_out)}')
 
         ## Make filters
-        self.filt_in, self.filt_out = (torch.as_tensor(self._make_filter(
+        self.filt_in, self.filt_out = (torch.as_tensor(make_2D_frequency_filter(
             hw=self.hw,
             low=bp[0],
             high=bp[1],
             order=order,
         ), dtype=torch.float32, device=device) for bp in [radius_in, radius_out])
-    
-    def _make_filter(
-        self,
-        hw: tuple,
-        low: float = 5,
-        high: float = 6,
-        order: int = 3,
-    ):
-        """
-        Make a filter for scoring the alignment of images using phase correlation.
-        RH 2024
-
-        Args:
-            hw (tuple): 
-                Height and width of the images.
-            low (float): 
-                Low cutoff frequency for the bandpass filter. (Default is *5*)
-            high (float): 
-                High cutoff frequency for the bandpass filter. (Default is *6*)
-            order (int): 
-                Order of the butterworth bandpass filter. (Default is *3*)
-
-        Returns:
-            (np.ndarray): 
-                Filter for scoring the alignment. Shape: *(height, width)*
-        """
-        ## Make a distance grid starting from the fftshifted center
-        grid = featurization.make_distance_grid(shape=hw, p=2, use_fftshift_center=True)
-
-        ## Make the number of datapoints for the kernel large
-        n_x = max(hw) * 10
-
-        fs = max(hw) * 1
-        b, a = spectral.design_butter_bandpass(lowcut=low, highcut=high, fs=fs, order=order, plot_pref=False)
-        w, h = scipy.signal.freqz(b, a, worN=n_x)
-        x_kernel = (fs * 0.5 / np.pi) * w
-        kernel = np.abs(h)
-
-        ## Interpolate the kernel to the distance grid
-        filt = np.interp(
-            x=grid,
-            xp=x_kernel,
-            fp=kernel,
-        )
-
-        return filt
     
     def score_alignment(
         self,
@@ -2123,3 +2162,52 @@ class ImageAlignmentChecker:
         """
         return self.score_alignment(images)
 
+
+def make_2D_frequency_filter(
+    hw: tuple,
+    low: float = 5,
+    high: float = 6,
+    order: int = 3,
+):
+    """
+    Make a filter for scoring the alignment of images using phase correlation.
+    RH 2024
+
+    Args:
+        hw (tuple): 
+            Height and width of the images.
+        low (float): 
+            Low cutoff frequency for the bandpass filter. Units are in
+            pixels.
+        high (float): 
+            High cutoff frequency for the bandpass filter. Units are in
+            pixels.
+        order (int): 
+            Order of the butterworth bandpass filter. (Default is *3*)
+
+    Returns:
+        (np.ndarray): 
+            Filter for scoring the alignment. Shape: *(height, width)*
+    """
+    ## Make a distance grid starting from the fftshifted center
+    grid = make_distance_grid(shape=hw, p=2, use_fftshift_center=True)
+
+    ## Make the number of datapoints for the kernel large
+    n_x = max(hw) * 10
+
+    fs = max(hw) * 1
+    low = max(0, low)
+    high = min((max(hw) / 2) - 1, high)
+    b, a = design_butter_bandpass(lowcut=low, highcut=high, fs=fs, order=order, plot_pref=False)
+    w, h = scipy.signal.freqz(b, a, worN=n_x)
+    x_kernel = (fs * 0.5 / np.pi) * w
+    kernel = np.abs(h)
+
+    ## Interpolate the kernel to the distance grid
+    filt = np.interp(
+        x=grid,
+        xp=x_kernel,
+        fp=kernel,
+    )
+
+    return filt
