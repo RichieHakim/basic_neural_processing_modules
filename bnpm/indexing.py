@@ -70,7 +70,7 @@ def idx2bool(idx, length=None):
     idx = idx[~np.isnan(idx)].astype(np.int64)
     if length is None:
         length = np.uint64(np.max(idx) + 1)
-    out = np.zeros(length, dtype=np.bool8)
+    out = np.zeros(length, dtype=np.bool_)
     out[idx] = True
     return out
 

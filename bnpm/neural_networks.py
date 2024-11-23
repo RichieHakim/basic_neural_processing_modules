@@ -3,6 +3,9 @@ import copy
 import torch
 import numpy as np
 from tqdm.auto import tqdm
+import sklearn.neural_network
+
+from . import indexing
 
 class RegressionRNN(torch.nn.Module):
     """
@@ -484,3 +487,213 @@ class BinaryClassification_RNN():
             self.dataloader_XYcat.to(device)
             
         return self
+    
+
+class MLPRegressor_sk_tunable(sklearn.neural_network.MLPRegressor):
+    """
+    Subclass of sklearn.neural_network.MLPRegressor with individually tunable layer sizes.
+    Name each layer: 'n_units_layer_1', 'n_units_layer_2', 'n_units_layer_n' where n is the layer number.
+    """
+    def __init__(self, **kwargs):
+        # Extract 'n_units_layer_i' arguments
+        n_units_layers = {}
+        other_kwargs = {}
+        for key, value in kwargs.items():
+            if key.startswith('n_units_layer_'):
+                try:
+                    layer_num = int(key[len('n_units_layer_'):])
+                    n_units_layers[layer_num] = int(round(float(value)))
+                except ValueError:
+                    raise ValueError(f"Invalid layer specification: {key}")
+            else:
+                other_kwargs[key] = value
+
+        if not n_units_layers:
+            raise ValueError("At least one 'n_units_layer_i' argument is required.")
+
+        layer_numbers = sorted(n_units_layers.keys())
+
+        # Construct hidden_layer_sizes tuple
+        hidden_layer_sizes = tuple(n_units_layers[i] for i in layer_numbers if n_units_layers[i] > 0)
+
+        # Initialize the superclass with the constructed hidden_layer_sizes
+        super().__init__(hidden_layer_sizes=hidden_layer_sizes, **other_kwargs)
+
+    
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.optim import SGD, Adam, AdamW
+from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
+import numpy as np
+# from tqdm import tqdm
+import os
+
+
+class MLPRegressor(nn.Module):
+    """
+    A flexible and efficient MLP regressor with various modern training tricks.
+    """
+    def __init__(self, input_dim, output_dim=1, hidden_dims=[128, 64, 32],
+                 activation='relu', dropout=0.0,
+                 batch_norm=False, residual=False, init_type='kaiming', **kwargs):
+        super(MLPRegressor, self).__init__()
+
+        self.activation = self._get_activation(activation)
+        self.init_type = init_type
+        self.residual = residual
+        self.layers = nn.ModuleList()
+        self.batch_norms = nn.ModuleList() if batch_norm else None
+        self.dropouts = nn.ModuleList() if dropout > 0 else None
+        prev_dim = input_dim
+
+        for hidden_dim in hidden_dims:
+            self.layers.append(nn.Linear(prev_dim, hidden_dim))
+            if batch_norm:
+                self.batch_norms.append(nn.BatchNorm1d(hidden_dim))
+            if dropout > 0:
+                self.dropouts.append(nn.Dropout(dropout))
+            prev_dim = hidden_dim
+
+        self.output_layer = nn.Linear(prev_dim, output_dim)
+        # Initialize weights
+        self.apply(self._init_weights)
+
+    def _get_activation(self, activation):
+        activations = {
+            'relu': nn.ReLU(inplace=True),
+            'leaky_relu': nn.LeakyReLU(0.01, inplace=True),
+            'elu': nn.ELU(inplace=True),
+            'selu': nn.SELU(inplace=True),
+            'gelu': nn.GELU(),
+            'tanh': nn.Tanh(),
+            'sigmoid': nn.Sigmoid(),
+            'none': nn.Identity()
+        }
+        return activations.get(activation.lower(), nn.ReLU(inplace=True))
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            if self.init_type == 'xavier':
+                nn.init.xavier_uniform_(m.weight)
+            elif self.init_type == 'kaiming':
+                nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+            elif self.init_type == 'normal':
+                nn.init.normal_(m.weight, 0, 0.02)
+            elif self.init_type == 'uniform':
+                nn.init.uniform_(m.weight, -0.1, 0.1)
+            elif self.init_type == 'orthogonal':
+                nn.init.orthogonal_(m.weight, gain=1)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
+        elif isinstance(m, nn.BatchNorm1d):
+            nn.init.ones_(m.weight)
+            nn.init.zeros_(m.bias)
+
+    def forward(self, x):
+        residual = x
+        for idx, layer in enumerate(self.layers):
+            x = layer(x)
+            if self.batch_norms:
+                x = self.batch_norms[idx](x)
+            x = self.activation(x)
+            if self.residual and x.shape == residual.shape:
+                x = x + residual
+            if self.dropouts:
+                x = self.dropouts[idx](x)
+            residual = x
+        x = self.output_layer(x)
+        return x
+
+
+def train_model(model, train_loader, val_loader=None,
+                criterion=nn.MSELoss(), optimizer_name='adam', lr=1e-3,
+                L1_penalty=0.0, epochs=100, device='cuda' if torch.cuda.is_available() else 'cpu',
+                gradient_clip=None, verbose=True, L2_penalty=0.0,
+                validation_period=1,
+                use_swa=False, swa_start=10, swa_freq=5, swa_lr=1e-3):
+    """
+    Train the model with various modern training techniques, including SWA.
+    """
+    # Move model to device
+    model = model.to(device)
+
+    # Choose optimizer
+    optimizers = {
+        'sgd': SGD(model.parameters(), lr=lr, weight_decay=L2_penalty),
+        'adam': Adam(model.parameters(), lr=lr, weight_decay=L2_penalty),
+        'adamw': AdamW(model.parameters(), lr=lr, weight_decay=L2_penalty),
+    }
+    optimizer = optimizers.get(optimizer_name.lower(), Adam(model.parameters(), lr=lr, weight_decay=L2_penalty))
+
+    # Initialize losses dictionary
+    losses = {'train': {}, 'val': {}}
+
+    # SWA setup
+    if use_swa:
+        swa_model = AveragedModel(model)
+        swa_scheduler = SWALR(optimizer, swa_lr=swa_lr)
+    else:
+        swa_model = None
+
+    ## Make tqdm bar
+    if verbose:
+        pbar = tqdm(range(epochs), desc='Training', unit='epochs')
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        epoch_losses = []
+
+        for batch in train_loader:
+            inputs, targets = batch[0].to(device), batch[1].to(device)
+            optimizer.zero_grad()
+
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            if L1_penalty > 0:
+                loss += L1_penalty * sum(p.abs().sum() for p in model.parameters())
+
+            loss.backward()
+            if gradient_clip:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
+            optimizer.step()
+
+            epoch_losses.append(loss.item())
+
+        avg_train_loss = np.mean(epoch_losses)
+        losses['train'][epoch] = avg_train_loss
+
+        # Validation step
+        if val_loader and epoch % validation_period == 0:
+            model.eval()
+            val_losses = []
+            with torch.no_grad():
+                for batch in val_loader:
+                    inputs, targets = batch[0].to(device), batch[1].to(device)
+                    outputs = model(inputs)
+                    val_loss = criterion(outputs, targets)
+                    val_losses.append(val_loss.item())
+            avg_val_loss = np.mean(val_losses)
+            losses['val'][epoch] = avg_val_loss
+
+        # SWA step
+        if use_swa:
+            swa_scheduler.step()
+            if epoch >= swa_start and (epoch - swa_start) % swa_freq == 0:
+                swa_model.update_parameters(model)
+
+        ## Update tqdm bar
+        if verbose:
+            ## Print losses as well
+            pbar.set_postfix({
+                'train_loss': list(losses['train'].values())[-1],
+                'val_loss': list(losses['val'].values())[-1] if len(losses['val']) > 0 else np.nan,
+            })
+            pbar.update(1)
+
+    # Update BN for SWA model
+    if use_swa:
+        update_bn(train_loader, swa_model, device=device)
+        model = swa_model
+
+    return model, losses

@@ -447,6 +447,7 @@ class Autotuner_BaseEstimator:
         self,
         param='alpha',
         xscale='linear',
+        yscale='linear',
         jitter=0.01,
     ):
         """
@@ -473,7 +474,7 @@ class Autotuner_BaseEstimator:
             'loss_test': prep(self.loss_running_test),
         }
        
-        plt.figure()
+        fig = plt.figure()
         isnumeric = np.issubdtype(results[param].dtype, np.number)
         n_vals = len(results[param])
         range_vals = np.ptp(results['value'])
@@ -492,12 +493,13 @@ class Autotuner_BaseEstimator:
         scatter(y=results['loss_test'], color='orange')
         scatter(y=results['value'], color='k')
         plt.scatter(results_means[:,0], results_means[:,1], s=70, color='k') if any(xaxis_counts > 1) else None
-        plt.scatter(x=self.params_best[param], y=float(self.loss_best), color='r', s=100, alpha=1)
+        plt.scatter(x=xaxis[np.argmin(results['value'])], y=np.min(results['value']), color='r', s=100, alpha=1)
 
         plt.xlabel(param)
         plt.ylabel('loss')
         if isnumeric:
             plt.xscale(xscale)
+            plt.yscale(yscale)
         else:
             plt.xticks(xaxis, results[param], rotation=90)
             plt.xlim(-1, len(xaxis_unique))
@@ -509,6 +511,8 @@ class Autotuner_BaseEstimator:
             'loss_withPenalty_mean',
             'best model',
         ])
+
+        return fig
 
     def to(self, device):
         if isinstance(self.model_best, linear_regression.LinearRegression_sk):
