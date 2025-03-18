@@ -48,6 +48,85 @@ def widen_boolean(arr, n_before, n_after, axis=None):
                                                               axis=axis, arr=arr))
 
 
+def widen_bool_sparse(
+    b: np.ndarray,
+    n_before: int,
+    n_after: int,
+):
+    """
+    Widen True values in a boolean array by n_before and n_after samples.
+    Best to use when there are few transitions between low and high in the boolean array.
+    RH 2025
+
+    Args:
+        b: np.ndarray
+            Boolean array
+        n_before: int
+            Number of samples to widen before each True value in b
+        n_after: int
+            Number of samples to widen after each True value in b
+            
+    Returns:
+        np.ndarray
+            Boolean array with True values widened by n_before and n_after samples
+    """
+    ## Find rising and falling edges
+    d = np.diff(b.astype(np.int64), prepend=0)
+    idx_rise = np.where(d>0)[0]
+    idx_fall = np.where(d<0)[0]
+    
+    out = b.copy()
+    for i, r in enumerate(idx_rise):
+        out[r-n_before:r+n_after+1] = True
+    for i, f in enumerate(idx_fall):
+        out[f-n_before:f+n_after+1] = True
+    return out
+
+
+def set_short_bool_to_low(
+    b: np.ndarray,
+    n: int,
+):
+    """
+    Set all True values in b (a boolean array) to False if they are
+    part of a sequence of True values shorter than n
+    RH 2025
+    
+    Args:
+        b: np.ndarray
+            Boolean array
+        n: int
+            Minimum length of True values to keep
+            
+    Returns:
+        np.ndarray
+            Boolean array with short True sequences set to False
+    """
+    ## Find rising and falling edges
+    d = np.diff(b.astype(np.int64), prepend=0)
+    idx_rise = np.where(d>0)[0]
+    idx_fall = np.where(d<0)[0]
+    
+    out = b.copy()
+    if (idx_rise.size > 0) and (idx_fall.size > 0):
+        ## Add edge boundaries
+        if (out[0] == True) and (idx_rise[0] != 0):
+            idx_rise = np.concatenate(([0], idx_rise))
+        if (out[-1] == True) and (idx_fall[-1] != out.size-1):
+            idx_fall = np.concatenate((idx_fall, [out.size-1]))
+
+        ## match rising and falling edges
+        if idx_fall[0] < idx_rise[0]:
+            idx_fall = idx_fall[1:]
+        if idx_fall.size < idx_rise.size:
+            idx_rise = idx_rise[:-1]
+            
+        for r, f in zip(idx_rise, idx_fall):
+            if f-r < n:
+                out[r:f] = False
+    return out
+
+
 # @njit
 def idx2bool(idx, length=None):
     '''
@@ -70,7 +149,7 @@ def idx2bool(idx, length=None):
     idx = idx[~np.isnan(idx)].astype(np.int64)
     if length is None:
         length = np.uint64(np.max(idx) + 1)
-    out = np.zeros(length, dtype=np.bool_)
+    out = np.zeros(length, dtype=np.bool8)
     out[idx] = True
     return out
 
@@ -281,77 +360,77 @@ def make_batches(
     ## Yield batches
     if return_idx:
         for idx in idx_slices:
-            yield iterable[order[idx]], [order[idx.start], order[idx.stop - 1] + 1]
+            yield iterable[order[idx]], [order[idx.start], order[idx.stop]]
     else:
         for idx in idx_slices:
             yield iterable[order[idx]]
 
 
-def find_nearest(
-    array: Union[np.ndarray, torch.Tensor],
-    values: Union[float, int, np.ndarray, torch.Tensor], 
-    presorted: bool = False,
-    return_idx: bool = True,
-    return_values: bool = False,
-    return_diff: bool = False,
-) -> Union[np.ndarray, tuple]:
-    """
-    Find the nearest value in a 1D array (or along a dimension) to a given
-    value.
-    RH 2024
-
+@njit
+def find_nearest_idx(array, value):
+    '''
+    Finds the value and index of the nearest
+     value in an array.
+    RH 2021, 2024
+    
     Args:
-        array (Union[np.ndarray, torch.Tensor]):
-            Array to search for nearest values. Must be 1D.
-        values (Union[float, int, np.ndarray, torch.Tensor]):
-            Value or values to search for. If an array, then must be 1D.
-        presorted (bool):
-            Whether `array` is already sorted. If False, the function will sort
-            the array before searching for the nearest value.
-        return_idx (bool):
-            Whether to return the index of the nearest value.
-        return_values (bool):
-            Whether to return the nearest value.
+        array (np.ndarray):
+            Array of values to search through.
+        value (scalar):
+            Value to search for.
 
     Returns:
-        outputs (Union[np.ndarray, tuple]):
-            idx (np.ndarray or torch.Tensor):
-                Index of the nearest value. Shape is the same as `values`.
-            nearest_values (np.ndarray or torch.Tensor):
-                Nearest values. Shape is the same as `values`.
-            diff (np.ndarray or torch.Tensor):
-                Difference between the value and the nearest value. Shape is the same as `values`.
-    """
-    if isinstance(array, np.ndarray):
-        kind = 'numpy'
-    elif isinstance(array, torch.Tensor):
-        kind = 'torch'
+        array_idx (int):
+            Index of the nearest value in array.
+    '''
+    idx = np.searchsorted(array, value, side="left")
+    if idx > 0 and (idx == len(array) or np.abs(value - array[idx-1]) < np.abs(value - array[idx])):
+        return idx-1
     else:
-        raise ValueError('array must be a numpy array or torch tensor')
-    array, values = (torch.as_tensor(v) for v in (array, values))
+        return idx
+@njit(parallel=True)
+def find_nearest_array(array, values, max_diff=None):
+    '''
+    Finds the values and indices of the nearest
+     values in an array.
+    RH 2021, 2024
+
+    Args:
+        array (np.ndarray):
+            Array of values to search through.
+        values (np.ndarray):
+            Values to search for.
+
+    Returns:
+        array_idx (np.ndarray):
+            Indices of the nearest values in array.
+        array_val (np.ndarray):
+            Values of the nearest values in array.
+        diff (np.ndarray):
+            Differences between the values and the
+             nearest values in array.
+    '''
+    assert array.ndim == 1, 'array must be 1-D'
+    assert values.ndim == 1, 'values must be 1-D'
     
-    assert array.ndim == 1, 'array must be 1D'
-    if values.ndim == 0:
-        values = values.unsqueeze(0)
-    assert values.ndim == 1, 'values must be 1D'
+    vals_nearest = np.zeros(values.shape if array.size > 0 else (0,), dtype=array.dtype)
+    idx_nearest  = np.zeros(values.shape if array.size > 0 else (0,), dtype=np.int64)
+    diff_nearest = np.zeros(values.shape if array.size > 0 else (0,), dtype=array.dtype)
+    
+    if array.size > 0:
+        for ii in prange(len(values)):
+            idx_nearest[ii] = find_nearest_idx(array , values[ii])
 
-    array_sorted = array if presorted else torch.sort(array)[0]
+        vals_nearest = array[idx_nearest]
+        diff_nearest = np.abs(vals_nearest - values)
 
-    idx_nearest = torch.searchsorted(array_sorted, values, side="left")
-    idx_nearest = torch.where(
-        (idx_nearest > 0) & \
-        ((idx_nearest == len(array_sorted)) | (torch.abs(values - array_sorted[idx_nearest-1]) < torch.abs(values - array_sorted[torch.minimum(idx_nearest, torch.as_tensor(len(array_sorted)-1))]))),
-        idx_nearest-1, 
-        idx_nearest,
-    )
-    vals_nearest = array_sorted[idx_nearest] if return_values else None
-    diff_nearest = torch.abs(vals_nearest - values) if return_diff else None
-
-    out = tuple((v for t, v in zip([return_idx, return_values, return_diff], [idx_nearest, vals_nearest, diff_nearest]) if t))
-
-    if kind == 'numpy':
-        out = tuple((v.numpy() for v in out))
-    return out
+        if max_diff is not None:
+            bool_keep = diff_nearest <= max_diff
+            vals_nearest = vals_nearest[bool_keep]
+            idx_nearest = idx_nearest[bool_keep]
+            diff_nearest = diff_nearest[bool_keep]
+            
+    return vals_nearest, idx_nearest, diff_nearest
 
 
 def pad_with_singleton_dims(array, n_dims_pre=0, n_dims_post=0):
@@ -382,10 +461,6 @@ def index_with_nans(values, indices):
             Indexed array. Positions where `indices` was NaN will be filled with
             NaNs.
     """
-    ## Warn if input dtype is not NaN compatible
-    if not np.issubdtype(indices.dtype, np.floating):
-        raise ValueError('Input indices should be floating point because NaNs are used for masking. Convert to float if necessary.')
-    
     indices = np.array(indices, dtype=float) if not isinstance(indices, np.ndarray) else indices
     values = np.concatenate((np.full(shape=values.shape[1:], fill_value=np.nan, dtype=values.dtype)[None,...], values), axis=0)
     idx = indices.copy() + 1
