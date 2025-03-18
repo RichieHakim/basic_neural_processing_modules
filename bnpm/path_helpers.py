@@ -505,3 +505,58 @@ def touch_path(
         print(f"Skipping: {path} (symlink)") if verbose > 1 else None
     else:
         raise FileNotFoundError(f"The path {path} returned neither .is_file() nor .is_dir(). It may be a symlink, missing, or otherwise inaccessible.")
+
+
+def generate_date_range_regex(start, end):
+    """
+    Generate a regex string that matches any 8-digit ISO date (YYYYMMDD)
+    between start and end (inclusive). The returned regex is a plain pattern
+    (without start/end anchors) that can be embedded into a larger regex.
+    
+    This implementation works by recursing digit by digit. At each position,
+    if the digits so far still match the start (or end) boundary, then the
+    digit at that position is forced to be no less than the corresponding digit
+    in start (or no greater than that in end). Once a digit “falls inside” the
+    allowed range, subsequent digits can be any digit.
+    
+    Note:
+      For very wide ranges this method will generate a very large regex.
+      An alternative approach is to use lookahead assertions based on the fact
+      that ISO dates (with zero-padding) sort lexicographically—but such a solution
+      may rely on non-standard regex features.
+    
+    Parameters:
+      start (str or int): The start date in YYYYMMDD format.
+      end   (str or int): The end date in YYYYMMDD format.
+    
+    Returns:
+      A string containing a regex that matches any 8-digit number between start and end.
+    """
+    start_str = str(start)
+    end_str = str(end)
+    if len(start_str) != 8 or len(end_str) != 8:
+        raise ValueError("Both start and end must be in YYYYMMDD format (8 digits)")
+    
+    def rec(pos, lower_bound_enforced, upper_bound_enforced):
+        # Base case: when we've processed all 8 digits, return empty string.
+        if pos == 8:
+            return ""
+        # Determine the allowed range for the current digit.
+        lower_digit = int(start_str[pos]) if lower_bound_enforced else 0
+        upper_digit = int(end_str[pos]) if upper_bound_enforced else 9
+        parts = []
+        # Loop through all allowed digits for the current position.
+        for d in range(lower_digit, upper_digit + 1):
+            # If we use the lower bound digit, we must continue enforcing
+            new_lower = lower_bound_enforced and (d == lower_digit)
+            # Similarly, if we use the upper bound digit.
+            new_upper = upper_bound_enforced and (d == upper_digit)
+            tail = rec(pos + 1, new_lower, new_upper)
+            parts.append(str(d) + tail)
+        # If there’s only one possibility, no need for a grouping alternation.
+        if len(parts) == 1:
+            return parts[0]
+        else:
+            return "(?:" + "|".join(parts) + ")"
+    
+    return rec(0, True, True)
