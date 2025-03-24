@@ -2198,7 +2198,7 @@ def make_2D_frequency_filter(
     fs = max(hw) * 1
     low = max(0, low)
     high = min((max(hw) / 2) - 1, high)
-    b, a = design_butter_bandpass(lowcut=low, highcut=high, fs=fs, order=order, plot_pref=False)
+    b, a = spectral.design_butter_bandpass(lowcut=low, highcut=high, fs=fs, order=order, plot_pref=False)
     w, h = scipy.signal.freqz(b, a, worN=n_x)
     x_kernel = (fs * 0.5 / np.pi) * w
     kernel = np.abs(h)
