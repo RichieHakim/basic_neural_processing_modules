@@ -2190,7 +2190,7 @@ def make_2D_frequency_filter(
             Filter for scoring the alignment. Shape: *(height, width)*
     """
     ## Make a distance grid starting from the fftshifted center
-    grid = make_distance_grid(shape=hw, p=2, use_fftshift_center=True)
+    grid = featurization.make_distance_grid(shape=hw, p=2, use_fftshift_center=True)
 
     ## Make the number of datapoints for the kernel large
     n_x = max(hw) * 10
