@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-def squeeze_integers(intVec):
+def squeeze_integers(intVec, min_val: int=None):
     """
     Make integers in an array consecutive numbers
      starting from the smallest value. 
@@ -13,6 +13,8 @@ def squeeze_integers(intVec):
     Args:
         intVec (np.ndarray):
             1-D array of integers.
+        min_val Optional[int]:
+            If provided, then this overrides the minimum value.
     
     Returns:
         intVec_squeezed (np.ndarray):
@@ -26,7 +28,7 @@ def squeeze_integers(intVec):
         unique, arange = torch.unique, torch.arange
         
     u, inv = unique(intVec, return_inverse=True)  ## get unique values and their indices
-    u_min = u.min()  ## get the smallest value
+    u_min = u.min() if min_val is None else min_val  ## get the smallest value
     u_s = arange(u_min, u_min + u.shape[0], dtype=u.dtype)  ## make consecutive numbers starting from the smallest value
     return u_s[inv]  ## return the indexed consecutive unique values
 
