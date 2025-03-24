@@ -605,7 +605,7 @@ def simple_cmap(
     ## prep input_values
     input_values = np.array(input_values)
     ### assert monotonic
-    if not np.all(np.diff(input_values) > 0):
+    if not np.all(np.diff(input_values) >= 0):
         raise ValueError('input_values must be monotonically increasing')
     fn_norm = lambda x: (x - input_values.min()) / np.ptp(input_values)
     input_values_norm = fn_norm(input_values)
