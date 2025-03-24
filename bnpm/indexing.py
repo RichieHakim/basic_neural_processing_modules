@@ -291,7 +291,10 @@ def make_batches(
             Minimum size of each batch. Set to ``-1`` to equal ``batch_size``.
         return_idx (bool):
             Whether to also return the slice indices of the batches. Returns will
-            be the tuple: ``(iterable[idx], [idx_start, idxend])``
+            be the tuple: ``(iterable[idx], [idx_start, idx_end])`` where
+            idx_start is inclusive and idx_end is exclusive. Use like:
+            slice(idx_start, idx_end). This output doesn't make sense when
+            randomizing or shuffling.
         length (int):
             Length of the iterable. Determines ``idx_end``. If ``None``, then
             length is ``len(iterable)`` This is useful if you want to make
@@ -360,7 +363,7 @@ def make_batches(
     ## Yield batches
     if return_idx:
         for idx in idx_slices:
-            yield iterable[order[idx]], [order[idx.start], order[idx.stop]]
+            yield iterable[order[idx]], [idx.start, idx.stop]
     else:
         for idx in idx_slices:
             yield iterable[order[idx]]
