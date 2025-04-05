@@ -1058,6 +1058,54 @@ def nanmin(
     arr_no_nan = arr.masked_fill(nan_mask, val_max)
     return torch.min(arr_no_nan, **kwargs)
 
+
+def rolling_mean(tensor: torch.Tensor, dim: int) -> torch.Tensor:
+    """
+    Computes the running mean along a specified dimension using a rolling accumulation method
+    (Welford's update for the mean).
+
+    RH 2025
+
+    Args:
+        tensor (torch.Tensor):
+            The input tensor on which the running mean is computed.
+        dim (int):
+            The dimension along which to compute the running mean.
+
+    Returns:
+        torch.Tensor:
+            A tensor of the same shape as `tensor`, where each element along the specified dimension
+            is the running mean of the elements from the start up to that index.
+    """
+    # Ensure the dimension is non-negative and valid.
+    if dim < 0:
+        dim += tensor.dim()
+    if dim < 0 or dim >= tensor.dim():
+        raise ValueError(f"Invalid dimension {dim} for tensor with {tensor.dim()} dimensions.")
+    
+    # Unbind the tensor along the given dimension to get a list of slices.
+    dims_permute = list(range(tensor.dim()))
+    ## remove dim from the list
+    dims_permute.remove(dim)
+    dims_permute = [dim] + dims_permute
+        
+    # Initialize an empty list to store the running means.
+    current_mean = None
+    
+    # Iterate through each slice along the given dimension.
+    # Use a counter starting at 1 since we divide by the count.
+    for i, slice in enumerate(tensor.permute(dims_permute)):
+        if current_mean is None:
+            # For the first element, the running mean is the element itself.
+            current_mean = slice
+        else:
+            # Update the running mean using:
+            current_mean = current_mean + (slice - current_mean) / (i + 1)
+    
+    # Stack the list of running means back into a tensor along the specified dimension.
+    return current_mean
+
+
 def unravel_index(
     index: int, 
     shape: Tuple[int]
