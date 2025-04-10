@@ -14,7 +14,7 @@ It is called by server.py which is intended to run
 RH 2022
 """
 
-class lazy_repeat_obj(itertools.repeat):
+class Lazy_repeat_obj(itertools.repeat):
     """
     Makes a lazy iterator that repeats an object.
     Makes a subclass of itertools.repeat that has a length.
