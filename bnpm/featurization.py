@@ -257,27 +257,20 @@ def gaussian_kernel_2D(image_size=(11, 11), sig=1, center=None):
     
     Args:
         image_size (tuple): 
-            The total image size (width, height). Make second value 0 to make 1D gaussian
+            The total image size (height, width).
         sig (scalar): 
             The sigma value of the gaussian
         center (tuple):  
-            The mean position (X, Y) - where high value expected. 0-indexed.
-            Make second value 0 to make 1D gaussian.
+            The mean position (y, x) - where high value expected. 0-indexed.
             If None, assume center of image.
     
     Return:
         kernel (np.ndarray): 
             2D or 1D array of the gaussian kernel
     """
-    # If center is not provided, assume it is the middle of the image
-    if center is None:
-        center = (image_size[0] // 2, image_size[1] // 2)
-
-    x_axis = np.linspace(0, image_size[0]-1, image_size[0]) - center[0]
-    y_axis = np.linspace(0, image_size[1]-1, image_size[1]) - center[1]
-    xx, yy = np.meshgrid(x_axis, y_axis)
-    kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sig))
-
+    d_grid = make_distance_grid(shape=image_size, p=2, idx_center=center, return_axes=False)
+    kernel = np.exp(-d_grid ** 2 / (2 * sig ** 2))
+    kernel /= np.sum(kernel)
     return kernel
 
 def cosine_kernel_2D(center=(5,5), image_size=(11,11), width=5):
