@@ -689,7 +689,7 @@ class Convolver_1d():
         assert arr.ndim == 3, "Array must be 1D or 2D or 3D"
 
         ## convolve along last axis
-        out = torch.conv1d(
+        out = torch.nn.functional.conv1d(
             input=torch.as_tensor(arr, dtype=self.dtype, device=self.kernel.device),
             weight=self.kernel,
             padding=self.pad_mode,
