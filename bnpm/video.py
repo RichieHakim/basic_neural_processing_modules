@@ -10,34 +10,34 @@ import cv2
 from tqdm.auto import tqdm
 
 
-###############################################################################
-## This block of code is used to initialize cv2.imshow
-## This is necessary because importing av and decord 
-##  will cause cv2.imshow to fail unless it is initialized.
-## Obviously, this should be commented out when running on
-##  systems that do not support cv2.imshow like servers.
-## Also be sure to import BNPM before importing most other
-##  modules.
-def prepare_cv2_imshow():
-    """
-    This function is necessary because cv2.imshow() 
-     can crash the kernel if called after importing 
-     av and decord.
-    RH 2022
-    """
-    import numpy as np
-    import cv2
-    test = np.zeros((1,300,400,3))
-    for frame in test:
-        cv2.putText(frame, "WELCOME TO BNPM!", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
-        cv2.putText(frame, "Prepping CV2", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
-        cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,150), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.putText(frame, "to work without crashing if this function", (10,170), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.putText(frame, "is called before importing av and decord", (10,190), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.imshow('startup', frame)
-        cv2.waitKey(100)
-    cv2.destroyWindow('startup')
-###############################################################################
+# ###############################################################################
+# ## This block of code is used to initialize cv2.imshow
+# ## This is necessary because importing av and decord 
+# ##  will cause cv2.imshow to fail unless it is initialized.
+# ## Obviously, this should be commented out when running on
+# ##  systems that do not support cv2.imshow like servers.
+# ## Also be sure to import BNPM before importing most other
+# ##  modules.
+# def prepare_cv2_imshow():
+#     """
+#     This function is necessary because cv2.imshow() 
+#      can crash the kernel if called after importing 
+#      av and decord.
+#     RH 2022
+#     """
+#     import numpy as np
+#     import cv2
+#     test = np.zeros((1,300,400,3))
+#     for frame in test:
+#         cv2.putText(frame, "WELCOME TO BNPM!", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
+#         cv2.putText(frame, "Prepping CV2", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
+#         cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,150), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+#         cv2.putText(frame, "to work without crashing if this function", (10,170), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+#         cv2.putText(frame, "is called before importing av and decord", (10,190), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+#         cv2.imshow('startup', frame)
+#         cv2.waitKey(100)
+#     cv2.destroyWindow('startup')
+# ###############################################################################
 
 
 # import av
@@ -45,16 +45,6 @@ import decord
 # # import cv2 
 
 from . import indexing, image_processing
-
-def prepare_cv2_imshow():
-    test = np.zeros((1,300,400,3))
-    for frame in test:
-        cv2.putText(frame, "Prepping CV2", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-        cv2.putText(frame, "Calling this figure allows cv2.imshow ", (10,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.putText(frame, "to run after importing av and decord", (10,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.imshow('startup', frame)
-        cv2.waitKey(100)
-    cv2.destroyWindow('startup')
 
 def play_video_cv2(
     array=None, 
