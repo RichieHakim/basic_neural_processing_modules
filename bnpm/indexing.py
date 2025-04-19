@@ -1,4 +1,4 @@
-from typing import Optional, Union, Iterator
+from typing import Optional, Union, Iterator, Tuple
 import math
 
 import numpy as np
@@ -770,6 +770,37 @@ def find_all_true_sequences_circular(arr):
             idx_diff_split = idx_diff_split[1:]
             
     return idx_diff_split
+
+
+def find_idx_within_eps(
+    arr: np.ndarray,  ## array of sorted elements to search through
+    vals: np.ndarray,  ## values to search for
+    eps: Tuple[float, float],  ## positive values for before and after 
+):
+    """
+    Finds indices in sorted array 'arr' that fall within an epsilon window of each value in 'vals'.
+    RH 2025
+    
+    Args:
+        arr (np.ndarray):
+            Array to search through.
+            Should be sorted and 1-D.
+        vals (np.ndarray):
+            Values to search for.
+        eps (Tuple[float, float]):
+            Positive values for before and after each value in 'vals' to include.
+    """
+    assert arr.ndim == 1, 'arr must be 1-D'
+    eps_l, eps_r = eps  # unpack left and right epsilon values
+    out = []
+    for v in vals:
+        # Find left/right bounds where idx in arr are close to the target value.
+        idx_l = np.searchsorted(arr, v + eps_l, side='right')
+        idx_r = np.searchsorted(arr, v + eps_r, side='left')
+        idx_l = min(max(0, idx_l), len(arr) - 1)
+        idx_r = min(max(0, idx_r), len(arr) - 1)
+        out.append(np.arange(idx_l, idx_r))
+    return np.concatenate(out)
 
 
 #######################################
