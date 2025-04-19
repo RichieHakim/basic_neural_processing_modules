@@ -795,7 +795,7 @@ def find_idx_within_eps(
     out = []
     for v in vals:
         # Find left/right bounds where idx in arr are close to the target value.
-        idx_l = np.searchsorted(arr, v + eps_l, side='right')
+        idx_l = np.searchsorted(arr, v - eps_l, side='right')
         idx_r = np.searchsorted(arr, v + eps_r, side='left')
         idx_l = min(max(0, idx_l), len(arr) - 1)
         idx_r = min(max(0, idx_r), len(arr) - 1)
