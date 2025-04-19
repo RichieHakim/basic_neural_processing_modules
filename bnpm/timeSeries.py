@@ -642,7 +642,8 @@ class Convolver_1d():
                 1D array to convolve with.
             length_x (int):
                 Length of the array to be convolved.
-                Must not be None if pad_mode is not 'valid'.
+                Must not be None if pad_mode is not 'valid' and correct_edge_effects 
+                is True.
             pad_mode (str):
                 Mode for padding.
                 See torch.nn.functional.conv1d for details.
@@ -658,7 +659,7 @@ class Convolver_1d():
         self.kernel = torch.as_tensor(kernel, dtype=dtype, device=device)[None,None,:]
 
         ## compute edge correction kernel
-        if pad_mode != 'valid':
+        if (pad_mode != 'valid') and (correct_edge_effects):
             assert length_x is not None, "Must provide length_x if pad_mode is not 'valid'"
             assert length_x >= kernel.shape[0], "length_x must be >= kernel.shape[0]"
             
