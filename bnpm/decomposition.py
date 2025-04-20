@@ -26,8 +26,7 @@ from . import similarity, torch_helpers
 
 def svd_flip(
     u: torch.Tensor, 
-    v: torch.Tensor,
-    u_based_decision: bool = True,
+    v: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Sign correction to ensure deterministic output from SVD.
@@ -42,8 +41,6 @@ def svd_flip(
             The left singular vectors.
         v (torch.Tensor):
             The right singular vectors.
-        u_based_decision (bool):
-            If True (default) base the sign decision on *u*, else on *v*.
 
     Returns:
         (Tuple[torch.Tensor, torch.Tensor]):
@@ -52,16 +49,14 @@ def svd_flip(
             v (torch.Tensor):
                 The corrected right singular vectors.
     """
-    # Make sure we have writable tensors (torch may return views)
-    u = u.clone()
-    v = v.clone()
-
-    idx_max = torch.argmax(torch.abs(u), dim=0)
-    signs = torch.sign(u[idx_max, torch.arange(u.shape[1])])
-    u.mul_(signs)                    # broadcast to columns
-    v.mul_(signs.unsqueeze(1))       # broadcast to rows
+    as_tensor = lambda x: torch.as_tensor(x) if isinstance(x, np.ndarray) else x
+    u, v = (as_tensor(var) for var in (u, v))
+    
+    max_abs_cols = torch.argmax(torch.abs(u), dim=0)
+    signs = torch.sign(u[max_abs_cols, range(u.shape[1])])
+    u *= signs
+    v *= signs.unsqueeze(-1)
     return u, v
-
 
 
 class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
@@ -130,42 +125,19 @@ class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerM
         center: bool = True,
         zscale: bool = False,
         whiten: bool = False,
-        use_lowrank: bool = False,
-        lowrank_niter: int = 2,
+        use_lowRank: bool = False,
+        lowRank_niter: int = 2,
     ):
-        super().__init__()
+        """
+        Initializes the PCA module with the provided parameters.
+        """
+        super(PCA, self).__init__()
         self.n_components = n_components
         self.center = center
         self.zscale = zscale
         self.whiten = whiten
-        self.use_lowrank = use_lowrank
-        self.lowrank_niter = lowrank_niter
-
-    # ------------------------------------------------------------------ #
-    # helpers
-    # ------------------------------------------------------------------ #
-    def _as_tensor(self, X):
-        if isinstance(X, np.ndarray):
-            X = torch.from_numpy(X)
-        if not isinstance(X, torch.Tensor):
-            raise TypeError("Input must be a numpy array or torch tensor.")
-        if X.ndim == 1:
-            X = X[:, None]
-        if X.ndim != 2:
-            raise ValueError("Input must be 2‑D (n_samples, n_features).")
-        return X.double()  # float64 to mimic sklearn’s default
-
-    def _center_and_scale(self, X: torch.Tensor) -> torch.Tensor:
-        if self.center:
-            mean_ = X.mean(dim=0)
-            X = X - mean_
-            self.register_buffer("mean_", mean_)
-        if self.zscale:
-            std_ = X.std(dim=0, unbiased=False)
-            std_ = torch.where(std_ == 0, torch.ones_like(std_), std_)
-            X = X / std_
-            self.register_buffer("std_", std_)
-        return X
+        self.use_lowRank = use_lowRank
+        self.lowRank_niter = lowRank_niter
 
     def prepare_input(
         self,
