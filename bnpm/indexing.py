@@ -643,29 +643,47 @@ def batched_unfold(
         yield x_batch.unfold(dimension, size, step)
 
 
-def find_longest_true_sequence(arr):
+def find_longest_true_sequence(
+    arr: np.ndarray
+) -> Optional[Tuple[int, int]]:
     """
-    Finds the longest sequence of True values in a boolean array.
-    RH 2024
+    Finds the longest consecutive sequence of True values in a 1D boolean array.
+
+    RH 2025
 
     Args:
         arr (np.ndarray):
-            1-D boolean array
+            1-D boolean array to search.
 
     Returns:
-        (int, int):
-            Index of the first True value in the longest sequence
-            Length of the longest sequence
+        Optional[Tuple[int, int]]:
+            (start_index, length) of the longest True sequence,
+            or None if there are no True values.
     """
-    assert arr.dtype == np.bool_, 'Input array must be boolean'
-    idx = np.where(arr)[0]
-    if len(idx) == 0:
+    # sanity check
+    assert arr.dtype == np.bool_, "Input array must be of boolean dtype"
+
+    # 1. get all indices where arr is True
+    true_idx = np.flatnonzero(arr)
+    if true_idx.size == 0:
         return None
-    idx_diff = np.diff(idx, prepend=-1, append=arr.size)
-    idx_diff = np.split(idx_diff, np.where(idx_diff > 1)[0])
-    idx_diff = np.array([len(x) for x in idx_diff])
-    idx_max = np.argmax(idx_diff)
-    return idx[idx_max], idx_diff[idx_max]
+
+    # 2. compute gaps between consecutive True indices
+    #    any gap > 1 marks the end of one run and start of the next
+    gap_locations = np.where(np.diff(true_idx) > 1)[0] + 1
+
+    # 3. split the indices array at those gap locations
+    runs = np.split(true_idx, gap_locations)
+
+    # 4. find which run is longest
+    run_lengths = [run.size for run in runs]
+    best_run_i = int(np.argmax(run_lengths))
+
+    # extract start index and length of the best run
+    start_idx = int(runs[best_run_i][0])
+    length = int(run_lengths[best_run_i])
+
+    return start_idx, length
 
 
 def find_longest_true_sequence_circular(arr):

@@ -218,29 +218,45 @@ class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerM
                     n_components).
         """
         self.n_samples_, self.n_features_ = X.shape
-        self.n_components_ = min(self.n_components, self.n_features_) if self.n_components is not None else self.n_features_
+        # figure out how many components we actually keep
+        self.n_components_ = (
+            min(self.n_components, self.n_features_)
+            if self.n_components is not None
+            else self.n_features_
+        )
 
         X = self.prepare_input(X, center=self.center, zscale=self.zscale)
         if self.use_lowRank:
-            U, S, Vh = torch.svd_lowrank(X, q=self.n_components_, niter=self.lowRank_niter)
-            Vh = Vh.T  ## torch.svd_lowrank returns Vh transposed.
+            # low‑rank variant already returns exactly q components
+            U, S, Vh = torch.svd_lowrank(
+                X, q=self.n_components_, niter=self.lowRank_niter
+            )
+            Vh = Vh.T  # now shape (n_components_, n_features)
+            # flip signs on those q columns / rows
+            U, Vh = svd_flip(U, Vh)
         else:
-            U, S, Vh = torch.linalg.svd(X, full_matrices=False)  ## U: (n_samples, n_features), S: (n_features,), Vh: (n_features, n_features). Vh is already transposed.
-        U, Vh = svd_flip(U, Vh)
+            # full SVD
+            U_full, S_full, Vh_full = torch.linalg.svd(
+                X, full_matrices=False
+            )
+            # truncate to just the top n_components_
+            U = U_full[:, : self.n_components_]
+            S = S_full[: self.n_components_]
+            Vh = Vh_full[: self.n_components_, :]
+            # now do the sklearn‑style sign correction
+            U, Vh = svd_flip(U, Vh)
 
+        # explained variance by each singular value
         explained_variance_ = S**2 / (self.n_samples_ - 1)
         explained_variance_ratio_ = explained_variance_ / torch.sum(explained_variance_)
 
-        components_ = Vh[:self.n_components_]
-        singular_values_ = S[:self.n_components_]
-        explained_variance_ = explained_variance_[:self.n_components_]
-        explained_variance_ratio_ = explained_variance_ratio_[:self.n_components_]
+        # register exactly the truncated buffers
+        self.register_buffer("components_",     Vh)               # (n_components_, n_features)
+        self.register_buffer("singular_values_", S)               # (n_components_,)
+        self.register_buffer("explained_variance_", explained_variance_)          # (n_components_,)
+        self.register_buffer("explained_variance_ratio_", explained_variance_ratio_)  # (n_components_,)
 
-        [self.register_buffer(name, value) for name, value in zip(
-            ['components_', 'singular_values_', 'explained_variance_', 'explained_variance_ratio_'],
-            [components_, singular_values_, explained_variance_, explained_variance_ratio_]
-        )]
-
+        # return U, S, Vh so that fit_transform can use them
         return U, S, Vh
     
     def transform(
