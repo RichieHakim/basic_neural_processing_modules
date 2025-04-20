@@ -26,7 +26,8 @@ from . import similarity, torch_helpers
 
 def svd_flip(
     u: torch.Tensor, 
-    v: torch.Tensor
+    v: torch.Tensor,
+    u_based_decision: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Sign correction to ensure deterministic output from SVD.
@@ -41,6 +42,10 @@ def svd_flip(
             The left singular vectors.
         v (torch.Tensor):
             The right singular vectors.
+        u_based_decision (bool):
+            If ``True``, the sign correction is based on the left singular
+            vectors. If ``False``, the sign correction is based on the right
+            singular vectors.
 
     Returns:
         (Tuple[torch.Tensor, torch.Tensor]):
@@ -52,12 +57,24 @@ def svd_flip(
     as_tensor = lambda x: torch.as_tensor(x) if isinstance(x, np.ndarray) else x
     u, v = (as_tensor(var) for var in (u, v))
     
-    max_abs_cols = torch.argmax(torch.abs(u), dim=0)
-    signs = torch.sign(u[max_abs_cols, range(u.shape[1])])
-    u *= signs
-    v *= signs.unsqueeze(-1)
+    if u_based_decision:
+        # For each column j in u, pick row idx_i = argmax |u[i,j]|
+        # signs[j] = sign(u[idx_i, j])
+        # then u[:,j] *= signs[j];  v[j,:] *= signs[j]
+        max_abs_rows = torch.argmax(u.abs(), dim=0)          # shape (n_components,)
+        signs = torch.sign(u[max_abs_rows, torch.arange(u.shape[1], device=u.device)])
+        u = u * signs.unsqueeze(0)
+        v = v * signs.unsqueeze(1)
+    else:
+        # For each row i in v, pick col idx_j = argmax |v[i,j]|
+        # signs[i] = sign(v[i, idx_j])
+        # then v[i,:] *= signs[i];  u[:,i] *= signs[i]
+        max_abs_cols = torch.argmax(v.abs(), dim=1)          # shape (n_components,)
+        signs = torch.sign(v[torch.arange(v.shape[0], device=v.device), max_abs_cols])
+        v = v * signs.unsqueeze(1)
+        if u is not None:
+            u = u * signs.unsqueeze(0)
     return u, v
-
 
 class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
     """
@@ -226,7 +243,7 @@ class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerM
             Vh = Vh.T  ## torch.svd_lowrank returns Vh transposed.
         else:
             U, S, Vh = torch.linalg.svd(X, full_matrices=False)  ## U: (n_samples, n_features), S: (n_features,), Vh: (n_features, n_features). Vh is already transposed.
-        U, Vh = svd_flip(U, Vh)
+        U, Vh = svd_flip(U, Vh, u_based_decision=False)
 
         explained_variance_ = S**2 / (self.n_samples_ - 1)
         explained_variance_ratio_ = explained_variance_ / torch.sum(explained_variance_)
