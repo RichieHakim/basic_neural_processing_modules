@@ -26,7 +26,8 @@ from . import similarity, torch_helpers
 
 def svd_flip(
     u: torch.Tensor, 
-    v: torch.Tensor
+    v: torch.Tensor,
+    u_based_decision: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Sign correction to ensure deterministic output from SVD.
@@ -41,6 +42,8 @@ def svd_flip(
             The left singular vectors.
         v (torch.Tensor):
             The right singular vectors.
+        u_based_decision (bool):
+            If True (default) base the sign decision on *u*, else on *v*.
 
     Returns:
         (Tuple[torch.Tensor, torch.Tensor]):
@@ -49,14 +52,16 @@ def svd_flip(
             v (torch.Tensor):
                 The corrected right singular vectors.
     """
-    as_tensor = lambda x: torch.as_tensor(x) if isinstance(x, np.ndarray) else x
-    u, v = (as_tensor(var) for var in (u, v))
-    
-    max_abs_cols = torch.argmax(torch.abs(u), dim=0)
-    signs = torch.sign(u[max_abs_cols, range(u.shape[1])])
-    u *= signs
-    v *= signs.unsqueeze(-1)
+    # Make sure we have writable tensors (torch may return views)
+    u = u.clone()
+    v = v.clone()
+
+    idx_max = torch.argmax(torch.abs(u), dim=0)
+    signs = torch.sign(u[idx_max, torch.arange(u.shape[1])])
+    u.mul_(signs)                    # broadcast to columns
+    v.mul_(signs.unsqueeze(1))       # broadcast to rows
     return u, v
+
 
 
 class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
@@ -125,19 +130,42 @@ class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerM
         center: bool = True,
         zscale: bool = False,
         whiten: bool = False,
-        use_lowRank: bool = False,
-        lowRank_niter: int = 2,
+        use_lowrank: bool = False,
+        lowrank_niter: int = 2,
     ):
-        """
-        Initializes the PCA module with the provided parameters.
-        """
-        super(PCA, self).__init__()
+        super().__init__()
         self.n_components = n_components
         self.center = center
         self.zscale = zscale
         self.whiten = whiten
-        self.use_lowRank = use_lowRank
-        self.lowRank_niter = lowRank_niter
+        self.use_lowrank = use_lowrank
+        self.lowrank_niter = lowrank_niter
+
+    # ------------------------------------------------------------------ #
+    # helpers
+    # ------------------------------------------------------------------ #
+    def _as_tensor(self, X):
+        if isinstance(X, np.ndarray):
+            X = torch.from_numpy(X)
+        if not isinstance(X, torch.Tensor):
+            raise TypeError("Input must be a numpy array or torch tensor.")
+        if X.ndim == 1:
+            X = X[:, None]
+        if X.ndim != 2:
+            raise ValueError("Input must be 2‑D (n_samples, n_features).")
+        return X.double()  # float64 to mimic sklearn’s default
+
+    def _center_and_scale(self, X: torch.Tensor) -> torch.Tensor:
+        if self.center:
+            mean_ = X.mean(dim=0)
+            X = X - mean_
+            self.register_buffer("mean_", mean_)
+        if self.zscale:
+            std_ = X.std(dim=0, unbiased=False)
+            std_ = torch.where(std_ == 0, torch.ones_like(std_), std_)
+            X = X / std_
+            self.register_buffer("std_", std_)
+        return X
 
     def prepare_input(
         self,
@@ -218,45 +246,29 @@ class PCA(torch.nn.Module, sklearn.base.BaseEstimator, sklearn.base.TransformerM
                     n_components).
         """
         self.n_samples_, self.n_features_ = X.shape
-        # figure out how many components we actually keep
-        self.n_components_ = (
-            min(self.n_components, self.n_features_)
-            if self.n_components is not None
-            else self.n_features_
-        )
+        self.n_components_ = min(self.n_components, self.n_features_) if self.n_components is not None else self.n_features_
 
         X = self.prepare_input(X, center=self.center, zscale=self.zscale)
         if self.use_lowRank:
-            # low‑rank variant already returns exactly q components
-            U, S, Vh = torch.svd_lowrank(
-                X, q=self.n_components_, niter=self.lowRank_niter
-            )
-            Vh = Vh.T  # now shape (n_components_, n_features)
-            # flip signs on those q columns / rows
-            U, Vh = svd_flip(U, Vh)
+            U, S, Vh = torch.svd_lowrank(X, q=self.n_components_, niter=self.lowRank_niter)
+            Vh = Vh.T  ## torch.svd_lowrank returns Vh transposed.
         else:
-            # full SVD
-            U_full, S_full, Vh_full = torch.linalg.svd(
-                X, full_matrices=False
-            )
-            # truncate to just the top n_components_
-            U = U_full[:, : self.n_components_]
-            S = S_full[: self.n_components_]
-            Vh = Vh_full[: self.n_components_, :]
-            # now do the sklearn‑style sign correction
-            U, Vh = svd_flip(U, Vh)
+            U, S, Vh = torch.linalg.svd(X, full_matrices=False)  ## U: (n_samples, n_features), S: (n_features,), Vh: (n_features, n_features). Vh is already transposed.
+        U, Vh = svd_flip(U, Vh)
 
-        # explained variance by each singular value
         explained_variance_ = S**2 / (self.n_samples_ - 1)
         explained_variance_ratio_ = explained_variance_ / torch.sum(explained_variance_)
 
-        # register exactly the truncated buffers
-        self.register_buffer("components_",     Vh)               # (n_components_, n_features)
-        self.register_buffer("singular_values_", S)               # (n_components_,)
-        self.register_buffer("explained_variance_", explained_variance_)          # (n_components_,)
-        self.register_buffer("explained_variance_ratio_", explained_variance_ratio_)  # (n_components_,)
+        components_ = Vh[:self.n_components_]
+        singular_values_ = S[:self.n_components_]
+        explained_variance_ = explained_variance_[:self.n_components_]
+        explained_variance_ratio_ = explained_variance_ratio_[:self.n_components_]
 
-        # return U, S, Vh so that fit_transform can use them
+        [self.register_buffer(name, value) for name, value in zip(
+            ['components_', 'singular_values_', 'explained_variance_', 'explained_variance_ratio_'],
+            [components_, singular_values_, explained_variance_, explained_variance_ratio_]
+        )]
+
         return U, S, Vh
     
     def transform(
