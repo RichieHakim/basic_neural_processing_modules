@@ -7,7 +7,7 @@ from ..decomposition import PCA  # Adjust the import according to your module st
 # Generate a synthetic dataset
 np.random.seed(42)
 torch.manual_seed(42)
-X_np = np.random.randn(100, 10).astype(np.float32)
+X_np = np.random.randn(100, 10).astype(np.float64)
 X_torch = torch.from_numpy(X_np)
 
 def test_fit_transform_equivalence():
