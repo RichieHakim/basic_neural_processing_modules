@@ -840,10 +840,10 @@ def order_cp_factors_by_EVR(
         else:
             # Compute EVR using a predefined function for the non-orthogonalizable case
             evr = cp_reconstruction_EVR(tensor_dense, f)
-        evrs.append(evr)  # Append the computed EVR to the list
+        evrs.append(evr.item())  # Append the computed EVR to the list
 
     # Sort the EVRs in descending order and return the sorted order and EVRs
-    order = evrs.argsort()[::-1]
+    order = np.array(evrs).argsort()[::-1]
     return order, np.array(evrs)[order]
 
 
