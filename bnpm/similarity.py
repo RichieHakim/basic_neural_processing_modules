@@ -934,6 +934,91 @@ def self_similarity_pairwise(mat_set , method='pearson'):
     # print(corr_avg)
     return corr_avg, corr_matched, ind1, ind2, combos
 
+def point_to_roi_distance(
+    query_coords: np.ndarray,
+    roi_coords: np.ndarray,
+) -> np.ndarray:
+    """
+    Compute the minimum Euclidean distance from each query point to the edges
+    of an arbitrary (possibly self-intersecting) polygon defined by ROI vertices.
+
+    The polygon edges are the **closed line segments** that connect successive
+    ROI points, with the final point connecting back to the first.  The output
+    is always **non-negative** and is ``0`` only when the query point lies on
+    (or numerically extremely close to) one of the polygon's edges or vertices.
+    
+    RH 2025
+    (generated from chatgpt-o3)
+
+    Args:
+        query_coords : np.ndarray
+            Array of query points.  
+            Shape ``(n_query, 2)`` where each row is ``(i, j)`` (row, col).
+        roi_coords : np.ndarray
+            Array of polygon vertices.  
+            Shape ``(n_roi, 2)`` where each row is ``(i, j)`` (row, col).
+            The vertex order is respected: vertex *k* connects to vertex *k + 1*
+            and the last vertex connects back to vertex 0.
+
+    Returns:
+        np.ndarray
+            One-dimensional array of length ``n_query`` containing the minimum
+            distance (in the same units as the coordinates) from each query point
+            to the polygon boundary.
+
+    Raises:
+        ValueError
+            If the inputs are not two-dimensional or have incompatible shapes.
+
+    Notes:
+        * The implementation is fully vectorised (``O(n_query x n_roi)`` memory).  
+        For extremely large inputs you may wish to chunk the query points.
+        * Degenerate zero-length edges (duplicate consecutive vertices) are
+        gracefully handled.
+    """
+    # -------- Validation -------------------------------------------------- #
+    if query_coords.ndim != 2 or query_coords.shape[1] != 2:
+        raise ValueError("`query_coords` must have shape (n_query, 2).")
+    if roi_coords.ndim != 2 or roi_coords.shape[1] != 2:
+        raise ValueError("`roi_coords` must have shape (n_roi, 2).")
+
+    if roi_coords.shape[0] < 2:
+        # With <2 distinct ROI points there is no edge to measure against.
+        return np.full(query_coords.shape[0], np.nan, dtype=float)
+
+    # Ensure float computation (avoid integer overflow & preserve precision)
+    P = query_coords.astype(float)
+    V = roi_coords.astype(float)
+
+    # -------- Build edge representation ----------------------------------- #
+    # Edge i: from V[i] to V[i+1]; final edge wraps around to V[0]
+    A = V                                  # (n_roi, 2) start vertices
+    B = np.roll(V, shift=-1, axis=0)       # (n_roi, 2) end   vertices
+    AB = B - A                             # (n_roi, 2)
+    edge_len_sq = np.einsum("ij,ij->i", AB, AB)  # (n_roi,)
+
+    # -------- Vectorised distance calc ------------------------------------ #
+    # Broadcast to (n_query, n_roi, 2)
+    AP = P[:, None, :] - A[None, :, :]     # vector from A to each P
+    # Projection parameter t in [0,1] along AB where the perpendicular drops
+    #     t = (AP · AB) / ||AB||^2
+    # Guard against division by zero (degenerate edges)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        t = np.einsum("qij,ij->qi", AP, AB) / edge_len_sq  # (n_query, n_roi)
+    t = np.clip(t, 0.0, 1.0)                # clamp to segment endpoints
+    t = np.where(np.isfinite(t), t, 0.0)    # replace NaNs from 0-length edges
+
+    # Closest points on each edge: C = A + t * AB
+    C = A[None, :, :] + t[..., None] * AB[None, :, :]  # (n_query, n_roi, 2)
+
+    # Squared distances |P-C|^2
+    dist2 = np.sum((P[:, None, :] - C) ** 2, axis=-1)  # (n_query, n_roi)
+
+    # Minimum distance across all edges
+    min_dist = np.sqrt(np.min(dist2, axis=1))          # (n_query,)
+
+    return min_dist
+
 
 def enumerate_paths(edges):
     """

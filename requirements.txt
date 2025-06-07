@@ -18,6 +18,7 @@ PyYAML
 pytest
 hypothesis
 scikit_learn
+scikit_image
 tqdm
 seaborn
 sparse
