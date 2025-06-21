@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 from . import indexing, torch_helpers
 
 
-def proj(v1, v2):
+def proj(v1, v2, nan_handling='nan'):
     '''
     Projects one or more vectors (columns of v1) onto one or more vectors (v2)
     RH 2021
@@ -25,13 +25,20 @@ def proj(v1, v2):
             vector set 2. Either a single vector or a 2-D array where the columns
              are the vectors
             If None, v2 is set to v1
+        nan_handling (str):
+            How to handle NaN values in the input vectors:
+                * 'zero': replace NaN values with 0
+                * 'nan': keep NaN values as is. Do nothing.
+                * 'ignore': ignore NaN values in the calculation
+                * 'raise': raise an error if NaN values are present
     
     Returns:
-        proj_vec (ndarray): 
-            vector set 1 projected onto vector set 2. 
-            shape: (v1.shape[0], v1.shape[1], v2.shape[1])
-        proj_score (ndarray or scalar): 
-            projection scores. shape: (v1.shape[1], v2.shape[1])
+        tuple:
+            proj_vec (ndarray): 
+                vector set 1 projected onto vector set 2. 
+                shape: (v1.shape[0], v1.shape[1], v2.shape[1])
+            proj_score (ndarray or scalar): 
+                projection scores. shape: (v1.shape[1], v2.shape[1])
     '''
     if isinstance(v1, np.ndarray):
         from opt_einsum import contract
@@ -40,6 +47,23 @@ def proj(v1, v2):
     elif isinstance(v1, torch.Tensor):
         from torch import einsum
         norm = partial(torch.linalg.norm, dim=0, keepdim=True)
+
+    if nan_handling == 'zero':
+        v1 = np.nan_to_num(v1, nan=0.0)
+        v2 = np.nan_to_num(v2, nan=0.0)
+    elif nan_handling == 'nan':
+        pass
+    elif nan_handling == 'ignore':
+        # Ignore NaN values in the calculation.
+        # This is done by replacing NaN values with 0 and then
+        # setting those dimensions to NaN in the output.
+        v1 = np.nan_to_num(v1, nan=0.0)
+        v2 = np.nan_to_num(v2, nan=0.0)
+    elif nan_handling == 'raise':
+        if np.isnan(v1).any() or np.isnan(v2).any():
+            raise ValueError("NaN values found in input vectors. Use nan_handling='zero' or 'ignore' to handle NaN values.")
+    else:
+        raise ValueError(f"nan_handling must be one of: 'zero', 'nan', 'ignore', 'raise'. Got {nan_handling}")
 
     if v2 is None:
         v2 = v1
@@ -53,6 +77,15 @@ def proj(v1, v2):
     u = v2 / norm(v2)
     proj_score = v1.T @ u 
     proj_vec = einsum('ik,jk->ijk', u, proj_score)
+
+    if nan_handling == 'ignore':
+        # If we ignored NaN values, we need to set the projection
+        # dimensions to NaN where the original vectors had NaN values.
+        mask_v1 = np.isnan(v1)
+        mask_v2 = np.isnan(v2)
+        mask = np.logical_or(mask_v1[:, :, None], mask_v2[:, None, :])
+        proj_vec[mask] = np.nan
+        proj_score[mask_v1.any(axis=0)] = np.nan
 
     return proj_vec, proj_score
 
