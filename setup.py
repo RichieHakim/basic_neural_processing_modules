@@ -62,6 +62,7 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'matplotlib',
     'numba',
     'scikit_learn',
+    'scikit_image',
     'tqdm',
     'h5py',
     'opencv_contrib_python',

@@ -1188,7 +1188,17 @@ class Select_ROI:
     RH 2021
     """
 
-    def __init__(self, image, kwargs_subplots={}, kwargs_imshow={}, backend='module://ipympl.backend_nbagg'):
+    def __init__(
+        self, 
+        image, 
+        kwargs_polyline={
+            'color': (255, 255, 255),
+            'thickness': 2
+        },
+        kwargs_subplots={}, 
+        kwargs_imshow={}, 
+        backend='module://ipympl.backend_nbagg',
+    ):
         """
         Initialize the class
 
@@ -1213,6 +1223,7 @@ class Select_ROI:
         self.selected_points = []
         self._selected_points_last_ROI = []
         self._completed_status = False
+        self._kwargs_polyline = kwargs_polyline
 
         ## Prepare figure
         self._fig, self._ax = plt.subplots(**kwargs_subplots)
@@ -1234,12 +1245,14 @@ class Select_ROI:
         """
         pts = np.array(pts, np.int32)
         pts = pts.reshape((-1, 1, 2))
+        kwargs_polyline = self._kwargs_polyline.copy()
+        kwargs_polyline.setdefault('color', (255, 255, 255))
+        kwargs_polyline.setdefault('thickness', 2)
+        kwargs_polyline.setdefault('isClosed', True)
         cv2.polylines(
             img=img, 
             pts=[pts],
-            isClosed=True,
-            color=(255,255,255,),
-            thickness=2
+            **kwargs_polyline
         )
         return img
 

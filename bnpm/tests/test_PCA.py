@@ -7,24 +7,43 @@ from ..decomposition import PCA  # Adjust the import according to your module st
 # Generate a synthetic dataset
 np.random.seed(42)
 torch.manual_seed(42)
-X_np = np.random.randn(100, 10).astype(np.float32)
+X_np = np.random.randn(101, 100).astype(np.float64)
 X_torch = torch.from_numpy(X_np)
 
 def test_fit_transform_equivalence():
     n_components = 5
-    pca_sklearn = sklearnPCA(n_components=n_components, svd_solver='full').fit(X_np)
-    pca_torch = PCA(n_components=n_components).fit(X_torch)
-    
-    # Compare the principal components directly
-    assert np.allclose(pca_sklearn.components_, pca_torch.components_.numpy(), rtol=1e-2), "Principal components do not match within tolerance."
+    np.random.seed(42)
+    torch.manual_seed(42)
 
-    # Transform the data using both PCA implementations
-    X_transformed_sklearn = pca_sklearn.transform(X_np)
-    X_transformed_torch = pca_torch.transform(X_torch).numpy()
-    
-    # Test for equivalence of the transformed data with adjusted tolerances
-    max_diff = np.abs(X_transformed_sklearn - X_transformed_torch).max()
-    assert np.allclose(X_transformed_sklearn, X_transformed_torch, atol=1e-3), f"Transformed data does not match within tolerance. Maximum difference: {max_diff}"
+    for n_components in [1, 5, 50, 100]:
+        for shape in [(101, 100), (100, 101), (50, 50), (2, 100), (100, 2)]:
+            rank = min(shape)
+            if n_components > rank:
+                continue
+            # Generate random data
+            X_np = np.random.randn(*shape).astype(np.float64)
+            X_torch = torch.from_numpy(X_np)
+            
+            pca_sklearn = sklearnPCA(n_components=n_components, svd_solver='full').fit(X_np)
+            pca_torch = PCA(n_components=n_components).fit(X_torch)
+            
+            components_sklearn = pca_sklearn.components_
+            components_torch = pca_torch.components_.numpy()
+            
+            bad_sk = pca_sklearn.singular_values_ < 1e-10
+            components_sklearn[bad_sk] = 0
+            components_torch[bad_sk] = 0
+            
+            # Compare the principal components directly
+            assert np.allclose(components_sklearn, components_torch, rtol=1e-2), "Principal components do not match within tolerance."
+
+            # Transform the data using both PCA implementations
+            X_transformed_sklearn = pca_sklearn.transform(X_np)
+            X_transformed_torch = pca_torch.transform(X_torch).numpy()
+            
+            # Test for equivalence of the transformed data with adjusted tolerances
+            max_diff = np.abs(X_transformed_sklearn - X_transformed_torch).max()
+            assert np.allclose(X_transformed_sklearn, X_transformed_torch, atol=1e-3), f"Transformed data does not match within tolerance. Maximum difference: {max_diff}"
 
 def test_fitTransform_vs_fit_then_transform():
     n_components = 5
@@ -162,16 +181,15 @@ def test_low_rank_approximation_accuracy():
     assert components_diff.mean() < 0.1, "Low-rank approximation deviates too much from full SVD."
 
 def test_low_rank_approximation_accuracy():
-    pca_low_rank = PCA(n_components=5, use_lowRank=True, lowRank_niter=10)
+    pca_low_rank = PCA(n_components=5, use_lowRank=True, lowRank_niter=100)
     pca_low_rank.fit(X_torch)
     
     pca_full_rank = PCA(n_components=5, use_lowRank=False)
     pca_full_rank.fit(X_torch)
-    
+        
     # While we can't expect the low-rank approximation to exactly match the full-rank results,
     # we can check that they're reasonably close, implying the approximation is reasonable.
-    components_diff = np.abs(pca_low_rank.components_.numpy() - pca_full_rank.components_.numpy())
-    assert components_diff.mean() < 0.1, "Low-rank approximation deviates too much from full SVD."
+    assert np.allclose(pca_low_rank.components_.numpy(), pca_full_rank.components_.numpy(), atol=1e-1), "Low-rank approximation deviates too much from full SVD."
 
 def test_n_components_effect():
     for n in [2, 5, 8]:
