@@ -44,23 +44,25 @@ def proj(v1, v2, nan_handling='nan'):
         from opt_einsum import contract
         einsum = contract
         norm = partial(np.linalg.norm, axis=0, keepdims=True)
+        nan_to_num, isnan, logical_or, nan = np.nan_to_num, np.isnan, np.logical_or, np.nan
     elif isinstance(v1, torch.Tensor):
         from torch import einsum
         norm = partial(torch.linalg.norm, dim=0, keepdim=True)
+        nan_to_num, isnan, logical_or, nan = torch.nan_to_num, torch.isnan, torch.logical_or, torch.nan
 
     if nan_handling == 'zero':
-        v1 = np.nan_to_num(v1, nan=0.0)
-        v2 = np.nan_to_num(v2, nan=0.0)
+        v1 = nan_to_num(v1, nan=0.0)
+        v2 = nan_to_num(v2, nan=0.0)
     elif nan_handling == 'nan':
         pass
     elif nan_handling == 'ignore':
         # Ignore NaN values in the calculation.
         # This is done by replacing NaN values with 0 and then
         # setting those dimensions to NaN in the output.
-        v1 = np.nan_to_num(v1, nan=0.0)
-        v2 = np.nan_to_num(v2, nan=0.0)
+        v1 = nan_to_num(v1, nan=0.0)
+        v2 = nan_to_num(v2, nan=0.0)
     elif nan_handling == 'raise':
-        if np.isnan(v1).any() or np.isnan(v2).any():
+        if isnan(v1).any() or isnan(v2).any():
             raise ValueError("NaN values found in input vectors. Use nan_handling='zero' or 'ignore' to handle NaN values.")
     else:
         raise ValueError(f"nan_handling must be one of: 'zero', 'nan', 'ignore', 'raise'. Got {nan_handling}")
@@ -81,11 +83,11 @@ def proj(v1, v2, nan_handling='nan'):
     if nan_handling == 'ignore':
         # If we ignored NaN values, we need to set the projection
         # dimensions to NaN where the original vectors had NaN values.
-        mask_v1 = np.isnan(v1)
-        mask_v2 = np.isnan(v2)
-        mask = np.logical_or(mask_v1[:, :, None], mask_v2[:, None, :])
-        proj_vec[mask] = np.nan
-        proj_score[mask_v1.any(axis=0)] = np.nan
+        mask_v1 = isnan(v1)
+        mask_v2 = isnan(v2)
+        mask = logical_or(mask_v1[:, :, None], mask_v2[:, None, :])
+        proj_vec[mask] = nan
+        proj_score[mask_v1.any(axis=0)] = nan
 
     return proj_vec, proj_score
 

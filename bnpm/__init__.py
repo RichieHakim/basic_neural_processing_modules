@@ -80,4 +80,4 @@ __all__ = [
 for pkg in __all__:
     exec('from . import ' + pkg)
 
-__version__ = '0.6.2'
+__version__ = '0.6.3'
