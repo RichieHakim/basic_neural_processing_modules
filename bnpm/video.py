@@ -1256,26 +1256,35 @@ def add_signal_overlay(
     ## Check inputs
     assert isinstance(vid, np.ndarray), f"vid must be a numpy array. Got {type(vid)}"
     assert isinstance(signal, np.ndarray), f"signal must be a numpy array. Got {type(signal)}"
+    assert np.issubdtype(signal.dtype, np.floating), f"signal must be a floating point type. Got {signal.dtype}"
     assert vid.ndim in [3,4], f"vid must be 3D or 4D. Got {vid.ndim} dimensions"
     vid = vid[..., None] if vid.ndim == 3 else vid
+    
     assert signal.ndim in [1,2], f"signal must be 1D or 2D. Got {signal.ndim} dimensions"
     signal = signal[..., None] if signal.ndim == 1 else signal
+    
     assert vid.shape[0] == signal.shape[0], f"len(frames) of vid and signal must be equal. Got {vid.shape[0]} != {signal.shape[0]}"
     assert (signal.shape[1] == 1) or (signal.shape[1] == vid.shape[-1]), f"signal must have 1 channel or the same number of channels as vid. Got {signal.shape[1]} channels in signal and {vid.shape[-1]} channels in vid"
-    if not normalize:
-        assert vid.dtype == signal.dtype, f"vid and signal must have the same dtype if normalize is False. Got {vid.dtype} and {signal.dtype}"
     assert isinstance(width, int), f"width must be an integer. Got {type(width)}"
     assert isinstance(color, (tuple, list, np.ndarray)), f"color must be a tuple, list, or numpy array. Got {type(color)}"
-    
+    ## color dtype must be floating and 0-1 range
+    assert np.issubdtype(np.array(color).dtype, np.floating), f"color must be a floating point type. Got {np.array(color, dtype=np.float32).dtype}"
+    assert np.all(np.array(color) >= 0) and np.all(np.array(color) <= 1), f"color must be in the range [0, 1]. Got {color}"
+    if np.issubdtype(vid.dtype, np.floating):
+        assert np.all(vid >= 0) and np.all(vid <= 1), f"vid must be in the range [0, 1] for floating point types. Got min: {np.min(vid)}, max: {np.max(vid)}"
+
     ## Normalize the signal
     if normalize:
-        if np.issubdtype(vid.dtype, np.floating):
-            signal = (signal / np.max(signal)).astype(vid.dtype)
-        else:
-            signal = ((signal / np.max(signal)) * np.iinfo(vid.dtype).max).astype(vid.dtype)
-            
-    ## Get the color
-    color = np.array(color, dtype=vid.dtype)
+        signal = (signal / np.max(signal))
+
+    ## make (signals, channels) array
+    signal_colored = (np.array(signal) * np.array(color)[None, :]) 
+    if np.issubdtype(vid.dtype, np.integer):
+        signal_colored = (signal_colored * np.iinfo(vid.dtype).max).astype(vid.dtype)
+    elif np.issubdtype(vid.dtype, np.floating):
+        signal_colored = signal_colored.astype(vid.dtype)
+    else:
+        raise ValueError(f"vid must be a floating point or integer type. Got {vid.dtype}")
 
     ## Make the overlay
     if position in ['top', 'bottom']:
@@ -1284,7 +1293,7 @@ def add_signal_overlay(
         overlay = np.ones((vid.shape[0], vid.shape[1], width, vid.shape[3],), dtype=vid.dtype)
     else:
         raise ValueError(f"Invalid position: {position}")
-    overlay = overlay * color[None,None,None,:] * signal[:,None,None,:]
+    overlay = overlay * signal_colored[:, None, None, :]  ## Make the overlay with the signal color
     
     ## Overlay the signal
     if overlay_or_concatenate == 'overlay':
