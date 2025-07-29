@@ -1667,7 +1667,7 @@ def center_pad_images(images, height_width=None):
     return images_out
 
 
-def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,255,255), line_width=1, font=None, show=False, frameRate=30):
+def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,255,255), line_width=1, font=None, prog_bar=True):
     """
     Add text to images using cv2.putText()
     RH 2022
@@ -1675,7 +1675,7 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
     Args:
         images (np.array):
             frames of video or images.
-            shape: (n_frames, height, width, n_channels)
+            shape: (n_frames, n_channels, height, width) or (n_frames, height, width) or (height, width)
         text (list of lists):
             text to add to images.
             Outer list: one element per frame.
@@ -1692,8 +1692,8 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
             font to use.
             If None, then will use cv2.FONT_HERSHEY_SIMPLEX
             See cv2.FONT... for more options
-        show (bool):
-            if True, then will show the images with text added.
+        prog_bar (bool):
+            if True, then will show a progress bar.
 
     Returns:
         images_with_text (np.array):
@@ -1704,21 +1704,28 @@ def add_text_to_images(images, text, position=(10,10), font_size=1, color=(255,2
     
     if font is None:
         font = cv2.FONT_HERSHEY_SIMPLEX
+
+    input_shape = images.shape
+
+    if images.ndim == 3:
+        images_cp = np.ascontiguousarray(images[None, :, :, :])
+    elif images.ndim == 2:
+        images_cp = np.ascontiguousarray(images[None, None, :, :])
+    elif images.ndim == 4:
+        images_cp = np.ascontiguousarray(images)
+    else:
+        raise ValueError(f"images must have 2, 3, or 4 dimensions. Got {images.ndim} dimensions.")
+    for i_f, frame in enumerate(tqdm(images_cp)):
+        for i_c, frame_gray in enumerate(frame):
+            for i_t, t in enumerate(text[i_f]):
+                def fn_putText(f): 
+                    return cv2.putText(f, t, [position[0] , position[1] + i_t*font_size*30], font, font_size, color, line_width)
+                fn_putText(frame_gray)
     
-    images_cp = copy.deepcopy(images)
-    for i_f, frame in enumerate(images_cp):
-        for i_t, t in enumerate(text[i_f]):
-            fn_putText = lambda frame_gray: cv2.putText(frame_gray, t, [position[0] , position[1] + i_t*font_size*30], font, font_size, color, line_width)
-            if frame.ndim == 3:
-                [fn_putText(frame[:,:,ii]) for ii in range(frame.shape[2])]
-            else:
-                fn_putText(frame)
-        if show:
-            cv2.imshow('add_text_to_images', frame)
-            cv2.waitKey(int(1000/frameRate))
-    
-    if show:
-        cv2.destroyWindow('add_text_to_images')
+    if len(input_shape) == 3:
+        images_cp = images_cp[:, :, :, 0]
+    elif len(input_shape) == 2:
+        images_cp = images_cp[0, :, :, 0]
     return images_cp
 
 
