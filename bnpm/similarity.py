@@ -1,9 +1,10 @@
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple, Optional, Dict, Sequence
 import copy
 import time
 from functools import partial
 
 import numpy as np
+import scipy.ndimage
 import scipy.optimize
 from numba import njit, prange, jit
 import torch
@@ -1053,6 +1054,100 @@ def point_to_roi_distance(
     min_dist = np.sqrt(np.min(dist2, axis=1))          # (n_query,)
 
     return min_dist
+
+
+def local_point_density_binned_kde(
+    x: Union[np.ndarray, Sequence[float]],
+    y: Union[np.ndarray, Sequence[float]],
+    bins: Union[int, Tuple[int, int]] = 1024,
+    sigma: float = 1.0,
+    data_range: Optional[Tuple[Tuple[float, float], Tuple[float, float]]] = None,
+    normalize: bool = True,
+    return_log: bool = False,
+    rank: bool = False,
+    clip_percentiles: Optional[Tuple[float, float]] = (0.5, 99.5),
+    eps: float = 1e-12,
+) -> np.ndarray:
+    """
+    Fast approximation to per-point density using a binned (histogram) KDE on a grid.
+
+    RH 2025
+
+    Args:
+        x, y:
+            1-D arrays of positions (N,).
+        bins:
+            Number of bins per axis or (nx, ny). 1024–4096 works well for ~3M points.
+        sigma:
+            Gaussian std (in *bin units*) used to smooth the histogram (the KDE bandwidth).
+        data_range:
+            ((xmin, xmax), (ymin, ymax)). If None, computed from data.
+            Give tight ranges to avoid wasting bins on extreme outliers.
+        normalize:
+            If True, map the output to [0, 1].
+        return_log:
+            If True, return log-density before normalization / ranking.
+        rank:
+            If True, replace values by their rank / (N-1). This kills dynamic-range issues.
+        clip_percentiles:
+            If not None, clip the returned values to this percentile range before normalization,
+            which usually makes the colormap much nicer.
+        eps:
+            Numerical stability.
+
+    Returns:
+        density (N,): approximate (log-)density per point.
+    """
+    x = np.asarray(x).ravel()
+    y = np.asarray(y).ravel()
+    if x.shape != y.shape:
+        raise ValueError("x and y must have the same shape.")
+
+    if isinstance(bins, int):
+        bins = (bins, bins)
+
+    if data_range is None:
+        xmin, xmax = np.min(x), np.max(x)
+        ymin, ymax = np.min(y), np.max(y)
+        data_range = ((xmin, xmax), (ymin, ymax))
+    else:
+        (xmin, xmax), (ymin, ymax) = data_range
+
+    # 1) 2D histogram
+    H, xedges, yedges = np.histogram2d(x, y, bins=bins, range=data_range)
+    # H is [nx, ny]. We'll use array order [y, x] for map_coordinates, so transpose later.
+
+    # 2) Gaussian blur (approximate KDE)
+    H_sm = scipy.ndimage.gaussian_filter(H, sigma=sigma, mode="nearest")
+
+    # 3) Bilinear interpolation: map point coords -> grid coords
+    # Normalize x,y to [0, bins-1]
+    gx = (x - xmin) / (xmax - xmin + eps) * (bins[0] - 1)
+    gy = (y - ymin) / (ymax - ymin + eps) * (bins[1] - 1)
+
+    # map_coordinates expects order [rows(y), cols(x)] ⇒ density grid is H_sm.T
+    coords = np.vstack([gy, gx])
+    dens = scipy.ndimage.map_coordinates(H_sm.T, coords, order=1, mode="nearest")
+
+    if return_log:
+        dens = np.log(dens + eps)
+
+    if rank:
+        # Rank-transform to [0,1] (robust visual scaling, removes heavy tails)
+        dens = dens.argsort().argsort().astype(np.float64) / (len(dens) - 1 + eps)
+
+    if clip_percentiles is not None and not rank:
+        lo, hi = np.percentile(dens, clip_percentiles)
+        dens = np.clip(dens, lo, hi)
+
+    if normalize and not rank:
+        dmin, dmax = dens.min(), dens.max()
+        if dmax - dmin < eps:
+            dens = np.zeros_like(dens)
+        else:
+            dens = (dens - dmin) / (dmax - dmin + eps)
+
+    return dens
 
 
 def enumerate_paths(edges):
