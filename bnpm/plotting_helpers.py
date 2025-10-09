@@ -1007,6 +1007,7 @@ class Figure_Saver:
         mkdir: bool=True,
         verbose: int=1,
         enabled: bool=True,
+        svg_fontType='none',
     ):
         """
         Initializes Figure_Saver object
@@ -1029,6 +1030,10 @@ class Figure_Saver:
                 2: All info.
             enabled (bool):
                 If False, then the save() method will not save the figure.
+            svg_fontType (str | None):
+                Font type to use for saving .svg files. If None (the python 
+                object), then will usually not save editable text. If some
+                string (like 'none' or others), then will save editable text.
         """
         self.dir_save = str(Path(dir_save).resolve().absolute()) if dir_save is not None else None
 
@@ -1043,6 +1048,8 @@ class Figure_Saver:
         self.mkdir = mkdir
         self.verbose = verbose
         self.enabled = enabled
+
+        self.svg_fontType = svg_fontType
 
     def save(
         self,
@@ -1115,6 +1122,10 @@ class Figure_Saver:
         overwrite = self.overwrite if overwrite is None else overwrite
 
         ## Save figure
+        if self.svg_fontType is not None:
+            svg_fontType_default = plt.rcParams['svg.fonttype']
+            plt.rcParams['svg.fonttype'] = self.svg_fontType
+            
         for path, form in zip(path_save, self.format_save):
             if Path(path).exists():
                 if overwrite:
@@ -1124,6 +1135,9 @@ class Figure_Saver:
                     return None
             print(f'FR: Saving figure {path} as format(s): {form}') if self.verbose > 1 else None
             fig.savefig(path, format=form, **self.kwargs_savefig)
+
+        if self.svg_fontType is not None:
+            plt.rcParams['svg.fonttype'] = svg_fontType_default
 
     def save_batch(
         self,
