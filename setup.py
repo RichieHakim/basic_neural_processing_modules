@@ -82,7 +82,6 @@ deps_core = {dep: deps_all_dict[dep] for dep in [
     'torchvision',
     'torchaudio',
     'ipywidgets',
-    'eva_decord',
     'wandb',
     'sqlalchemy',
     'pymysql',

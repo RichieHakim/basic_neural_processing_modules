@@ -1,6 +1,5 @@
 ## Required
 h5py
-eva_decord
 ipywidgets
 kornia
 matplotlib
