@@ -203,7 +203,7 @@ def scale_between(
         clip = lambda x, low, high: torch.clamp(x, min=low, max=high)
     elif isinstance(x, np.ndarray):
         percentile = lambda x, p: np.percentile(x, q=p, axis=axis, keepdims=True)
-        nanmin = lambda x, axis: np.nanmin(x, axis=axis, keepdims=True)
+        nanmin = lambda x: np.nanmin(x, axis=axis, keepdims=True)
         nanmax = lambda x: np.nanmax(x, axis=axis, keepdims=True)
         clip = lambda x, low, high: np.clip(x, a_min=low, a_max=high)
 
