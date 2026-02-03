@@ -1056,6 +1056,129 @@ def point_to_roi_distance(
     return min_dist
 
 
+def points_in_polygon(
+    roi_vertices: np.ndarray,
+    query_points: np.ndarray,
+    eps: float = 1e-9
+) -> np.ndarray:
+    """
+    Determine whether 2D points lie inside (or on the boundary of) a possibly
+    non-convex polygon defined by an ordered list of vertices, using the
+    ray casting (ray tracing) algorithm.
+
+    RH 2025
+
+    Args:
+        roi_vertices (np.ndarray):
+            Array of shape (N, 2) representing the polygon vertices in order
+            (x, y). The polygon must have at least three vertices (N >= 3) and
+            may be non-convex.
+        query_points (np.ndarray):
+            Array of shape (M, 2) representing the points to check (x, y) format.
+        eps (float):
+            Tolerance for floating‐point comparisons when checking if a point lies
+            exactly on a polygon edge. Defaults to 1e-9.
+
+    Returns:
+        np.ndarray:
+            Boolean array of shape (M,), where True indicates that the corresponding
+            query point is inside or on the boundary of the polygon, and False otherwise.
+
+    Raises:
+        ValueError:
+            If roi_vertices has fewer than 3 vertices, or if input arrays do not
+            have the correct shape (N, 2) and (M, 2).
+    """
+    # === Validate input shapes ===
+    if roi_vertices.ndim != 2 or roi_vertices.shape[1] != 2:
+        raise ValueError(
+            f"roi_vertices must be an array of shape (N, 2), got {roi_vertices.shape}"
+        )
+    if query_points.ndim != 2 or query_points.shape[1] != 2:
+        raise ValueError(
+            f"query_points must be an array of shape (M, 2), got {query_points.shape}"
+        )
+
+    num_vertices = roi_vertices.shape[0]
+    if num_vertices < 3:
+        raise ValueError(
+            f"At least 3 vertices are required to form a polygon, got {num_vertices}"
+        )
+
+    num_queries = query_points.shape[0]
+    inside_mask = np.zeros((num_queries,), dtype=bool)
+
+    # === Helper to check if a point lies exactly on a segment ===
+    def _point_on_segment(px, py, x1, y1, x2, y2):
+        """
+        Check if (px, py) lies on the line segment between (x1, y1) and (x2, y2),
+        within a tolerance eps. Returns True if on segment, False otherwise.
+        """
+        # Compute cross-product to test collinearity:
+        dx_seg = x2 - x1
+        dy_seg = y2 - y1
+        dx_pt = px - x1
+        dy_pt = py - y1
+        cross = dx_seg * dy_pt - dy_seg * dx_pt
+        if abs(cross) > eps:
+            return False
+
+        # Check if projection of point lies between endpoints (in x and y)
+        dot = dx_pt * dx_seg + dy_pt * dy_seg  # projection magnitude
+        if dot < -eps:
+            return False  # point is behind p1
+        squared_len = dx_seg * dx_seg + dy_seg * dy_seg
+        if dot - squared_len > eps:
+            return False  # point is beyond p2
+
+        return True
+
+    # === Loop over each query point ===
+    for qi in range(num_queries):
+        px, py = query_points[qi]
+
+        # 1) Check if the query point lies exactly on any polygon edge:
+        for vi in range(num_vertices):
+            x1, y1 = roi_vertices[vi]
+            x2, y2 = roi_vertices[(vi + 1) % num_vertices]
+            if _point_on_segment(px, py, x1, y1, x2, y2):
+                inside_mask[qi] = True
+                break
+        if inside_mask[qi]:
+            continue  # Already on boundary; no need for ray casting
+
+        # 2) Ray casting: shoot a horizontal ray to the right (positive x direction)
+        #    Count how many times this ray crosses polygon edges.
+        crossings = 0
+        for vi in range(num_vertices):
+            x1, y1 = roi_vertices[vi]
+            x2, y2 = roi_vertices[(vi + 1) % num_vertices]
+
+            # Check if the horizontal ray at y=py intersects the edge (x1,y1)-(x2,y2).
+            # The ray intersects the segment if:
+            #   a) py is strictly between y1 and y2 (excluding the top endpoint to avoid double‐counting),
+            #   b) px < x_intersect, where x_intersect is the x‐coordinate of the intersection.
+            # To handle horizontal edges (y1 == y2), skip them entirely.
+
+            # 2a) Check if edge straddles the horizontal line y=py:
+            if (y1 <= py < y2) or (y2 <= py < y1):
+                # Compute x coordinate of intersection:
+                # Using linear interpolation: 
+                #   t = (py - y1) / (y2 - y1)
+                #   x_intersect = x1 + t * (x2 - x1)
+                t = (py - y1) / (y2 - y1)
+                x_intersect = x1 + t * (x2 - x1)
+
+                # 2b) If intersection lies strictly to the right of px, count it:
+                if x_intersect > px:
+                    crossings += 1
+
+        # If crossings is odd, the point is inside; if even, it's outside
+        inside_mask[qi] = (crossings % 2 == 1)
+
+    return inside_mask
+
+
 def local_point_density_binned_kde(
     x: Union[np.ndarray, Sequence[float]],
     y: Union[np.ndarray, Sequence[float]],
