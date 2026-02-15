@@ -7,7 +7,6 @@ import math
 import numpy as np
 from matplotlib import pyplot as plt
 from numba import njit, jit, prange
-import pandas as pd
 import torch
 
 from . import parallel_helpers
@@ -16,6 +15,17 @@ from . import cross_validation
 from .math_functions import polar2cartesian, cartesian2polar, gaussian
 from . import indexing
 from . import torch_helpers
+
+
+def _require_pandas():
+    try:
+        import pandas as pd
+    except ImportError as e:
+        raise ImportError(
+            "pandas is required for rolling_percentile_pd. "
+            "Install with `pip install bnpm[io]`."
+        ) from e
+    return pd
 
 
 def convolve_along_axis(
@@ -315,6 +325,7 @@ def rolling_percentile_pd(
 
     return output
 def _rolling_ptile_pd_helper(X, win, ptile, kwargs_rolling, interpolation='linear'):
+    pd = _require_pandas()
     return pd.DataFrame(X).rolling(
         window=win, 
         **kwargs_rolling
@@ -746,63 +757,37 @@ def dampening_filter(X: np.ndarray, dampening_factor: float = 0.9):
     return Y
 
 
-## Import jax if available
-try:
-    import jax
-    import jax.numpy as jnp
+@functools.lru_cache(maxsize=1)
+def _get_dampening_filter_jax_impl():
+    try:
+        import jax
+        import jax.numpy as jnp
+    except ImportError as e:
+        raise ImportError(
+            "jax is required for dampening_filter_jax. "
+            "Install with `pip install jax`."
+        ) from e
 
     def dampening_step(carry, x_curr):
-        """
-        Perform a single step of the dampening process.
-        
-        Args:
-            carry: A tuple containing the previous output y (y_prev), the previous input x (x_prev),
-                and the dampening factor.
-            x_curr: Current value of x.
-        
-        Returns:
-            Updated carry and the current y value.
-        """
         y_prev, x_prev, dampening_factor = carry
-        
-        # # Handle division by zero safely. Ensure x_prev is not zero before dividing.
-        # # This avoids the ambiguous truth value error by not using arrays in conditions.
-        # division_result = 0 if x_prev == 0 else y_prev / x_prev
-        
-        # Calculate the current y value using the given formula.
-        y_curr = y_prev * dampening_factor + (x_curr - x_prev) * 1
-        
-        # Update the carry for the next iteration.
+        y_curr = y_prev * dampening_factor + (x_curr - x_prev)
         carry = (y_curr, x_curr, dampening_factor)
         return carry, y_curr
 
     @jax.jit
-    def dampening_filter_jax(X, dampening_factor=0.9):
-        """
-        Applies a recursive dampening filter on a series of data points using JAX.
-        Utilizes `lax.scan` for efficiently applying the dampening step function across the input series.
-        
-        Args:
-            X (jnp.ndarray): Input series on which the dampening filter is applied.
-            dampening_factor (float): Factor used in the dampening calculation.
-        
-        Returns:
-            jnp.ndarray: The series after applying the dampening filter.
-        """
-        # Initial conditions: y is zero and x is the first element of the series.
-        # The carry contains the initial y, initial x, and the dampening factor.
+    def dampening_filter_jax_impl(X, dampening_factor=0.9):
         initial_carry = (jnp.zeros_like(X[0]), X[0], dampening_factor)
-        
-        # Apply the dampening step across the series. Skip the first element since it's part of the initial conditions.
         _, Y = jax.lax.scan(dampening_step, initial_carry, X[1:])
-        
-        # Include the initial y value at the start of the series.
-        Y = jnp.concatenate([jnp.zeros_like(X[:1]), Y])
-        
-        return Y
+        return jnp.concatenate([jnp.zeros_like(X[:1]), Y])
 
-except ImportError:
-    pass
+    return dampening_filter_jax_impl
+
+
+def dampening_filter_jax(X, dampening_factor=0.9):
+    """
+    Applies a recursive dampening filter using JAX.
+    """
+    return _get_dampening_filter_jax_impl()(X, dampening_factor=dampening_factor)
         
 ####################################
 ######## PYTORCH algorithms ########

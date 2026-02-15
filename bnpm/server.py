@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 import os
 import json
@@ -8,9 +10,26 @@ import sys
 import datetime
 import getpass
 
-import natsort
+def _require_natsort():
+    try:
+        import natsort
+    except ImportError as e:
+        raise ImportError(
+            "natsort is required for natural sorting in server helpers. "
+            "Install with `pip install bnpm[io]`."
+        ) from e
+    return natsort
 
-from . import container_helpers
+
+def _require_paramiko():
+    try:
+        import paramiko
+    except ImportError as e:
+        raise ImportError(
+            "paramiko is required for SSH/SFTP operations. "
+            "Install with `pip install bnpm[server]`."
+        ) from e
+    return paramiko
 
 def batch_run(
     paths_scripts, 
@@ -126,6 +145,7 @@ def batch_run(
     import json
     import os
     import shutil
+    from . import container_helpers
 
     # make sure the arguments are matched in length
     n_jobs = max(len(paths_scripts), len(params_list), len(sbatch_config_list))
@@ -175,7 +195,6 @@ def batch_run(
 ### MASTER CONTROLLER STUFF ###
 ###############################
 
-import paramiko
 import time
 from pathlib import Path
 import os
@@ -209,7 +228,8 @@ class ssh_interface():
         self.nbytes = nbytes_toReceive
         self.recv_timeout = recv_timeout
         self.verbose=verbose
-        
+
+        paramiko = _require_paramiko()
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     
@@ -611,6 +631,7 @@ class sftp_interface():
             port (int):
                 Port of the remote server.
         """
+        paramiko = _require_paramiko()
         if ssh_client is None:
             self.transport = paramiko.Transport((hostname, port))  ## open a transport object
         else:
@@ -639,6 +660,7 @@ class sftp_interface():
                 Password to log in with.
                 Is not stored.
         """
+        paramiko = _require_paramiko()
         if hasattr(self, 'transport'):
             self.transport.connect(None, username, password)  ## authorization
             self.sftp = paramiko.SFTPClient.from_transport(self.transport)  ## open sftp
@@ -836,7 +858,11 @@ class sftp_interface():
                 print(f'cwd: {cwd}, name: {name}, isdir: {isdir}, depth: {depth_current}') if verbose > 1 else None
             return search_results
         
-        fn_sort = natsort.natsorted if natsorted else lambda x: x
+        if natsorted:
+            natsort = _require_natsort()
+            fn_sort = natsort.natsorted
+        else:
+            fn_sort = lambda x: x
         
         return fn_sort(_recursive_search(
             search_results, 
@@ -1293,6 +1319,7 @@ class _SFTPFileDownloader:
     _DOWNLOAD_MAX_CHUNK_SIZE = 0x8000
 
     def __init__(self, f_in: paramiko.SFTPFile, f_out: typing.BinaryIO, callback=None, prefetch=False):
+        self._paramiko = _require_paramiko()
         self.f_in = f_in
         self.f_out = f_out
         self.callback = callback
@@ -1351,6 +1378,7 @@ class _SFTPFileDownloader:
 
     def _sftp_async_read_request(self, fileobj, file_handle, offset, size):
         sftp_client = self.f_in.sftp
+        paramiko = self._paramiko
 
         with sftp_client._lock:
             num = sftp_client.request_number
@@ -1368,6 +1396,7 @@ class _SFTPFileDownloader:
         return num
 
     def _async_response(self, t, msg, num):
+        paramiko = self._paramiko
         if t == paramiko.sftp.CMD_STATUS:
             # save exception and re-raise it on next file operation
             try:

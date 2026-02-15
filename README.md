@@ -16,6 +16,17 @@ pip install bnpm[core]
 
 If installing on a server or any computer without graphics/display, install using `core_cv2Headless`. If you accidentally installed the normal version, simply please uninstall `pip uninstall opencv-contrib-python` and install `pip install opencv-contrib-python-headless` instead. 
 
+Functional extras are also available:
+- `bnpm[ml]` for modeling and optimization tools
+- `bnpm[plot]` for plotting and visualization utilities
+- `bnpm[io]` for file/data IO helpers
+- `bnpm[sql]` for SQL backends
+- `bnpm[server]` for remote/server helpers
+- `bnpm[video]` for video processing helpers
+- `bnpm[gpu]` for optional GPU ecosystem packages
+- `bnpm[dev]` for test/dev tooling
+- `bnpm[all]` for the full dependency set
+
 
 Install development version:
 ```

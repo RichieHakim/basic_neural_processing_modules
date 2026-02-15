@@ -1,9 +1,30 @@
+from __future__ import annotations
+
 from typing import Optional, Union, List, Tuple, Dict, Any, Iterable, Sequence
 
 import urllib
 
-import sqlalchemy
-import pandas as pd
+
+def _require_sqlalchemy():
+    try:
+        import sqlalchemy
+    except ImportError as e:
+        raise ImportError(
+            "sqlalchemy is required for SQL connection operations. "
+            "Install with `pip install bnpm[sql]`."
+        ) from e
+    return sqlalchemy
+
+
+def _require_pandas():
+    try:
+        import pandas as pd
+    except ImportError as e:
+        raise ImportError(
+            "pandas is required for SQL dataframe operations. "
+            "Install with `pip install bnpm[io]` or `pip install bnpm[sql]`."
+        ) from e
+    return pd
 
 
 def make_url(
@@ -173,6 +194,7 @@ def make_sql_connection(
         (sqlalchemy.engine.base.Connection):
             SQL connection object
     """
+    sqlalchemy = _require_sqlalchemy()
     return sqlalchemy.create_engine(
         url=url,
         echo=echo,
@@ -203,6 +225,8 @@ def get_available_databases(
         (pd.DataFrame):
             DataFrame of all databases
     """
+    sqlalchemy = _require_sqlalchemy()
+    pd = _require_pandas()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if "mysql" in str(engine):
         query = "SHOW DATABASES"
@@ -238,6 +262,7 @@ def get_available_tables(
         (pd.DataFrame):
             DataFrame of all tables
     """
+    sqlalchemy = _require_sqlalchemy()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     return sqlalchemy.inspect(engine).get_table_names(schema=database)
 
@@ -265,6 +290,8 @@ def get_table_columns(
         (pd.DataFrame):
             DataFrame of all columns
     """
+    sqlalchemy = _require_sqlalchemy()
+    pd = _require_pandas()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if "mysql" in str(engine):
         if database is None:
@@ -311,6 +338,8 @@ def get_table_data(
         (pd.DataFrame):
             DataFrame of all data
     """
+    sqlalchemy = _require_sqlalchemy()
+    pd = _require_pandas()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if "mysql" in str(engine):
         if database is None:
@@ -352,6 +381,7 @@ def create_database(
         kwargs_connection (dict):
             Additional keyword arguments to be passed to sqlalchemy.create_engine
     """
+    sqlalchemy = _require_sqlalchemy()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if "mysql" in str(engine):
         query = f"CREATE DATABASE {database}"
@@ -383,6 +413,7 @@ def drop_database(
         kwargs_connection (dict):
             Additional keyword arguments to be passed to sqlalchemy.create_engine
     """
+    sqlalchemy = _require_sqlalchemy()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if "mysql" in str(engine):
         query = f"DROP DATABASE {database}"
@@ -421,6 +452,7 @@ def create_table(
         kwargs_connection (dict):
             Additional keyword arguments to be passed to sqlalchemy.create_engine
     """
+    sqlalchemy = _require_sqlalchemy()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if "mysql" in str(engine):
         if database is None:
@@ -471,6 +503,7 @@ def drop_table(
          kwargs_connection (dict):
             Additional keyword arguments to be passed to sqlalchemy.create_engine
    """
+    sqlalchemy = _require_sqlalchemy()
     engine = sqlalchemy.create_engine(url, **kwargs_connection)
     if "mysql" in str(engine):
         if database is None:
