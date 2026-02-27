@@ -94,4 +94,4 @@ def __getattr__(name: str) -> ModuleType:
 def __dir__():
     return sorted(set(globals()) | set(__all__))
 
-__version__ = '0.7.0'
+__version__ = '0.7.1'

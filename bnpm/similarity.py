@@ -1273,6 +1273,136 @@ def local_point_density_binned_kde(
     return dens
 
 
+def _estimate_core(
+    factors: List[torch.Tensor],
+    X: torch.Tensor,
+) -> torch.Tensor:
+    """Estimate the Tucker core tensor from CP factor matrices and data.
+
+    Given factor matrices U^(k) from a CP decomposition, computes the
+    optimal Tucker core:
+
+        G = X  ×_1 U^(1)†  ×_2 U^(2)†  ×_3 U^(3)†  ...
+
+    Uses the efficient SVD-based method of Papalexakis et al. (2015),
+    generalized to N-way tensors via Buis & Dold (1996).
+
+    Parameters
+    ----------
+    factors : list of torch.Tensor, each (n_k, R)
+        Factor matrices (weights should already be absorbed into one factor).
+    X : torch.Tensor
+        Data tensor of shape (n_1, n_2, ..., n_m).
+
+    Returns
+    -------
+    G : torch.Tensor
+        Core tensor of shape (R, R, ..., R) with m modes.
+    """
+    m = len(factors)
+    G = X
+
+    # Compute SVDs once
+    svds = []
+    for U in factors:
+        u, s, vh = torch.linalg.svd(U, full_matrices=False)
+        svds.append((u, s, vh))
+
+    # Step 1: project by U^T along each mode (last axis each time,
+    # since each tensordot moves the result to the front)
+    for u, s, vh in reversed(svds):
+        # Contract last axis of G with columns of u
+        G = torch.tensordot(u.T, G, dims=([1], [G.ndim - 1]))
+
+    # Step 2: multiply by diag(s^{-1}) along each mode
+    for u, s, vh in reversed(svds):
+        s_pinv = torch.where(s != 0, 1.0 / s, torch.zeros_like(s))
+        G = torch.tensordot(torch.diag(s_pinv), G, dims=([1], [G.ndim - 1]))
+
+    # Step 3: project by Vh^T along each mode
+    for u, s, vh in reversed(svds):
+        G = torch.tensordot(vh.T, G, dims=([1], [G.ndim - 1]))
+
+    return G.contiguous()
+def corcondia(
+    factors: List[torch.Tensor],
+    X: torch.Tensor,
+    weights: Optional[torch.Tensor] = None,
+    normalized: bool = False,
+) -> float:
+    """Core Consistency Diagnostic (CORCONDIA) for CP decomposition.
+
+    CORCONDIA (Bro & Kiers, 2003) measures whether a CP decomposition's factor
+    matrices are consistent with a superdiagonal Tucker core.  A score near 100
+    means the CP model is appropriate at the given rank; a score near 0 or
+    negative means the rank is too high or the data violates CP structure.
+
+        ~100  → CP model is appropriate at this rank
+        ~0    → rank is too high; significant off-diagonal core structure
+        < 0   → severe model violation
+
+    Parameters
+    ----------
+    factors : list of torch.Tensor, each (n_k, R)
+        Factor matrices from a CP decomposition.
+    X : torch.Tensor
+        Data tensor of shape (n_1, n_2, ..., n_m).
+    weights : torch.Tensor of shape (R,), optional
+        Component weights (λ).  If provided, absorbed into factors[0].
+        If None, factors are used as-is (weights assumed already absorbed
+        or all-ones).
+    normalized : bool
+        If False (default), denominator is R (matches Bro & Kiers 2003).
+        If True, denominator is ||G||_F^2 (matches the N-way toolbox;
+        score is unlikely to go below 0).
+
+    Returns
+    -------
+    cc : float
+        Core consistency score.
+        
+    Usage:
+    import torch
+    from corcondia import corcondia, estimate_core
+
+    # factors: list of (n_k, R) tensors
+    # weights: (R,) tensor or None
+    # X: the data tensor
+    score = corcondia(factors, X, weights=weights)
+    """
+    R = factors[0].shape[1]
+    m = len(factors)
+
+    # Absorb weights into the first factor
+    factors = [f.clone() for f in factors]
+    if weights is not None:
+        factors[0] = factors[0] * weights.unsqueeze(0)
+
+    # Estimate core
+    G = estimate_core(factors, X)
+
+    # Superdiagonal target: T[r,r,...,r] = 1, else 0
+    T = torch.zeros([R] * m, dtype=G.dtype, device=G.device)
+    idx = torch.arange(R, device=G.device)
+    T[(idx,) * m] = 1.0
+
+    # Core consistency
+    diff_sq = torch.sum((G - T) ** 2)
+    if normalized:
+        denom = torch.sum(G ** 2)
+    else:
+        denom = torch.tensor(float(R), dtype=G.dtype, device=G.device)
+
+    cc = 100.0 - 100.0 * (diff_sq / denom).item()
+    return cc
+
+
+
+
+
+
+
+
 def enumerate_paths(edges):
     """
     From Caleb Weinreb 2022
